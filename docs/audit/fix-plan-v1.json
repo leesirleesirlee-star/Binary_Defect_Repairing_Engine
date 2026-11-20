@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "plan_id": "cwe121-handle-strcpy-guard-v1",
+  "fixture_id": "cwe121-handle-strcpy",
+  "contract_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "model": {
+    "provider": "internal",
+    "name": "binary-security-analyst",
+    "prompt_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "diagnosis": {
+    "function": "handle",
+    "address": "0x401194",
+    "instruction": "call 0x401060",
+    "cwe": "CWE-121",
+    "confidence": 1.0,
+    "evidence": [
+      "0x40118a: lea rax, [rbp - 0x20] defines the destination 32-byte stack buffer",
+      "0x40118e/0x401191: rsi and rdi are set to argv[1] and the stack buffer, respectively",
+      "0x401194: call 0x401060 invokes strcpy@plt with no length limit",
+      "The proof-of-concept input of 32 or more bytes overwrites the saved frame and produces SIGSEGV"
+    ]
+  },
+  "root_cause": "handle copies attacker-controlled argv[1] into a 32-byte stack buffer using an unbounded strcpy, so input length >= 32 overwrites saved rbp/return address.",
+  "strategy": "trampoline_guard",
+  "edits": [
+    {
+      "kind": "redirect_call",
+      "address": "0x401194",
+      "original_bytes": "e8 c7 fe ff ff",
+      "new_bytes": "e8 78 00 00 00",
+      "target": "0x401211",
+      "reason": "Redirect the vulnerable strcpy call site to the guard stub in the R-X segment tail."
+    },
+    {
+      "kind": "code",
+      "address": "0x401211",
+      "original_bytes": "",
+      "new_bytes": "57 48 89 f7 31 c0 48 c7 c1 ff ff ff ff f2 ae 48 c7 c0 fe ff ff ff 48 29 c8 5f 48 83 f8 1f 77 05 e9 2a fe ff ff b8 01 00 00 00 bf 02 00 00 00 48 8d 35 19 00 00 00 ba 2a 00 00 00 0f 05 b8 3c 00 00 00 bf 01 00 00 00 0f 05",
+      "reason": "Guard stub: compute argv[1] length, tail-call strcpy if <=31; otherwise write invalid_stderr to fd 2 and exit(1)."
+    },
+    {
+      "kind": "data",
+      "address": "0x401260",
+      "original_bytes": "",
+      "new_bytes": "45 52 52 4f 52 3a 20 69 6e 70 75 74 20 65 78 63 65 65 64 73 20 64 65 73 74 69 6e 61 74 69 6f 6e 20 63 61 70 61 63 69 74 79 0a",
+      "reason": "Exact invalid_stderr bytes written on the invalid path."
+    }
+  ],
+  "stub": {
+    "language": "asm",
+    "source": "push rdi\nmov rdi, rsi\nxor eax, eax\nmov rcx, -1\nrepne scasb\nmov rax, -2\nsub rax, rcx\npop rdi\ncmp rax, 31\nja .error\njmp 0x401060\n.error:\nmov eax, 1\nmov edi, 2\nlea rsi, [rip + message]\nmov edx, 42\nsyscall\nmov eax, 60\nmov edi, 1\nsyscall\nmessage:\n.byte 'ERROR: input exceeds destination capacity', 0x0a\n",
+    "estimated_size_bytes": 73
+  },
+  "valid_path": "The stub computes the length of argv[1]. If the length is <=31, it restores the original destination pointer and tail-calls strcpy@plt (0x401060). strcpy writes the input plus NUL into the 32-byte buffer and returns to 0x401199. handle then calls puts, writing the input followed by a single LF to stdout; main returns 0.",
+  "invalid_path": "If the length is >31, the stub branches to the error path. It uses write(2, invalid_stderr, 42) and exit(1) syscalls, never returning to handle. Therefore no strcpy or puts occurs, stdout remains empty, fd 2 receives exactly the 42 invalid_stderr bytes, and the process exits with status 1 without crashing.",
+  "stated_criteria_coverage": [
+    {
+      "criterion": "capacity_bytes=32 / capacity_includes_terminator=true",
+      "how": "The guard allows at most 31 bytes before the terminating NUL, so strcpy writes at most 32 bytes into the destination buffer."
+    },
+    {
+      "criterion": "max_valid_input_bytes=31",
+      "how": "The guard compares the source length to 31 and treats lengths >31 as invalid."
+    },
+    {
+      "criterion": "valid_domain: printable ASCII, length 0..31, no NUL",
+      "how": "The guard only rejects based on length; argv[1] is a NUL-terminated C string, so valid-domain strings are handled correctly."
+    },
+    {
+      "criterion": "valid_behavior: write input followed by LF to stdout; exit 0",
+      "how": "The valid path tail-calls the original strcpy and returns to the existing puts call; the original main return value of 0 is preserved."
+    },
+    {
+      "criterion": "forbidden_behavior: no write past buf[31]",
+      "how": "The length check prevents strcpy from copying more than 31 bytes plus the terminator, so the saved frame is not overwritten."
+    },
+    {
+      "criterion": "invalid_response: write exactly invalid_stderr to fd 2; exit 1; no stdout; no crash",
+      "how": "The error path uses raw write and exit syscalls to emit the exact 42 invalid_stderr bytes and terminate with status 1 without returning to handle."
+    }
+  ],
+  "assumptions": [
+    "The bytes at 0x401211 and 0x401260 are within the existing R-X segment and are unused padding after .fini; they may be overwritten under allowed_edits.",
+    "Linux x86_64 syscall ABI is available; no new imports, PLT/GOT entries, or text relocations are needed.",
+    "argv[1] is a NUL-terminated C string; embedded NUL characters are not part of the valid domain.",
+    "The original valid-path return value is preserved because the stub tail-calls strcpy and does not alter the return address or callee-saved registers.",
+    "The execution environment permits syscall from the R-X segment."
+  ],
+  "uncertainties": [
+    "The bytes currently at 0x401211 and 0x401260 are not shown in the disassembly; the plan assumes they are available padding and can be overwritten.",
+    "contract_sha256 and prompt_sha256 are not supplied; zero hashes are used as placeholders.",
+    "The verifier may expect a conventional libc exit rather than a raw exit syscall; the contract forbids new dynamic imports but does not forbid syscall.",
+    "The exact contents of the old bytes in the unused tail are not specified; an empty original_bytes indicates no known original bytes."
+  ],
+  "verification_proposal": [
+    "Apply the three edits at the specified addresses without changing segment permissions or adding imports.",
+    "Run with argv[1] length 31 (31 printable ASCII): expect stdout exactly arg + LF, exit code 0, stderr empty.",
+    "Run with argv[1] length 32 (32 printable ASCII): expect exit code 1, stdout empty, stderr exactly the 42 invalid_stderr bytes, no SIGSEGV.",
+    "Run with the PoC 64 'A' bytes: expect exit code 1, no SIGSEGV, stderr exactly the invalid_stderr bytes, stdout empty.",
+    "Run with empty string: expect stdout LF only, exit 0.",
+    "Check that the handle valid path returns to 0x401199 and main returns 0."
+  ]
+}
