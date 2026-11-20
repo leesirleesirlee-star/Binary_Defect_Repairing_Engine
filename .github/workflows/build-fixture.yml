@@ -1,4 +1,4 @@
-name: build-fixture
+﻿name: build-fixture
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: sudo apt-get update && sudo apt-get install -y gcc binutils
-      - run: python -m pip install pyelftools capstone
+      - run: python -m pip install pytest pyelftools capstone
       - name: Build twice and record manifest
         shell: bash
         run: |
@@ -91,6 +91,7 @@ jobs:
           fi
           git commit -m "chore(fixture): record build failure [skip ci]"
           git push
+
 
 
 
