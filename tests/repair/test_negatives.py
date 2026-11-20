@@ -246,7 +246,11 @@ def test_schema_mapping_preserves_required_fields(tmp_path: Path) -> None:
     assert normalized["schema_mapping"]["target"] == "EditManifestV1"
     mapped = to_edit_manifest_v1(manifest)
     assert mapped["schema_version"] == 1
-    assert mapped["schema_status"] == "draft-pending-M1"
+    assert mapped["manifest_kind"] == "EditManifestV1"
+    assert "schema_status" not in mapped
+    assert mapped["extensions"]["schema_mapping"]["status"] == "draft-pending-M1"
+    assert mapped["fixture_id"]
+    assert mapped["plan_id"]
     assert mapped["verdict"] is None
 
 
