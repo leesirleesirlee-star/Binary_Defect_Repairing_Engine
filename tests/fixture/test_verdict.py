@@ -38,7 +38,8 @@ def _observations(role: str = "candidate", mutate=None):
 
 
 def test_all_candidate_cases_verified() -> None:
-    assert decide(CONTRACT, CORPUS, _observations())["outcome"] == "verified_against_stated_criteria"
+    verdict = decide(CONTRACT, CORPUS, _observations())
+    assert verdict["outcome"] == "verified_against_stated_criteria"
 
 
 def test_invalid_stderr_mismatch_rejected() -> None:
@@ -69,4 +70,7 @@ def test_original_crash_or_undefined_is_observed() -> None:
             observed["exit_code"] = 0
             observed["signal"] = None
 
-    assert decide(CONTRACT, CORPUS, _observations(role="original", mutate=mutate), role="original")["outcome"] == "observed_original"
+    verdict = decide(
+        CONTRACT, CORPUS, _observations(role="original", mutate=mutate), role="original"
+    )
+    assert verdict["outcome"] == "observed_original"

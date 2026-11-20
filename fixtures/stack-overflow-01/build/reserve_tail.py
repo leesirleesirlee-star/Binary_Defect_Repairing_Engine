@@ -37,9 +37,9 @@ def main() -> int:
     loads = []
     for i in range(phnum):
         off = phoff + i * phentsize
-        p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align = struct.unpack_from(
-            "<IIQQQQQQ", data, off
-        )
+        (
+            p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align
+        ) = struct.unpack_from("<IIQQQQQQ", data, off)
         if p_type == PT_LOAD:
             loads.append({
                 "index": i, "off": off, "flags": p_flags, "offset": p_offset,

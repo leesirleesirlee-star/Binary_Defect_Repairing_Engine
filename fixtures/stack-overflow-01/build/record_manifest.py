@@ -13,7 +13,6 @@ import json
 import platform
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 from capstone import CS_ARCH_X86, CS_MODE_64, Cs
@@ -28,6 +27,10 @@ def cmd(*args: str) -> str:
     return subprocess.check_output(args, text=True).strip()
 
 
+def rwx(flags: int) -> str:
+    return ("R" if flags & 4 else "-") + ("W" if flags & 2 else "-") + ("X" if flags & 1 else "-")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fixture", required=True, type=Path)
@@ -36,7 +39,6 @@ def main() -> int:
     root = args.fixture.resolve()
     source = root / "build" / "vuln.c"
     binary = root / "vuln.elf"
-    cases = json.loads((root / "cases" / "cases.json").read_text(encoding="utf-8"))
     contract_path = root / "contract.json"
     contract = json.loads(contract_path.read_text(encoding="utf-8"))
 
@@ -61,11 +63,11 @@ def main() -> int:
                     "vaddr": hex(seg["p_vaddr"]),
                     "filesz": seg["p_filesz"],
                     "memsz": seg["p_memsz"],
-                    "flags": ("R" if flags & 4 else "-") + ("W" if flags & 2 else "-") + ("X" if flags & 1 else "-"),
+                    "flags": rwx(flags),
                 })
             if seg["p_type"] == "PT_GNU_STACK":
                 flags = int(seg["p_flags"])
-                segments.append({"type": "PT_GNU_STACK", "flags": ("R" if flags & 4 else "-") + ("W" if flags & 2 else "-") + ("X" if flags & 1 else "-")})
+                segments.append({"type": "PT_GNU_STACK", "flags": rwx(flags)})
         symbols = {}
         symtab = elf.get_section_by_name(".symtab")
         if symtab:
@@ -130,7 +132,10 @@ def main() -> int:
                 "target": "strcpy@plt",
             }
         if sub_rsp is None or call_strcpy is None:
-            print(f"debug: handle={start:#x} size={handle['st_size']} sub_rsp={sub_rsp} call={call_strcpy} buf_off={buf_off}")
+            print(
+                f"debug: handle={start:#x} size={handle['st_size']} "
+                f"sub_rsp={sub_rsp} call={call_strcpy} buf_off={buf_off}"
+            )
             for insn in md.disasm(code, start):
                 print(f"debug: {insn.address:#x}: {insn.mnemonic} {insn.op_str}")
             raise SystemExit("could not recover handle frame / strcpy call")
@@ -158,7 +163,10 @@ def main() -> int:
             "uname": cmd("uname", "-a"),
             "python": platform.python_version(),
         },
-        "command": "gcc -O0 -g0 -fno-stack-protector -fno-pie -no-pie -fno-builtin -m64 -Wall -Wextra -Wl,-z,noexecstack -Wl,--build-id=none -o vuln.elf vuln.c",
+        "command": (
+            "gcc -O0 -g0 -fno-stack-protector -fno-pie -no-pie -fno-builtin -m64 -Wall -Wextra "
+            "-Wl,-z,noexecstack -Wl,--build-id=none -o vuln.elf vuln.c"
+        ),
         "source": {"path": "build/vuln.c", "sha256": sha(source)},
         "binary": {"path": "vuln.elf", "sha256": sha(binary), "size": binary.stat().st_size},
         "elf": header,
