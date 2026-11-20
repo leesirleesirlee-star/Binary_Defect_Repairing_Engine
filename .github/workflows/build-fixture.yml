@@ -51,6 +51,16 @@ jobs:
           status=$?
           cat build/ci-build.txt
           exit $status
+      - name: Acceptance checks
+        shell: bash
+        run: |
+          set -eu
+          cd fixtures/stack-overflow-01
+          readelf -h vuln.elf | grep -E 'ELF64|Advanced Micro Devices X86-64|EXEC'
+          readelf -sW vuln.elf | grep -E ' (handle|main|strcpy@plt|puts@plt)$'
+          objdump -d vuln.elf | grep -E 'call.*<strcpy@plt>'
+          readelf -d vuln.elf | grep NEEDED | grep libc.so.6
+          test -z "$(readelf -sW vuln.elf | grep stack_chk || true)"
       - name: Fixture tests
         shell: bash
         run: |
