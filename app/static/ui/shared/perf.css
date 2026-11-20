@@ -1,0 +1,25 @@
+/* Interaction-time performance layer.
+ *
+ * The expensive live blur is suspended only on the largest moving surfaces
+ * while the user is interacting. Sidebar/rail glass and all motion stay
+ * exactly as designed, so the hover-expand animation keeps its original look.
+ */
+html.perf-busy .chat-main,
+html.perf-busy .execution-pane,
+html.perf-busy .topbar,
+html.perf-busy .composer,
+html.perf-busy .composer-card {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Promote only the moving surfaces for the short interaction window. */
+html.perf-busy .chat-main,
+html.perf-busy .execution-pane,
+html.perf-busy .desktop-nav,
+html.perf-busy .rail,
+html.perf-busy .topbar,
+html.perf-busy .app-ghost,
+html.perf-busy .crossfade-in {
+  will-change: transform, opacity;
+}

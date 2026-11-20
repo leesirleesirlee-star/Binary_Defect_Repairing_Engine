@@ -1,3 +1,7 @@
+> **Superseded (M2 GUI plan, 2026-11-20):** the four-screen scope is replaced by
+> [`conversation-console-plan.md`](conversation-console-plan.md) on the M1 `gui-plan`
+> branch. This file remains as the historical record.
+
 # GUI schema review for the four screens
 
 Status: M2 review against merged PR #22 (`fd2b784`) under the **roadmap
