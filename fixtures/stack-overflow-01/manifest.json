@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "fixture_id": "stack-overflow-01",
-  "built_at": "2026-11-20T13:07:30Z",
+  "built_at": "2026-11-20T13:27:02Z",
   "toolchain": {
     "gcc": "gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
     "ld": "GNU ld (GNU Binutils for Ubuntu) 2.46",
