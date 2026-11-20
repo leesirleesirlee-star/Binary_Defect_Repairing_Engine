@@ -35,5 +35,5 @@
     "no CET shadow-stack enforcement",
     "guest runs with no network and no credentials"
   ],
-  "binary_sha256": "10602531c92092cffbdc34688e12e4b97548cc2c03f4453506bdd4f1c9058d07"
+  "binary_sha256": "705ab9290094218af7164fb6415cde14bd800b040d52f3fc1e9d1b766b3d9c26"
 }
