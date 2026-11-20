@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "note": "Golden snapshots only prove deterministic tool output. They are not repair evidence, not a candidate and not a verdict.",
+  "canonicalization": {
+    "hash_field": "manifest_sha256",
+    "excluded_fields": [
+      "created_at",
+      "manifest_sha256",
+      "original.path",
+      "contract.path"
+    ],
+    "json": "sort_keys=True, separators=(',', ':'), ensure_ascii=False",
+    "tool_version": "0.1.0-dryrun"
+  },
+  "cases": [
+    {
+      "id": "with-reserved-tail",
+      "description": "synthetic ELF with a file-backed 0x1000-byte R-X segment and zero tail",
+      "input": {
+        "reserved_tail": true,
+        "patch_site_vaddr": "0x401194",
+        "cave_vaddr": "0x401220",
+        "strcpy_plt_vaddr": "0x401060"
+      },
+      "expected": {
+        "status": "manifest_written",
+        "manifest_sha256": "436b0f6b31611adfc1cb29f8c4d60e125f18672fc64b922d0ac9a87e3516d9cc",
+        "original_sha256": "d46109edcf062dbadefef28e00b12fc0a350361935d96638e44eef8c560983d5",
+        "patch_site": {
+          "vaddr": "0x401194",
+          "file_offset": "0x1194",
+          "original_bytes": "e8c7feffff",
+          "patch_bytes": "e887000000",
+          "call_rel32": 135
+        },
+        "cave": {
+          "vaddr": "0x401220",
+          "file_offset": "0x1220",
+          "total_size": 111,
+          "code_size": 69,
+          "message_size": 42
+        },
+        "trampoline_blob_sha256": "6d992a1c96c71ddcd5fc8fd3ce125c79207e01bb772c47dfe468420fe6e6cc95",
+        "preview_sha256": "4f52cf39b54cf1440dd9338436be51ca6235fec2a60a3e175a3895398c1d959b",
+        "invariants": {
+          "headers_unchanged": true,
+          "entry_unchanged": true,
+          "pt_load_count_unchanged": true,
+          "pt_load_flags_unchanged": true,
+          "no_new_segments": true,
+          "no_wx_segments": true,
+          "dynamic_unchanged": true,
+          "no_new_imports": true,
+          "changed_bytes_covered": true
+        },
+        "reversibility": {
+          "matches_original": true,
+          "restored_sha256": "d46109edcf062dbadefef28e00b12fc0a350361935d96638e44eef8c560983d5"
+        },
+        "verdict": null
+      }
+    },
+    {
+      "id": "without-reserved-tail",
+      "description": "the pre-ADR synthetic ELF; no file-backed tail exists, so no manifest may be produced",
+      "input": {
+        "reserved_tail": false,
+        "patch_site_vaddr": "0x401194",
+        "cave_vaddr": "0x401220",
+        "strcpy_plt_vaddr": "0x401060"
+      },
+      "expected": {
+        "status": "unsupported",
+        "original_sha256": "48be7891c353e7f5275cac963025c3d544ebf7e3970d3e19e35cd09905de183c",
+        "manifest_sha256": null,
+        "candidate_written": false,
+        "verdict_written_by_m5": false,
+        "cave_finder_detail_contains": "not in one PT_LOAD"
+      }
+    }
+  ]
+}
