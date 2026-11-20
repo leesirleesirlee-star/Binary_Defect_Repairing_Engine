@@ -79,11 +79,16 @@ entered only when the previous level's acceptance record exists.
 | **L0** | the frozen MVP2 fixture; human-frozen contract; symbols present; reserved executable tail | nothing - this is MVP2 | `verified_against_stated_criteria` on the L0 contract |
 | **L1** | same fixture family; contract derived from cases; symbols present; reserved tail | contract derivation, iteration loop, export | same, with `criteria_source: derived_from_cases` |
 | **L2** | binaries without a reserved tail | cave finding, or segment extension with its own proof; structure checks | same, provided the structural invariant holds |
-| **L3** | stripped binaries | localisation without symbols (crash site, stack trace, disassembly slice) | same, with explicit unmeasured fields where symbols would have helped |
+| **L3** | stripped binaries (research track) | localisation without symbols (crash site, stack trace, disassembly slice) | same, with explicit unmeasured fields where symbols would have helped |
 | **L4** | defect classes beyond a crashing memory-safety bug | not designed here | `unsupported` until designed |
 
 L4 is deliberately undefined. A wrong-output defect has no crash site to anchor
 localisation, so it needs a different design, not a bigger prompt.
+
+L3 and L4 are research tracks, not delivery commitments. They appear here so that
+the interface, the schemas and the refusal vocabulary do not pretend those cases
+are solved. L2 is engineering work: cave finding and structural proof are known
+problems with known tools, even when they are not trivial.
 
 L2 revisits an option that MVP2 rejected: ADR 0001 refused segment extension for
 the MVP2 fixture because the fixture could reserve its tail at build time. In the
