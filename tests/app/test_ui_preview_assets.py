@@ -1,11 +1,10 @@
 """Keep both standalone preview pages portable after asset moves."""
 
-from html.parser import HTMLParser
-from pathlib import Path
 import re
 import unittest
+from html.parser import HTMLParser
+from pathlib import Path
 from urllib.parse import urlsplit
-
 
 UI_ROOT = Path(__file__).resolve().parents[2] / "app" / "static" / "ui"
 IMPORT = re.compile(r"""(?:\bfrom\s*|\bimport\s*\()['"]([^'"]+)['"]""")
@@ -60,3 +59,9 @@ class PreviewAssetsTest(unittest.TestCase):
     def test_archive_assets_are_present(self):
         for path in ("workbench.html", "workbench/workbench.css", "workbench/workbench.mjs"):
             self.assert_local_file(UI_ROOT, path)
+    def test_s2_guided_intake_assets_are_present(self):
+        for path in ("chat/guided.css", "chat/guided-intake.mjs"):
+            self.assert_local_file(UI_ROOT, path)
+        page = (UI_ROOT / "chat/index.html").read_text(encoding="utf-8")
+        self.assertIn("guided-intake.mjs", page)
+
