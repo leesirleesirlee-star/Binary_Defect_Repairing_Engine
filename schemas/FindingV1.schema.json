@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FindingV1",
+  "description": "The suspected defect site and the evidence for it. A hypothesis until the verifier confirms the candidate; never a verdict.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "fixture_id",
+    "function",
+    "address",
+    "instruction",
+    "cwe",
+    "confidence",
+    "status",
+    "evidence",
+    "view_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "fixture_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "function": {
+      "type": "string",
+      "minLength": 1
+    },
+    "address": {
+      "type": "string",
+      "pattern": "^0x[0-9a-f]+$"
+    },
+    "instruction": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cwe": {
+      "type": "string",
+      "pattern": "^CWE-[0-9]+$"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "status": {
+      "enum": [
+        "hypothesis",
+        "confirmed_by_analysis",
+        "refuted"
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "view_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sub_rsp": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "buf_rbp_offset": {
+          "type": "string",
+          "pattern": "^-?0x[0-9a-f]+$"
+        },
+        "saved_rip_offset": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "report_id": "audit-2026-11-20-01",
+  "date": "2026-11-20",
+  "fixture_sha256": "9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f",
+  "contract_sha256": "856b6ad2dabf69b705836f3a7c6466b534034cb1a4770a43f3fb596a11ce578c",
+  "corpus_sha256": "fae5efd054358d16610987f5645eadc582ce53ac12debeb356941d6617ceec3d",
+  "model": {
+    "provider": "deepseek",
+    "name": "deepseek-chat",
+    "temperature": 0
+  },
+  "prompt_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "runs": [
+    {
+      "run_index": 1,
+      "schema_valid": true,
+      "plan_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "score": 86,
+      "critical_errors": [],
+      "usable": true,
+      "notes": "complete plan, names the real call site"
+    },
+    {
+      "run_index": 2,
+      "schema_valid": false,
+      "plan_sha256": null,
+      "score": null,
+      "critical_errors": [
+        "invalid JSON"
+      ],
+      "usable": false,
+      "notes": "kept in the table, not retried away"
+    },
+    {
+      "run_index": 3,
+      "schema_valid": true,
+      "plan_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "score": 74,
+      "critical_errors": [
+        "ignores the invalid-path criterion"
+      ],
+      "usable": true,
+      "notes": "proposes strncpy without rejection"
+    }
+  ],
+  "selected_plan": {
+    "run_index": 1,
+    "plan_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "summary": "redirect the call to a guard in the reserved tail, preserve the valid path"
+  },
+  "reviewer_scores": {
+    "m1": 86,
+    "m5": 82,
+    "resolved": 84
+  },
+  "correctness_established": true,
+  "decision": "proceed",
+  "rationale": "run 1 covers every stated criterion and its verification proposal distinguishes fixed from broken; run 3 fails a critical item",
+  "limitations": [
+    "one fixture, one model, three runs, same-team review"
+  ]
+}
