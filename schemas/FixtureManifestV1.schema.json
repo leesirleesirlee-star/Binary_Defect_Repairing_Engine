@@ -311,6 +311,10 @@
         "mechanism": {
           "type": "string"
         },
+        "script": {
+          "type": "string",
+          "description": "Build-relative path of the step that extended the segment, for provenance."
+        },
         "script_sha256": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
