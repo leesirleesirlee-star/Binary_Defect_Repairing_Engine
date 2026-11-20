@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "fixture_id": "stack-overflow-01",
+  "target_function": "handle",
+  "stated_criteria": {
+    "capacity_bytes": 32,
+    "capacity_includes_terminator": true,
+    "max_valid_input_bytes": 31,
+    "valid_domain": "printable ASCII, length 0..31, no NUL",
+    "valid_behavior": "write the input followed by a single LF to stdout; exit 0",
+    "forbidden_behavior": "any write past buf[31], including the terminating NUL",
+    "invalid_response": "write exactly the bytes of invalid_stderr to fd 2; exit 1; write nothing to stdout; do not crash",
+    "invalid_stderr": "ERROR: input exceeds destination capacity\n"
+  },
+  "allowed_edits": {
+    "redirect": "one 5-byte relative call at the strcpy call site",
+    "added_code": "at most 256 bytes in the existing R-X segment verified-unused tail",
+    "added_data": "at most 64 bytes in the same R-X segment, RIP-relative references only",
+    "forbidden": [
+      "new segment",
+      "new dynamic import or PLT/GOT entry",
+      "text relocation",
+      "W+X permission",
+      "change to the entry point or the original function return value on the valid path"
+    ]
+  },
+  "environment_assumptions": [
+    "Linux x86-64, non-PIE",
+    "glibc with strcpy/puts PLT stubs",
+    "no CET shadow-stack enforcement",
+    "guest runs with no network and no credentials"
+  ],
+  "binary_sha256": "10602531c92092cffbdc34688e12e4b97548cc2c03f4453506bdd4f1c9058d07",
+  "criteria_source": "human_frozen",
+  "diagnostic_hypothesis": {
+    "statement": "handle copies argv[1] into a 32-byte stack buffer with an unbounded strcpy, so inputs of 32 bytes or more overwrite the saved frame",
+    "status": "to_be_confirmed_by_analysis",
+    "note": "A hypothesis, not an acceptance criterion."
+  }
+}
