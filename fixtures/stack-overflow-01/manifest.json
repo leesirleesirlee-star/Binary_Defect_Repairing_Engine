@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "fixture_id": "stack-overflow-01",
-  "built_at": "2026-11-20T13:05:54Z",
+  "built_at": "2026-11-20T13:07:30Z",
   "toolchain": {
     "gcc": "gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
     "ld": "GNU ld (GNU Binutils for Ubuntu) 2.46",
-    "uname": "Linux ip-10-0-135-172 7.0.0-1016-aws #17-Ubuntu SMP PREEMPT Mon Oct 19 17:36:33 UTC 2026 x86_64 GNU/Linux",
+    "uname": "Linux runnervmccnms 7.0.0-1019-azure #20-Ubuntu SMP PREEMPT Mon Oct 19 22:41:16 UTC 2026 x86_64 GNU/Linux",
     "python": "3.12.16"
   },
   "command": "gcc -O0 -g0 -fno-stack-protector -fno-pie -no-pie -fno-builtin -m64 -Wall -Wextra -Wl,-z,noexecstack -Wl,--build-id=none -o vuln.elf vuln.c",
