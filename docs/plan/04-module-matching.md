@@ -41,8 +41,8 @@ review unit**.
 | `guest` | Isolated execution and observation | M3 | `@chenfanaichifan` | `guest/` | G1 |
 | `verify` | Deterministic checks and verdict | M3 | `@chenfanaichifan` | `pipeline/verify/`, `tests/verify/` | G3 |
 | `analysis` | ELF facts and disassembly view | M4 | `@hxw64` | `pipeline/analyze/`, `tests/analysis/`, `docs/analysis/` | G2 |
-| `ai` | Provider transport and prompt | M4 | `@hxw64` | `pipeline/ai/`, `prompts/` | G2 |
-| `audit` | Audit runner, rubric, report | M4 | `@hxw64` | `pipeline/audit/`, `docs/audit/` | G2 |
+| `ai` | Provider transport and prompt | M4 | `@hxw64` | `pipeline/ai/`, `prompts/`, `tests/ai/` | G2 |
+| `audit` | Audit runner, rubric, report | M4 | `@hxw64` | `pipeline/audit/`, `docs/audit/`, `tests/audit/` | G2 |
 | `repair` | Cave finder, patch, manifest | M5 | `@lyz200807` | `pipeline/repair/`, `tests/repair/`, `docs/repair/` | G3 |
 | `gui` | FastAPI app, templates, rendering | M2 | `@huajinyao` | `app/`, `tests/app/`, `docs/gui/` | G4 |
 
@@ -64,7 +64,7 @@ checked against it:
       "title": "Audit runner, rubric, report",
       "seat": "M4",
       "owner": "@hxw64",
-      "paths": ["pipeline/audit/", "docs/audit/"],
+      "paths": ["pipeline/audit/", "docs/audit/", "tests/audit/"],
       "may_depend_on": ["contract", "analysis", "ai"],
       "forbidden_paths": ["fixtures/"],
       "interfaces": ["FixPlanV1", "AuditReportV1"],

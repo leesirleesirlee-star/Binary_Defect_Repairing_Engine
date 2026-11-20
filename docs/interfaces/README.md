@@ -15,6 +15,7 @@ a notification; it is not a handoff.
 | H8 | `observations-*.json` | M3 | M2, M1 | `ObservationV1` | G3 |
 | H9 | `verdict.json` | M3 verifier | M2, M1 | `VerdictV1` | G3 |
 | H10 | `evidence-bundle.json` | M1 assembles | M2, report | `EvidenceBundleV1` | G4 |
+| H11 | `var/events/{task_id}.jsonl` + SSE replay | runner (infra, M1) | M2 | `gui-events-v1` (this directory) | G2 |
 
 ## Rules
 

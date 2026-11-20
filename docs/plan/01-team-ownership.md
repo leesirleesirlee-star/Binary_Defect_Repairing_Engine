@@ -139,7 +139,9 @@ pipeline/analyze/**   ELF facts, function slice, disassembly view, FindingV1
 pipeline/ai/**        provider client, prompt builder, output schema validation
 pipeline/audit/**     run harness, rubric, report generator
 prompts/**            versioned prompt templates (no source material)
-tests/analysis/**     disassembly, prompt separation, schema tests
+tests/analysis/**     disassembly, source-separation and schema tests
+tests/ai/**           prompt and response-validation tests
+tests/audit/**        harness and report tests
 docs/analysis/**      design notes
 docs/audit/**         audit reports and raw outputs
 ```
@@ -195,7 +197,7 @@ assembler and its boundary tests, without touching the fixture.
 | `schemas/**`, `docs/interfaces/**`, `docs/adr/**`, `docs/plan/**`, `scripts/**` | M1 | all | all |
 | `app/**`, `tests/app/**`, `docs/gui/**` | M2 | M1 | M3, M4, M5 |
 | `fixtures/**`, `guest/**`, `pipeline/verify/**`, `tests/fixture/**`, `docs/fixture/**` | M3 | M1, M5 | M2, M4 |
-| `pipeline/analyze/**`, `pipeline/ai/**`, `pipeline/audit/**`, `prompts/**`, `tests/analysis/**`, `docs/analysis/**`, `docs/audit/**` | M4 | M1, M5 | M2, M3 |
+| `pipeline/analyze/**`, `pipeline/ai/**`, `pipeline/audit/**`, `prompts/**`, `tests/analysis/**`, `tests/ai/**`, `tests/audit/**`, `docs/analysis/**`, `docs/audit/**` | M4 | M1, M5 | M2, M3 |
 | `pipeline/repair/**`, `tests/repair/**`, `docs/repair/**` | M5 | M1, M3 | M2, M4 |
 | `docs/archive/**` | M1 | all | all (read-only) |
 | `var/**` | nobody | - | committed by nobody; gitignored |
