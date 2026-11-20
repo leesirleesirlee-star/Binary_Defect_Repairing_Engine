@@ -61,6 +61,11 @@ def test_approval_binding_and_start_is_honest(client: TestClient) -> None:
                         headers={"Idempotency-Key": "test-key"})
     assert start.status_code == 200
     assert start.json()["run_id"].startswith("run_")
+    replay = client.post(f"/api/tasks/{task_id}/start",
+                         json={"expected_review_binding_digest": digest},
+                         headers={"Idempotency-Key": "test-key"})
+    assert replay.status_code == 200
+    assert replay.json()["run_id"] == start.json()["run_id"]
     deadline = time.monotonic() + 60
     records = []
     while time.monotonic() < deadline:

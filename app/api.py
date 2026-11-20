@@ -245,6 +245,7 @@ def start_task(
         raise _error(409, "preview_only")
     if not idempotency_key:
         raise _error(400, "idempotency_key_required")
+    previous = dict(task.get("idempotency") or {})
     try:
         acknowledgement = tasks.begin_start(
             task_id,
@@ -255,6 +256,9 @@ def start_task(
         raise _error(409, "stale_approval") from error
     except PermissionError as error:
         raise _error(409, "approval_required") from error
+    if idempotency_key in previous:
+        # Same key replays the original acknowledgement; never spawn a second runner.
+        return acknowledgement
     runner = _BASE / "scripts" / "run_task.py"
     if not runner.is_file():
         tasks.set_execution(
