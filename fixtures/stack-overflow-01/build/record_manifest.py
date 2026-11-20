@@ -100,6 +100,9 @@ def main() -> int:
             if m:
                 buf_off = -int(m.group(1), 16)
         if sub_rsp is None or call_strcpy is None:
+            print(f"debug: handle={start:#x} size={handle['st_size']} sub_rsp={sub_rsp} call={call_strcpy} buf_off={buf_off}")
+            for insn in md.disasm(code, start):
+                print(f"debug: {insn.address:#x}: {insn.mnemonic} {insn.op_str}")
             raise SystemExit("could not recover handle frame / strcpy call")
         frame_method = "lea rbp displacement"
         if buf_off is None:
