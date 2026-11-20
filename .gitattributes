@@ -1,0 +1,10 @@
+# Keep repository text as LF so CI, hashes and diffs are stable on Windows.
+* text=auto eol=lf
+
+# Binary fixtures and images must not be normalized.
+*.elf binary
+*.bin binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary

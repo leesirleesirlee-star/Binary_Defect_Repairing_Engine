@@ -1,0 +1,80 @@
+name: Task
+description: One module, one owner, one deliverable.
+title: "[module] "
+labels: ["type:feat"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Add exactly one `module:<id>` label after creating the issue.
+        If this task touches two modules, split it or ask M1 for `module:integration`.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What user-visible or evidence-visible outcome does this produce?
+    validations:
+      required: true
+  - type: dropdown
+    id: seat
+    attributes:
+      label: Seat
+      options: [M1, M2, M3, M4, M5]
+    validations:
+      required: true
+  - type: dropdown
+    id: module
+    attributes:
+      label: Module
+      options:
+        - contract
+        - infra
+        - fixture
+        - guest
+        - verify
+        - analysis
+        - ai
+        - audit
+        - repair
+        - gui
+    validations:
+      required: true
+  - type: dropdown
+    id: gate
+    attributes:
+      label: Gate
+      options: [G0, G1, G2, G3, G4]
+    validations:
+      required: true
+  - type: textarea
+    id: inputs
+    attributes:
+      label: Inputs
+      description: Artifact IDs and hashes this task consumes (H1, H2, ...).
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Observable checks, not adjectives.
+      placeholder: |
+        - [ ] check 1
+        - [ ] check 2
+        - [ ] evidence artifact committed
+    validations:
+      required: true
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: What this task deliberately does not do.
+    validations:
+      required: false
+  - type: input
+    id: depends
+    attributes:
+      label: Dependencies
+      description: Blocked by #... / blocks #...
+    validations:
+      required: false

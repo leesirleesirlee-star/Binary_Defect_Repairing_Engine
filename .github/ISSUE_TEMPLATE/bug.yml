@@ -1,0 +1,60 @@
+name: Bug
+description: A defect in the repository, a check or the evidence chain.
+title: "[bug] "
+labels: ["type:fix"]
+body:
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Command, input and the exact commit.
+      placeholder: |
+        commit:
+        command:
+        input:
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: Exit code, stdout, stderr, signal, hashes.
+    validations:
+      required: true
+  - type: dropdown
+    id: module
+    attributes:
+      label: Suspected module
+      options:
+        - contract
+        - infra
+        - fixture
+        - guest
+        - verify
+        - analysis
+        - ai
+        - audit
+        - repair
+        - gui
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python, tool versions, host vs guest.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Log excerpt or artifact link. No secrets or client data.
+    validations:
+      required: false

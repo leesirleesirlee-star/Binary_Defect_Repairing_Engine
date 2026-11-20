@@ -1,0 +1,16 @@
+# Tool configuration only. The repository is not installed as a package;
+# CI installs requirements.txt and runs the checks directly.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+    "guest: requires the disposable guest; never runs on the host or in CI",
+]

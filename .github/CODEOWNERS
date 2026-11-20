@@ -1,0 +1,57 @@
+# CODEOWNERS for Binary_Defect_Repairing_Engine.
+# GitHub uses the last matching pattern, so specific module rules come after
+# the default. A second handle on an M1 path is a review backup, not an edit
+# permission. The module registry in modules.json is the source of truth.
+# Seat mapping (confirmed 2026-11-20): M1 @leesirleesirlee-star (lead), M2 @huajinyao,
+# M3 @chenfanaichifan, M4 @hxw64, M5 @lyz200807.
+
+*                                   @leesirleesirlee-star @huajinyao
+
+/.github/                           @leesirleesirlee-star @huajinyao
+/README.md                          @leesirleesirlee-star @huajinyao
+/START-HERE.md                      @leesirleesirlee-star @huajinyao
+/AGENTS.md                          @leesirleesirlee-star @huajinyao
+/CONTRIBUTING.md                    @leesirleesirlee-star @huajinyao
+/SECURITY.md                        @leesirleesirlee-star @huajinyao
+/LICENSE                            @leesirleesirlee-star @huajinyao
+/requirements.txt                   @leesirleesirlee-star @huajinyao
+/pyproject.toml                     @leesirleesirlee-star @huajinyao
+/modules.json                       @leesirleesirlee-star @huajinyao
+/scripts/                           @leesirleesirlee-star @huajinyao
+/docs/plan/                         @leesirleesirlee-star @huajinyao
+/docs/MIGRATION.md                  @leesirleesirlee-star @huajinyao
+/docs/README.md                     @leesirleesirlee-star @huajinyao
+/docs/archive/                      @leesirleesirlee-star @huajinyao
+
+# contract module
+/schemas/                           @leesirleesirlee-star @huajinyao
+/docs/interfaces/                   @leesirleesirlee-star @huajinyao
+/docs/adr/                          @leesirleesirlee-star @huajinyao
+/tests/contract/                    @leesirleesirlee-star @huajinyao
+
+# fixture, guest and verify modules (M3)
+/fixtures/                          @chenfanaichifan
+/guest/                             @chenfanaichifan
+/pipeline/verify/                   @chenfanaichifan
+/tests/fixture/                     @chenfanaichifan
+/tests/verify/                      @chenfanaichifan
+/docs/fixture/                      @chenfanaichifan
+
+# analysis, ai and audit modules (M4)
+/pipeline/analyze/                  @hxw64
+/pipeline/ai/                       @hxw64
+/pipeline/audit/                    @hxw64
+/prompts/                           @hxw64
+/tests/analysis/                    @hxw64
+/docs/analysis/                     @hxw64
+/docs/audit/                        @hxw64
+
+# repair module (M5)
+/pipeline/repair/                   @lyz200807
+/tests/repair/                      @lyz200807
+/docs/repair/                       @lyz200807
+
+# gui module (M2)
+/app/                               @huajinyao
+/tests/app/                         @huajinyao
+/docs/gui/                          @huajinyao

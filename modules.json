@@ -1,0 +1,274 @@
+{
+  "schema_version": 1,
+  "description": "Single source of truth for module ownership, write scope and gates. Every path in the repository must match exactly one module by the longest-prefix rule.",
+  "module_label_prefix": "module:",
+  "integration_label": "module:integration",
+  "seats": {
+    "M1": "@leesirleesirlee-star",
+    "M2": "@huajinyao",
+    "M3": "@chenfanaichifan",
+    "M4": "@hxw64",
+    "M5": "@lyz200807"
+  },
+  "ignored_prefixes": [
+    "var/",
+    ".git/",
+    ".venv/",
+    "__pycache__/",
+    ".pytest_cache/",
+    ".ruff_cache/"
+  ],
+  "modules": [
+    {
+      "id": "contract",
+      "title": "Contracts, schemas and interfaces",
+      "seat": "M1",
+      "owner": "@leesirleesirlee-star",
+      "paths": [
+        "schemas/",
+        "docs/interfaces/",
+        "docs/adr/",
+        "tests/contract/"
+      ],
+      "may_depend_on": [],
+      "forbidden_paths": [],
+      "interfaces": [
+        "ContractV1",
+        "FixPlanV1",
+        "ObservationV1",
+        "VerdictV1",
+        "EditManifestV1"
+      ],
+      "gate": "G0",
+      "notes": "The written criteria and the result vocabulary. Only M1 edits; consumers propose changes through an ADR."
+    },
+    {
+      "id": "infra",
+      "title": "Repository, CI, plans and archive",
+      "seat": "M1",
+      "owner": "@leesirleesirlee-star",
+      "paths": [
+        ".github/",
+        "scripts/",
+        "docs/",
+        "tests/",
+        "README.md",
+        "START-HERE.md",
+        "AGENTS.md",
+        "CONTRIBUTING.md",
+        "SECURITY.md",
+        "LICENSE",
+        ".gitignore",
+        ".gitattributes",
+        ".editorconfig",
+        "requirements.txt",
+        "pyproject.toml",
+        "modules.json",
+        "pipeline/README.md"
+      ],
+      "may_depend_on": [],
+      "forbidden_paths": [],
+      "interfaces": [],
+      "gate": "G0",
+      "notes": "Catch-all for docs/ and tests/; specific modules declare longer prefixes and win."
+    },
+    {
+      "id": "fixture",
+      "title": "Vulnerable sample, PoC and corpus",
+      "seat": "M3",
+      "owner": "@chenfanaichifan",
+      "paths": [
+        "fixtures/",
+        "tests/fixture/",
+        "docs/fixture/"
+      ],
+      "may_depend_on": [
+        "contract"
+      ],
+      "forbidden_paths": [],
+      "interfaces": [
+        "FixtureManifestV1",
+        "CaseSetV1"
+      ],
+      "gate": "G1",
+      "notes": "Contains the build-only source. Analysis and AI code must never read fixtures/**/build/."
+    },
+    {
+      "id": "guest",
+      "title": "Isolated execution and observation",
+      "seat": "M3",
+      "owner": "@chenfanaichifan",
+      "paths": [
+        "guest/"
+      ],
+      "may_depend_on": [
+        "contract",
+        "fixture"
+      ],
+      "forbidden_paths": [
+        "fixtures/**/build/"
+      ],
+      "interfaces": [
+        "ObservationV1"
+      ],
+      "gate": "G1",
+      "notes": "The only place a fixture or candidate executes. No network, no credentials, snapshot reset."
+    },
+    {
+      "id": "verify",
+      "title": "Deterministic checks and verdict writer",
+      "seat": "M3",
+      "owner": "@chenfanaichifan",
+      "paths": [
+        "pipeline/verify/",
+        "tests/verify/"
+      ],
+      "may_depend_on": [
+        "contract",
+        "fixture",
+        "guest"
+      ],
+      "forbidden_paths": [
+        "pipeline/ai/",
+        "pipeline/audit/",
+        "pipeline/repair/",
+        "fixtures/**/build/"
+      ],
+      "interfaces": [
+        "VerdictV1"
+      ],
+      "gate": "G3",
+      "notes": "Reads the candidate and the frozen corpus, never the AI plan or the repair source."
+    },
+    {
+      "id": "analysis",
+      "title": "ELF facts and disassembly view",
+      "seat": "M4",
+      "owner": "@hxw64",
+      "paths": [
+        "pipeline/analyze/",
+        "tests/analysis/",
+        "docs/analysis/"
+      ],
+      "may_depend_on": [
+        "contract"
+      ],
+      "forbidden_paths": [
+        "fixtures/**/build/",
+        "pipeline/ai/",
+        "pipeline/repair/"
+      ],
+      "interfaces": [
+        "DisassemblyViewV1",
+        "FindingV1"
+      ],
+      "gate": "G2",
+      "notes": "Deterministic extraction only. No model call and no source text."
+    },
+    {
+      "id": "ai",
+      "title": "Provider transport and prompt builder",
+      "seat": "M4",
+      "owner": "@hxw64",
+      "paths": [
+        "pipeline/ai/",
+        "prompts/"
+      ],
+      "may_depend_on": [
+        "contract",
+        "analysis"
+      ],
+      "forbidden_paths": [
+        "fixtures/",
+        "pipeline/verify/",
+        "app/"
+      ],
+      "interfaces": [
+        "FixPlanV1"
+      ],
+      "gate": "G2",
+      "notes": "The prompt receives the disassembly view and the contract, never source, corpus or key material."
+    },
+    {
+      "id": "audit",
+      "title": "Audit runner, rubric and report",
+      "seat": "M4",
+      "owner": "@hxw64",
+      "paths": [
+        "pipeline/audit/",
+        "docs/audit/"
+      ],
+      "may_depend_on": [
+        "contract",
+        "analysis",
+        "ai"
+      ],
+      "forbidden_paths": [
+        "fixtures/**/build/",
+        "pipeline/verify/"
+      ],
+      "interfaces": [
+        "FixPlanV1",
+        "AuditReportV1"
+      ],
+      "gate": "G2",
+      "notes": "Three runs, fixed rubric, human review. No cherry-picking and no self-scoring."
+    },
+    {
+      "id": "repair",
+      "title": "Cave finder, patch writer and edit manifest",
+      "seat": "M5",
+      "owner": "@lyz200807",
+      "paths": [
+        "pipeline/repair/",
+        "tests/repair/",
+        "docs/repair/"
+      ],
+      "may_depend_on": [
+        "contract",
+        "analysis",
+        "audit"
+      ],
+      "forbidden_paths": [
+        "pipeline/verify/",
+        "fixtures/**/cases/",
+        "app/"
+      ],
+      "interfaces": [
+        "EditManifestV1",
+        "CandidateV1"
+      ],
+      "gate": "G3",
+      "notes": "Implements the approved plan. Must not read the verifier or the hidden corpus; must not apply a fix before G2."
+    },
+    {
+      "id": "gui",
+      "title": "FastAPI app, templates and rendering",
+      "seat": "M2",
+      "owner": "@huajinyao",
+      "paths": [
+        "app/",
+        "tests/app/",
+        "docs/gui/"
+      ],
+      "may_depend_on": [
+        "contract",
+        "analysis",
+        "audit",
+        "repair",
+        "verify"
+      ],
+      "forbidden_paths": [
+        "pipeline/verify/",
+        "pipeline/repair/",
+        "pipeline/ai/"
+      ],
+      "interfaces": [
+        "TaskViewV1",
+        "VerdictV1"
+      ],
+      "gate": "G4",
+      "notes": "Renders persisted JSON. Never computes a verdict or a success label. May read verdict JSON by path, not by import."
+    }
+  ]
+}

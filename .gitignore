@@ -1,0 +1,27 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+pytest-cache-files-*/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Runtime artifacts; never commit job data, logs or session tokens
+var/
+.env
+*.log
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Build output at the repository root only. Do not ignore fixtures/**/build/:
+# that directory holds the vulnerable sample's source and build recipe.
+/build/
+/dist/

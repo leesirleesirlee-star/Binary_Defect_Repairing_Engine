@@ -1,0 +1,7 @@
+# Host-side and CI dependencies for MVP2.
+# Guest-only tools (gcc, readelf, objdump) are documented in docs/plan/03.
+pytest>=8,<10
+ruff>=0.6,<1
+jsonschema>=4.21,<5
+pyelftools>=0.33,<1
+capstone>=5.0,<6
