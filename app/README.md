@@ -23,3 +23,5 @@ Owner: M2 (`gui` module). Gate: G4.
   routes; do not copy the old backend.
 - The GUI does not import `pipeline.verify`, `pipeline.repair` or `pipeline.ai`.
 - No client data, key or private log in the browser.
+- The four screens share one layout and one CSS entry point; a page that forks
+  the layout is a review blocker.
