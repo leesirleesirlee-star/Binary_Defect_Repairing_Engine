@@ -25,18 +25,23 @@ gcc -O0 -g0 -fno-stack-protector -fno-pie -no-pie -fno-builtin \
 ```
 
 `build/record_manifest.py` runs after the build and records toolchain, command,
-hashes, ELF headers/segments, symbols, `handle` frame, and reproducibility.
+hashes, ELF headers/segments, symbols, `handle` frame, the ADR 0001 reserved
+range, and reproducibility.
 
 ## Current build status
 
 ```text
-vuln.elf, manifest.json, SHA256SUMS   PENDING the gcc build
-build source + workflow              committed
+vuln.elf sha256   705ab9290094218af7164fb6415cde14bd800b040d52f3fc1e9d1b766b3d9c26
+size              16016 bytes
+R-X PT_LOAD       vaddr 0x401000, filesz=memsz=0x1000
+reserved_range    0x401211-0x402000, 0xDEF bytes, zero_filled
+manifest          fixture-manifest.json (+ manifest.json alias)
+runtime           observations-original.json, observed_original
 ```
 
 The build is produced by `.github/workflows/build-fixture.yml` on
-`ubuntu-latest` (or by a Linux guest). Do not claim G1 until
-`vuln.elf`, `manifest.json` and `observations-original.json` exist.
+`ubuntu-latest` (or by a Linux guest), including the post-link
+`build/reserve_tail.py` step. G1 signoff still belongs to M1.
 
 ## Run
 
