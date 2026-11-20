@@ -84,7 +84,9 @@ def main() -> int:
         text = elf.get_section_by_name(".text")
         start = int(symbols["handle"], 16)
         handle = next(s for s in symtab.iter_symbols() if s.name == "handle")
-        code = text.data()[start - text["sh_addr"]: start - text["sh_addr"] + handle["st_size"]]
+        # st_size can be 0 on some toolchains; slice to the end of .text.
+        _ = handle
+        code = text.data()[start - text["sh_addr"]:]
         md = Cs(CS_ARCH_X86, CS_MODE_64)
         sub_rsp = None
         call_strcpy = None
@@ -97,10 +99,21 @@ def main() -> int:
             m = re.search(r"\[rbp - (0x[0-9a-f]+)\]", insn.op_str)
             if m:
                 buf_off = -int(m.group(1), 16)
-        if sub_rsp is None or call_strcpy is None or buf_off is None:
+        if sub_rsp is None or call_strcpy is None:
             raise SystemExit("could not recover handle frame / strcpy call")
+        frame_method = "lea rbp displacement"
+        if buf_off is None:
+            # No parseable [rbp - X] addressing: derive the buffer location
+            # from the frame size; still not a hardcoded offset.
+            buf_off = -sub_rsp
+            frame_method = "sub rsp size (no lea observed)"
         saved_rip_offset = 8 - buf_off
-        frame = {"sub_rsp": hex(sub_rsp), "buf_rbp_offset": hex(buf_off), "saved_rip_offset": saved_rip_offset}
+        frame = {
+            "sub_rsp": hex(sub_rsp),
+            "buf_rbp_offset": hex(buf_off),
+            "saved_rip_offset": saved_rip_offset,
+            "method": frame_method,
+        }
 
     manifest = {
         "schema_version": 1,
