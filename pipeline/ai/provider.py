@@ -54,6 +54,7 @@ def call_chat(system: str, user: str, api_key: str, model: str, temperature: flo
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",
+            "User-Agent": "binary-defect-repairing-engine/1.0",
         },
         method="POST",
     )
