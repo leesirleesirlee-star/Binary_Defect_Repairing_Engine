@@ -1,10 +1,11 @@
-﻿name: build-fixture
+name: build-fixture
 
 on:
   push:
     branches: [m3/stack-overflow-01]
     paths:
       - "fixtures/stack-overflow-01/**"
+      - "tests/fixture/**"
       - ".github/workflows/build-fixture.yml"
   workflow_dispatch:
 
