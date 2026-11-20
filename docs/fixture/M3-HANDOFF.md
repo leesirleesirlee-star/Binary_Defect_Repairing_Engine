@@ -1,4 +1,4 @@
-# M3 handoff — stack-overflow-01 (x86-64)
+﻿# M3 handoff 鈥?stack-overflow-01 (x86-64)
 
 Date: 2026-11-20  
 Owner: M3 (fixture + verifier)
@@ -30,7 +30,7 @@ size              16016 bytes
 R-X PT_LOAD       vaddr 0x401000, filesz=memsz=0x1000
 reserved_range    0x401211-0x402000, 0xDEF bytes, zero_filled
 fixture-manifest.json + manifest.json alias
-observations-original.json / verdict-original.json
+observations-original.json / original-check.json
 ```
 
 The workflow builds twice, requires equal sha256, records toolchain/ELF/symbol/
@@ -65,3 +65,4 @@ tests alone.
 M3 branch touches `fixtures/`, `guest/`, `pipeline/verify/` and `tests/fixture/`.
 M1 should review with `module:integration`; split into fixture/guest/verifier
 branches if the project requires one-module PRs.
+

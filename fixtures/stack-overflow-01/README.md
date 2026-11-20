@@ -1,4 +1,4 @@
-# stack-overflow-01 (x86-64, build-only source)
+﻿# stack-overflow-01 (x86-64, build-only source)
 
 Frozen fixture for MVP2, built from `build/vuln.c` with gcc.
 
@@ -52,5 +52,6 @@ python3 pipeline/verify/verdict.py \
   --contract fixtures/stack-overflow-01/contract.json \
   --cases fixtures/stack-overflow-01/cases/cases.json \
   --observations var/observations-original.json \
-  --role original --out var/verdict-original.json
+  --role original --out var/original-check.json
 ```
+

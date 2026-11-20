@@ -81,7 +81,6 @@
     "size": 3567,
     "zero_filled": true,
     "mechanism": "post-link",
-    "script": "build/reserve_tail.py",
     "script_sha256": "913db398f26a3778a5c755173c7324d2a90470c2bfe078cb48b013895bc0e589"
   },
   "strcpy_call": {

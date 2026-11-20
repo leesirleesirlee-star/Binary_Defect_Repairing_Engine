@@ -1,4 +1,4 @@
-# Fixture design — stack-overflow-01 (x86-64, ADR 0001)
+﻿# Fixture design 鈥?stack-overflow-01 (x86-64, ADR 0001)
 
 Owner: M3 (fixture + verifier).
 
@@ -40,7 +40,7 @@ handle frame     sub rsp,0x30; buf at rbp-0x20; saved RIP offset 40
 ```text
 fixture-manifest.json / manifest.json   gcc-built, reproducible
 observations-original.json              Linux guest, argv-based
-verdict-original.json                   observed_original
+original-check.json                   observed_original
 SHA256SUMS                              regenerated after the tail step
 tests/fixture                           ELF64/EM_X86_64, PLT, tail, hashes
 ```
@@ -59,3 +59,4 @@ G1 signoff                NOT CLAIMED by M3
 ```
 
 G1 signoff still belongs to M1 after independent structural review.
+

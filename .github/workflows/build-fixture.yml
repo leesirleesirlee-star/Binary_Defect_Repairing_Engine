@@ -1,4 +1,4 @@
-name: build-fixture
+﻿name: build-fixture
 
 on:
   push:
@@ -81,7 +81,7 @@ jobs:
             --cases fixtures/stack-overflow-01/cases/cases.json \
             --observations fixtures/stack-overflow-01/observations-original.json \
             --role original \
-            --out fixtures/stack-overflow-01/verdict-original.json
+            --out fixtures/stack-overflow-01/original-check.json
       - name: Commit built artifact
         shell: bash
         run: |
@@ -98,7 +98,7 @@ jobs:
                   fixtures/stack-overflow-01/contract.json \
                   fixtures/stack-overflow-01/SHA256SUMS \
                   fixtures/stack-overflow-01/observations-original.json \
-                  fixtures/stack-overflow-01/verdict-original.json
+                  fixtures/stack-overflow-01/original-check.json
           git commit -m "chore(fixture): build x86-64 vuln.elf [skip ci]"
           git push
       - name: Record build failure log
@@ -117,6 +117,7 @@ jobs:
           fi
           git commit -m "chore(fixture): record build failure [skip ci]"
           git push
+
 
 
 

@@ -61,6 +61,14 @@ def main(argv: list[str] | None = None) -> int:
     corpus = json.loads(args.cases.read_text(encoding="utf-8"))
     observations = json.loads(args.observations.read_text(encoding="utf-8"))
     verdict = decide(contract, corpus, observations, args.role)
+    if args.role == "original":
+        verdict = {
+            "schema_version": 1,
+            "kind": "g1_original_check",
+            "binary_sha256": observations.get("binary", {}).get("sha256"),
+            "cases_sha256": __import__("hashlib").sha256(args.cases.read_bytes()).hexdigest(),
+            **verdict,
+        }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(verdict, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(verdict))

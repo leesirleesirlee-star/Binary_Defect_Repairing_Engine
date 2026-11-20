@@ -173,7 +173,6 @@ def main() -> int:
             "size": reserved_end - reserved_start,
             "zero_filled": True,
             "mechanism": "post-link",
-            "script": "build/reserve_tail.py",
             "script_sha256": sha(root / "build" / "reserve_tail.py"),
         },
         "strcpy_call": call_strcpy,

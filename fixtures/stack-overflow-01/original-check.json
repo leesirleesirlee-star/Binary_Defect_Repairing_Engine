@@ -1,4 +1,6 @@
 {
+  "schema_version": 1,
+  "kind": "g1_original_check",
   "outcome": "observed_original",
   "reason": "all_cases_match"
 }
