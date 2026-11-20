@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "verdict": "verified_against_stated_criteria",
+  "original_sha256": "10602531c92092cffbdc34688e12e4b97548cc2c03f4453506bdd4f1c9058d07",
+  "candidate_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "contract_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "criteria": [
+    {
+      "id": "V1-structure",
+      "required": true,
+      "status": "pass",
+      "evidence_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "id": "V2-valid-behaviour",
+      "required": true,
+      "status": "pass",
+      "evidence_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    {
+      "id": "V3-invalid-response",
+      "required": true,
+      "status": "pass",
+      "evidence_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    {
+      "id": "V4-boundary",
+      "required": true,
+      "status": "pass",
+      "evidence_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    }
+  ],
+  "coverage": {
+    "cases_total": 8,
+    "cases_run": 8,
+    "unmeasured": []
+  },
+  "limitations": [
+    "verified against the stated criteria only; not a claim of whole-program correctness"
+  ],
+  "produced_at": "2026-11-20T10:00:00Z",
+  "produced_by": "pipeline.verify"
+}
