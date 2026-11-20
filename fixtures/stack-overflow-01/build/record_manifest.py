@@ -84,21 +84,25 @@ def main() -> int:
         text = elf.get_section_by_name(".text")
         start = int(symbols["handle"], 16)
         handle = next(s for s in symtab.iter_symbols() if s.name == "handle")
-        # st_size can be 0 on some toolchains; slice to the end of .text.
-        _ = handle
-        code = text.data()[start - text["sh_addr"]:]
+        size = handle["st_size"] or (len(text.data()) - (start - text["sh_addr"]))
+        code = text.data()[start - text["sh_addr"]: start - text["sh_addr"] + size]
         md = Cs(CS_ARCH_X86, CS_MODE_64)
+        strcpy_addr = int(symbols["strcpy@plt"], 16)
         sub_rsp = None
         call_strcpy = None
         buf_off = None
         for insn in md.disasm(code, start):
-            if insn.mnemonic == "sub" and insn.op_str.startswith("rsp,"):
+            if sub_rsp is None and insn.mnemonic == "sub" and insn.op_str.startswith("rsp,"):
                 sub_rsp = int(insn.op_str.split(",")[1].strip(), 16)
-            if insn.mnemonic == "call" and "strcpy" in insn.op_str:
-                call_strcpy = {"address": hex(insn.address), "bytes": insn.bytes.hex(), "target": insn.op_str}
+            if insn.mnemonic == "call":
+                m_addr = re.match(r"(0x[0-9a-f]+)", insn.op_str)
+                if m_addr and int(m_addr.group(1), 16) == strcpy_addr:
+                    call_strcpy = {"address": hex(insn.address), "bytes": insn.bytes.hex(), "target": "strcpy@plt"}
             m = re.search(r"\[rbp - (0x[0-9a-f]+)\]", insn.op_str)
             if m:
                 buf_off = -int(m.group(1), 16)
+            if insn.mnemonic == "ret":
+                break
         if sub_rsp is None or call_strcpy is None:
             print(f"debug: handle={start:#x} size={handle['st_size']} sub_rsp={sub_rsp} call={call_strcpy} buf_off={buf_off}")
             for insn in md.disasm(code, start):
