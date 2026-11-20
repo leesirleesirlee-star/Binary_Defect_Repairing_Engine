@@ -57,7 +57,11 @@ def render_verdict(verdict: Any) -> str:
     """
     if not isinstance(verdict, Mapping):
         return MISSING
-    outcome = verdict.get("outcome")
+    # VerdictV1 stores the label in "verdict"; "outcome" is accepted for older
+    # temporary fixtures and never computed from observations.
+    outcome = verdict.get("verdict")
+    if outcome in (None, ""):
+        outcome = verdict.get("outcome")
     if outcome in (None, ""):
         return MISSING
     return _text(outcome)

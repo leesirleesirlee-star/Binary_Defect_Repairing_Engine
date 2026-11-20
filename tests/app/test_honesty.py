@@ -61,7 +61,7 @@ def test_no_success_label_without_a_verdict() -> None:
 
 
 def test_success_label_comes_only_from_a_persisted_verdict() -> None:
-    verdict = {"outcome": SUCCESS_OUTCOME}
+    verdict = {"verdict": SUCCESS_OUTCOME}
     assert render_verdict(verdict) == SUCCESS_OUTCOME
     html = render_verification({"verdict": verdict, "observations": []})
     assert SUCCESS_OUTCOME in html
@@ -70,3 +70,4 @@ def test_success_label_comes_only_from_a_persisted_verdict() -> None:
 def test_verdict_without_outcome_is_missing() -> None:
     assert render_verdict({}) == MISSING
     assert render_verdict(None) == MISSING
+    assert render_verdict({"outcome": "not_verified"}) == "not_verified"
