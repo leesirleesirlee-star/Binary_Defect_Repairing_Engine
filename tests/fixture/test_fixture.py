@@ -54,7 +54,7 @@ def test_symbols_and_no_stack_chk() -> None:
         names = {sym.name for sym in symtab.iter_symbols()}
         assert {"handle", "main"} <= names
         assert not any("stack_chk" in name for name in names)
-        manifest = json.loads((FIXTURE / "manifest.json").read_text(encoding="utf-8"))
+        manifest = json.loads((FIXTURE / "fixture-manifest.json").read_text(encoding="utf-8"))
         assert {"handle", "main", "strcpy@plt", "puts@plt"} <= set(manifest["symbols"])
         dynamic = elf.get_section_by_name(".dynamic")
         needed = [tag.needed for tag in dynamic.iter_tags() if tag.entry.d_tag == "DT_NEEDED"]
@@ -74,7 +74,7 @@ def test_handle_calls_strcpy_plt() -> None:
         md = Cs(CS_ARCH_X86, CS_MODE_64)
         instructions = list(md.disasm(code, handle["st_value"]))
         assert any(insn.mnemonic == "sub" and insn.op_str.startswith("rsp,") for insn in instructions)
-        manifest = json.loads((FIXTURE / "manifest.json").read_text(encoding="utf-8"))
+        manifest = json.loads((FIXTURE / "fixture-manifest.json").read_text(encoding="utf-8"))
         calls = [insn for insn in instructions if insn.mnemonic == "call"]
         assert len(calls) >= 2, "handle must call strcpy@plt then puts@plt"
         assert all(len(insn.bytes) == 5 for insn in calls)
@@ -86,8 +86,6 @@ def test_handle_calls_strcpy_plt() -> None:
 
 def test_manifest_contract_and_cases() -> None:
     manifest = json.loads((FIXTURE / "fixture-manifest.json").read_text(encoding="utf-8"))
-    alias = json.loads((FIXTURE / "manifest.json").read_text(encoding="utf-8"))
-    assert alias == manifest
     contract = json.loads((FIXTURE / "contract.json").read_text(encoding="utf-8"))
     corpus = json.loads((FIXTURE / "cases" / "cases.json").read_text(encoding="utf-8"))
     assert manifest["binary"]["sha256"] == _sha(FIXTURE / "vuln.elf")

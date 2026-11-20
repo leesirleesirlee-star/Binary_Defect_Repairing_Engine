@@ -94,7 +94,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add fixtures/stack-overflow-01/vuln.elf \
                   fixtures/stack-overflow-01/fixture-manifest.json \
-                  fixtures/stack-overflow-01/manifest.json \
                   fixtures/stack-overflow-01/contract.json \
                   fixtures/stack-overflow-01/SHA256SUMS \
                   fixtures/stack-overflow-01/observations-original.json \
@@ -117,6 +116,7 @@ jobs:
           fi
           git commit -m "chore(fixture): record build failure [skip ci]"
           git push
+
 
 
 

@@ -183,16 +183,14 @@ def main() -> int:
         "poc": {"path": "cases/poc.txt", "sha256": sha(root / "cases" / "poc.txt")},
     }
     manifest_text = json.dumps(manifest, indent=2) + "\n"
-    # H2 is fixture-manifest.json; keep manifest.json as the spec's short alias.
+    # H2 is fixture-manifest.json; there is no duplicate alias.
     (root / "fixture-manifest.json").write_text(manifest_text, encoding="utf-8")
-    (root / "manifest.json").write_text(manifest_text, encoding="utf-8")
     contract["binary_sha256"] = manifest["binary"]["sha256"]
     contract_path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
 
     frozen = [
         "contract.json",
         "fixture-manifest.json",
-        "manifest.json",
         "vuln.elf",
         "build/build.sh",
         "build/reserve_tail.py",
