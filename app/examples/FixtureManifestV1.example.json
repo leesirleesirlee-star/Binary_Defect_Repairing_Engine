@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "fixture_id": "stack-overflow-01",
+  "built_at": "2026-11-20T13:30:00Z",
+  "toolchain": {
+    "gcc": "gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+    "ld": "GNU ld (GNU Binutils for Ubuntu) 2.46",
+    "uname": "Linux runner 7.0.0 x86_64 GNU/Linux",
+    "python": "3.12.16"
+  },
+  "command": "gcc -O0 -g0 -fno-stack-protector -fno-pie -no-pie -fno-builtin -m64 -Wall -Wextra -Wl,-z,noexecstack -Wl,--build-id=none -o vuln.elf vuln.c",
+  "source": {
+    "path": "build/vuln.c",
+    "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "binary": {
+    "path": "vuln.elf",
+    "sha256": "9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f",
+    "size": 16016
+  },
+  "elf": {
+    "class": "ELF64",
+    "machine": "EM_X86_64",
+    "type": "ET_EXEC",
+    "entry": "0x401090",
+    "little_endian": true
+  },
+  "segments": [
+    {
+      "type": "PT_LOAD",
+      "vaddr": "0x400000",
+      "filesz": 1336,
+      "memsz": 1336,
+      "flags": "R--"
+    },
+    {
+      "type": "PT_LOAD",
+      "vaddr": "0x401000",
+      "filesz": 4096,
+      "memsz": 4096,
+      "flags": "R-X"
+    },
+    {
+      "type": "PT_LOAD",
+      "vaddr": "0x402000",
+      "filesz": 368,
+      "memsz": 368,
+      "flags": "R--"
+    },
+    {
+      "type": "PT_LOAD",
+      "vaddr": "0x403df8",
+      "filesz": 560,
+      "memsz": 600,
+      "flags": "RW-"
+    },
+    {
+      "type": "PT_GNU_STACK",
+      "flags": "RW-"
+    }
+  ],
+  "has_interp": true,
+  "needed": [
+    "libc.so.6"
+  ],
+  "symbols": {
+    "handle": "0x401176",
+    "main": "0x4011a8",
+    "strcpy@plt": "0x401060",
+    "puts@plt": "0x401070"
+  },
+  "frame": {
+    "sub_rsp": "0x30",
+    "buf_rbp_offset": "-0x20",
+    "saved_rip_offset": 40,
+    "method": "lea rbp displacement"
+  },
+  "strcpy_call": {
+    "address": "0x401194",
+    "bytes": "e8c7feffff",
+    "target": "strcpy@plt"
+  },
+  "symbols_present": true,
+  "reproducible": true,
+  "second_sha256": "9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f",
+  "cases": {
+    "path": "cases/cases.json",
+    "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "poc": {
+    "path": "cases/poc.txt",
+    "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "reserved_range": {
+    "start_vaddr": "0x401211",
+    "end_vaddr": "0x402000",
+    "size": 3567,
+    "zero_filled": true,
+    "mechanism": "post-link: R-X PT_LOAD p_filesz = p_memsz = 0x1000",
+    "script_sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "plan_id": "plan-2026-11-20-run1",
+  "fixture_id": "stack-overflow-01",
+  "contract_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "model": {
+    "provider": "deepseek",
+    "name": "deepseek-chat",
+    "prompt_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "target": {
+    "function": "handle",
+    "edit_site_vaddr": "0x401194",
+    "cave_vaddr": "0x401220"
+  },
+  "edits": [
+    {
+      "kind": "redirect",
+      "vaddr": "0x401194",
+      "bytes_hex": "e887000000",
+      "reason": "redirect the original strcpy call to the guard"
+    },
+    {
+      "kind": "code",
+      "vaddr": "0x401220",
+      "bytes_hex": "554889e5",
+      "reason": "guard prologue"
+    },
+    {
+      "kind": "data",
+      "vaddr": "0x401280",
+      "bytes_hex": "4552524f520a",
+      "reason": "frozen error message bytes"
+    }
+  ],
+  "assumptions": [
+    "the destination buffer is at rbp-0x20 at the call site",
+    "stderr is writable in the guest"
+  ],
+  "uncertainties": [
+    "the model cannot prove the guard preserves all caller-saved registers"
+  ]
+}
