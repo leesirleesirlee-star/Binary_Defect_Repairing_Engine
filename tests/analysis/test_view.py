@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import jsonschema
 import pytest
 
 from pipeline.analyze import build_disassembly_view, build_finding
@@ -61,3 +62,10 @@ def test_finding_points_at_the_call(view: dict) -> None:
     assert finding["status"] == "confirmed_by_analysis"
     assert finding["frame"]["buf_rbp_offset"] == "-0x20"
     assert finding["frame"]["saved_rip_offset"] == 40
+
+
+def test_emitted_documents_validate(view: dict) -> None:
+    root = Path(__file__).resolve().parents[2] / "schemas"
+    for name, doc in (("DisassemblyViewV1", view), ("FindingV1", build_finding(view))):
+        schema = json.loads((root / f"{name}.schema.json").read_text(encoding="utf-8"))
+        jsonschema.validate(doc, schema)
