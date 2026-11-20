@@ -1,0 +1,135 @@
+FILE-type symbol rows redacted from readelf output.
+
+
+Relocation section '.rela.dyn' at offset 0x4a8 contains 3 entries:
+    Offset             Info             Type               Symbol's Value  Symbol's Name + Addend
+0000000000403fd8  0000000100000006 R_X86_64_GLOB_DAT      0000000000000000 __libc_start_main@GLIBC_2.34 + 0
+0000000000403fe0  0000000500000006 R_X86_64_GLOB_DAT      0000000000000000 __gmon_start__ + 0
+0000000000404040  0000000600000005 R_X86_64_COPY          0000000000404040 stderr@GLIBC_2.2.5 + 0
+
+Relocation section '.rela.plt' at offset 0x4f0 contains 3 entries:
+    Offset             Info             Type               Symbol's Value  Symbol's Name + Addend
+0000000000404000  0000000200000007 R_X86_64_JUMP_SLOT     0000000000000000 strcpy@GLIBC_2.2.5 + 0
+0000000000404008  0000000300000007 R_X86_64_JUMP_SLOT     0000000000000000 puts@GLIBC_2.2.5 + 0
+0000000000404010  0000000400000007 R_X86_64_JUMP_SLOT     0000000000000000 fprintf@GLIBC_2.2.5 + 0
+
+Symbol table '.dynsym' contains 7 entries:
+   Num:    Value          Size Type    Bind   Vis      Ndx Name
+     0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT  UND
+     1: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND __libc_start_main@GLIBC_2.34 (2)
+     2: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND strcpy@GLIBC_2.2.5 (3)
+     3: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND puts@GLIBC_2.2.5 (3)
+     4: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND fprintf@GLIBC_2.2.5 (3)
+     5: 0000000000000000     0 NOTYPE  WEAK   DEFAULT  UND __gmon_start__
+     6: 0000000000404040     8 OBJECT  GLOBAL DEFAULT   25 stderr@GLIBC_2.2.5 (3)
+
+Symbol table '.symtab' contains 40 entries:
+   Num:    Value          Size Type    Bind   Vis      Ndx Name
+     0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT  UND
+[FILE symbol redacted]
+     2: 0000000000402150    32 OBJECT  LOCAL  DEFAULT   18 __abi_tag
+[FILE symbol redacted]
+     4: 00000000004010d0     0 FUNC    LOCAL  DEFAULT   12 deregister_tm_clones
+     5: 0000000000401100     0 FUNC    LOCAL  DEFAULT   12 register_tm_clones
+     6: 0000000000401140     0 FUNC    LOCAL  DEFAULT   12 __do_global_dtors_aux
+     7: 0000000000404048     1 OBJECT  LOCAL  DEFAULT   25 completed.0
+     8: 0000000000403e00     0 OBJECT  LOCAL  DEFAULT   20 __do_global_dtors_aux_fini_array_entry
+     9: 0000000000401170     0 FUNC    LOCAL  DEFAULT   12 frame_dummy
+    10: 0000000000403df8     0 OBJECT  LOCAL  DEFAULT   19 __frame_dummy_init_array_entry
+[FILE symbol redacted]
+    12: 0000000000401176    50 FUNC    LOCAL  DEFAULT   12 handle
+[FILE symbol redacted]
+    14: 0000000000402118     0 OBJECT  LOCAL  DEFAULT   16 __FRAME_END__
+[FILE symbol redacted]
+    16: 0000000000403e08     0 OBJECT  LOCAL  DEFAULT   21 _DYNAMIC
+    17: 0000000000402018     0 NOTYPE  LOCAL  DEFAULT   15 __GNU_EH_FRAME_HDR
+    18: 0000000000403fe8     0 OBJECT  LOCAL  DEFAULT   23 _GLOBAL_OFFSET_TABLE_
+    19: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND __libc_start_main@GLIBC_2.34
+    20: 0000000000404018     0 NOTYPE  WEAK   DEFAULT   24 data_start
+    21: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND strcpy@GLIBC_2.2.5
+    22: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND puts@GLIBC_2.2.5
+    23: 0000000000404028     0 NOTYPE  GLOBAL DEFAULT   24 _edata
+    24: 0000000000401204     0 FUNC    GLOBAL HIDDEN    13 _fini
+    25: 0000000000404018     0 NOTYPE  GLOBAL DEFAULT   24 __data_start
+    26: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND fprintf@GLIBC_2.2.5
+    27: 0000000000000000     0 NOTYPE  WEAK   DEFAULT  UND __gmon_start__
+    28: 0000000000404020     0 OBJECT  GLOBAL HIDDEN    24 __dso_handle
+    29: 0000000000402000     4 OBJECT  GLOBAL DEFAULT   14 _IO_stdin_used
+    30: 0000000000404050     0 NOTYPE  GLOBAL DEFAULT   25 _end
+    31: 00000000004010c0     5 FUNC    GLOBAL HIDDEN    12 _dl_relocate_static_pie
+    32: 0000000000401090    38 FUNC    GLOBAL DEFAULT   12 _start
+    33: 0000000000404040     0 NOTYPE  GLOBAL DEFAULT   25 __bss_start
+    34: 00000000004011a8    90 FUNC    GLOBAL DEFAULT   12 main
+    35: 0000000000404028     0 OBJECT  GLOBAL HIDDEN    24 __TMC_END__
+    36: 0000000000401000     0 FUNC    GLOBAL HIDDEN     9 _init
+    37: 0000000000404040     8 OBJECT  GLOBAL DEFAULT   25 stderr@GLIBC_2.2.5
+    38: 0000000000401060     0 NOTYPE  GLOBAL DEFAULT   11 strcpy@plt
+    39: 0000000000401070     0 NOTYPE  GLOBAL DEFAULT   11 puts@plt
+Contents of the .eh_frame section:
+
+
+00000000 0000000000000014 00000000 CIE
+  Version:               1
+  Augmentation:          "zR"
+  Code alignment factor: 1
+  Data alignment factor: -8
+  Return address column: 16
+  Augmentation data:     1b
+  DW_CFA_def_cfa: r7 (rsp) ofs 8
+  DW_CFA_offset: r16 (rip) at cfa-8
+  DW_CFA_nop
+  DW_CFA_nop
+
+00000018 0000000000000010 0000001c FDE cie=00000000 pc=0000000000401090..00000000004010b6
+  DW_CFA_advance_loc: 4 to 0000000000401094
+  DW_CFA_undefined: r16 (rip)
+
+0000002c 0000000000000010 00000030 FDE cie=00000000 pc=00000000004010c0..00000000004010c5
+  DW_CFA_nop
+  DW_CFA_nop
+  DW_CFA_nop
+
+00000040 0000000000000024 00000044 FDE cie=00000000 pc=0000000000401020..0000000000401060
+  DW_CFA_def_cfa_offset: 16
+  DW_CFA_advance_loc: 6 to 0000000000401026
+  DW_CFA_def_cfa_offset: 24
+  DW_CFA_advance_loc: 10 to 0000000000401030
+  DW_CFA_def_cfa_expression (DW_OP_breg7 (rsp): 8; DW_OP_breg16 (rip): 0; DW_OP_lit15; DW_OP_and; DW_OP_lit9; DW_OP_ge; DW_OP_lit3; DW_OP_shl; DW_OP_plus)
+  DW_CFA_nop
+  DW_CFA_nop
+  DW_CFA_nop
+  DW_CFA_nop
+
+00000068 0000000000000014 0000006c FDE cie=00000000 pc=0000000000401060..0000000000401090
+  DW_CFA_nop
+  DW_CFA_nop
+  DW_CFA_nop
+  DW_CFA_nop
+  DW_CFA_nop
+  DW_CFA_nop
+  DW_CFA_nop
+
+00000080 000000000000001c 00000084 FDE cie=00000000 pc=0000000000401176..00000000004011a8
+  DW_CFA_advance_loc: 5 to 000000000040117b
+  DW_CFA_def_cfa_offset: 16
+  DW_CFA_offset: r6 (rbp) at cfa-16
+  DW_CFA_advance_loc: 3 to 000000000040117e
+  DW_CFA_def_cfa_register: r6 (rbp)
+  DW_CFA_advance_loc: 41 to 00000000004011a7
+  DW_CFA_def_cfa: r7 (rsp) ofs 8
+  DW_CFA_nop
+  DW_CFA_nop
+  DW_CFA_nop
+
+000000a0 000000000000001c 000000a4 FDE cie=00000000 pc=00000000004011a8..0000000000401202
+  DW_CFA_advance_loc: 5 to 00000000004011ad
+  DW_CFA_def_cfa_offset: 16
+  DW_CFA_offset: r6 (rbp) at cfa-16
+  DW_CFA_advance_loc: 3 to 00000000004011b0
+  DW_CFA_def_cfa_register: r6 (rbp)
+  DW_CFA_advance_loc1: 81 to 0000000000401201
+  DW_CFA_def_cfa: r7 (rsp) ofs 8
+  DW_CFA_nop
+  DW_CFA_nop
+
+000000c0 ZERO terminator

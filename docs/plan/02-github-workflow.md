@@ -433,48 +433,50 @@ Replace the handles only if the confirmed mapping in `01-team-ownership.md`
 changes. The file must exist on `main` before "Require review from Code Owners" is
 enabled.
 
-The second handle on an M1-owned path is a **review backup**, not an edit
-permission: it lets an M1-authored infra PR be approved by M2 without disabling
-the code-owner rule. Edit ownership stays with M1 as listed in the matrix.
+The handles on each path mirror the **"May review"** column in
+`01-team-ownership.md` section 3, not just the owner. GitHub cannot require a
+code-owner approval the author is unable to give: a path whose only reviewer is
+the PR author would never merge. Review is not edit permission - editing stays
+with the owner in `modules.json`.
 
 ```text
-# Default: M1 owns integration; M2 is the review backup for M1-authored PRs.
-*                                   @leesirleesirlee-star @huajinyao
+# Default: M1 owns integration; every seat is a designated reviewer.
+*                                   @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
 
-/.github/                           @leesirleesirlee-star @huajinyao
-/README.md                          @leesirleesirlee-star @huajinyao
-/AGENTS.md                          @leesirleesirlee-star @huajinyao
-/CONTRIBUTING.md                    @leesirleesirlee-star @huajinyao
-/SECURITY.md                        @leesirleesirlee-star @huajinyao
-/pyproject.toml                     @leesirleesirlee-star @huajinyao
-/schemas/                           @leesirleesirlee-star @huajinyao
-/scripts/                           @leesirleesirlee-star @huajinyao
-/docs/plan/                         @leesirleesirlee-star @huajinyao
-/docs/adr/                          @leesirleesirlee-star @huajinyao
-/docs/interfaces/                   @leesirleesirlee-star @huajinyao
-/docs/README.md                     @leesirleesirlee-star @huajinyao
+/.github/                           @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/README.md                          @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/AGENTS.md                          @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/CONTRIBUTING.md                    @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/SECURITY.md                        @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/pyproject.toml                     @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/schemas/                           @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/scripts/                           @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/docs/plan/                         @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/docs/adr/                          @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/docs/interfaces/                   @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/docs/README.md                     @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
 
-/app/                               @huajinyao
-/tests/app/                         @huajinyao
-/docs/gui/                          @huajinyao
+/app/                               @huajinyao @leesirleesirlee-star
+/tests/app/                         @huajinyao @leesirleesirlee-star
+/docs/gui/                          @huajinyao @leesirleesirlee-star
 
-/fixtures/                          @chenfanaichifan
-/guest/                             @chenfanaichifan
-/pipeline/verify/                   @chenfanaichifan
-/tests/fixture/                     @chenfanaichifan
-/docs/fixture/                      @chenfanaichifan
+/fixtures/                          @chenfanaichifan @leesirleesirlee-star @lyz200807
+/guest/                             @chenfanaichifan @leesirleesirlee-star @lyz200807
+/pipeline/verify/                   @chenfanaichifan @leesirleesirlee-star @lyz200807
+/tests/fixture/                     @chenfanaichifan @leesirleesirlee-star @lyz200807
+/docs/fixture/                      @chenfanaichifan @leesirleesirlee-star @lyz200807
 
-/pipeline/analyze/                  @hxw64
-/pipeline/ai/                       @hxw64
-/pipeline/audit/                    @hxw64
-/prompts/                           @hxw64
-/tests/analysis/                    @hxw64
-/docs/analysis/                     @hxw64
-/docs/audit/                        @hxw64
+/pipeline/analyze/                  @hxw64 @leesirleesirlee-star @lyz200807
+/pipeline/ai/                       @hxw64 @leesirleesirlee-star @lyz200807
+/pipeline/audit/                    @hxw64 @leesirleesirlee-star @lyz200807
+/prompts/                           @hxw64 @leesirleesirlee-star @lyz200807
+/tests/analysis/                    @hxw64 @leesirleesirlee-star @lyz200807
+/docs/analysis/                     @hxw64 @leesirleesirlee-star @lyz200807
+/docs/audit/                        @hxw64 @leesirleesirlee-star @lyz200807
 
-/pipeline/repair/                   @lyz200807
-/tests/repair/                      @lyz200807
-/docs/repair/                       @lyz200807
+/pipeline/repair/                   @lyz200807 @leesirleesirlee-star @chenfanaichifan
+/tests/repair/                      @lyz200807 @leesirleesirlee-star @chenfanaichifan
+/docs/repair/                       @lyz200807 @leesirleesirlee-star @chenfanaichifan
 ```
 
 ## 12. Weekly gate record
