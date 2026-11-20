@@ -1,0 +1,160 @@
+{
+  "schema_version": 1,
+  "fixture_id": "stack-overflow-01",
+  "cases": [
+    {
+      "id": "valid-0",
+      "kind": "valid",
+      "argv": [
+        ""
+      ],
+      "stdin": "",
+      "expected_original": {
+        "exit_code": 0,
+        "stdout": "\n",
+        "stderr": ""
+      },
+      "expected_candidate": {
+        "exit_code": 0,
+        "stdout": "\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "valid-1",
+      "kind": "valid",
+      "argv": [
+        "A"
+      ],
+      "stdin": "",
+      "expected_original": {
+        "exit_code": 0,
+        "stdout": "A\n",
+        "stderr": ""
+      },
+      "expected_candidate": {
+        "exit_code": 0,
+        "stdout": "A\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "valid-5",
+      "kind": "valid",
+      "argv": [
+        "hello"
+      ],
+      "stdin": "",
+      "expected_original": {
+        "exit_code": 0,
+        "stdout": "hello\n",
+        "stderr": ""
+      },
+      "expected_candidate": {
+        "exit_code": 0,
+        "stdout": "hello\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "valid-31",
+      "kind": "valid",
+      "argv": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "stdin": "",
+      "expected_original": {
+        "exit_code": 0,
+        "stdout": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n",
+        "stderr": ""
+      },
+      "expected_candidate": {
+        "exit_code": 0,
+        "stdout": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "valid-punct",
+      "kind": "valid",
+      "argv": [
+        "a-b_c.9"
+      ],
+      "stdin": "",
+      "expected_original": {
+        "exit_code": 0,
+        "stdout": "a-b_c.9\n",
+        "stderr": ""
+      },
+      "expected_candidate": {
+        "exit_code": 0,
+        "stdout": "a-b_c.9\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "invalid-32",
+      "kind": "invalid",
+      "argv": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "stdin": "",
+      "expected_original": {
+        "crash_or_undefined": true
+      },
+      "expected_candidate": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "ERROR: input exceeds destination capacity\n"
+      }
+    },
+    {
+      "id": "invalid-33",
+      "kind": "invalid",
+      "argv": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "stdin": "",
+      "expected_original": {
+        "crash_or_undefined": true
+      },
+      "expected_candidate": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "ERROR: input exceeds destination capacity\n"
+      }
+    },
+    {
+      "id": "invalid-64",
+      "kind": "invalid",
+      "argv": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "stdin": "",
+      "expected_original": {
+        "signal": "SIGSEGV"
+      },
+      "expected_candidate": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "ERROR: input exceeds destination capacity\n"
+      }
+    },
+    {
+      "id": "invalid-128",
+      "kind": "invalid",
+      "argv": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "stdin": "",
+      "expected_original": {
+        "signal": "SIGSEGV"
+      },
+      "expected_candidate": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "ERROR: input exceeds destination capacity\n"
+      }
+    }
+  ]
+}

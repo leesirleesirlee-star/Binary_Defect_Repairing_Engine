@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "kind": "g1_original_check",
+  "binary_sha256": "705ab9290094218af7164fb6415cde14bd800b040d52f3fc1e9d1b766b3d9c26",
+  "cases_sha256": "fae5efd054358d16610987f5645eadc582ce53ac12debeb356941d6617ceec3d",
+  "outcome": "observed_original",
+  "reason": "all_cases_match"
+}
