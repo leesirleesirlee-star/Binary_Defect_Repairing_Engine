@@ -1,4 +1,4 @@
-﻿name: build-fixture
+name: build-fixture
 
 on:
   push:
@@ -59,6 +59,19 @@ jobs:
           status=$?
           cat fixtures/stack-overflow-01/build/test-build.txt
           exit $status
+      - name: Run original cases in the Linux guest
+        shell: bash
+        run: |
+          set -eu
+          python guest/run_cases.py \
+            --fixture fixtures/stack-overflow-01 \
+            --out fixtures/stack-overflow-01/observations-original.json
+          python pipeline/verify/verdict.py \
+            --contract fixtures/stack-overflow-01/contract.json \
+            --cases fixtures/stack-overflow-01/cases/cases.json \
+            --observations fixtures/stack-overflow-01/observations-original.json \
+            --role original \
+            --out fixtures/stack-overflow-01/verdict-original.json
       - name: Commit built artifact
         shell: bash
         run: |
@@ -72,7 +85,9 @@ jobs:
           git add fixtures/stack-overflow-01/vuln.elf \
                   fixtures/stack-overflow-01/manifest.json \
                   fixtures/stack-overflow-01/contract.json \
-                  fixtures/stack-overflow-01/SHA256SUMS
+                  fixtures/stack-overflow-01/SHA256SUMS \
+                  fixtures/stack-overflow-01/observations-original.json \
+                  fixtures/stack-overflow-01/verdict-original.json
           git commit -m "chore(fixture): build x86-64 vuln.elf [skip ci]"
           git push
       - name: Record build failure log
