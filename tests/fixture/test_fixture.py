@@ -72,10 +72,12 @@ def test_handle_calls_strcpy_plt() -> None:
         md = Cs(CS_ARCH_X86, CS_MODE_64)
         instructions = list(md.disasm(code, handle["st_value"]))
         assert any(insn.mnemonic == "sub" and insn.op_str.startswith("rsp,") for insn in instructions)
-        calls = [insn for insn in instructions if insn.mnemonic == "call" and "strcpy" in insn.op_str]
-        assert calls, "handle must call strcpy@plt"
+        manifest = json.loads((FIXTURE / "manifest.json").read_text(encoding="utf-8"))
+        calls = [insn for insn in instructions if insn.mnemonic == "call"]
+        assert len(calls) >= 2, "handle must call strcpy@plt then puts@plt"
         assert all(len(insn.bytes) == 5 for insn in calls)
-        assert calls[0].op_str.endswith("<strcpy@plt>")
+        assert calls[0].op_str == manifest["symbols"]["strcpy@plt"]
+        assert calls[1].op_str == manifest["symbols"]["puts@plt"]
     finally:
         fh.close()
 
