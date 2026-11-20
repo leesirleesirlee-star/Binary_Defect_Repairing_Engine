@@ -34,5 +34,6 @@
     "glibc with strcpy/puts PLT stubs",
     "no CET shadow-stack enforcement",
     "guest runs with no network and no credentials"
-  ]
+  ],
+  "binary_sha256": "a6f8fed47a30b8e4c18e5d0d8e539918c0e7d18f6b6c327b7c621b45029a36aa"
 }
