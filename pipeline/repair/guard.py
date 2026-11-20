@@ -157,13 +157,16 @@ def build_guard(
     asm.rel8("scan")
 
     # Reject path: write(2, message, 42) with a partial-write loop.
-    asm.emit(b"\xb8\x01\x00\x00\x00")  # mov eax, 1 (write)
     asm.emit(b"\xbf\x02\x00\x00\x00")  # mov edi, 2 (stderr)
     asm.emit(b"\x48\x8d\x35")  # lea rsi, [rip + message]
     asm.rel32("msg")
     asm.emit(b"\xba\x2a\x00\x00\x00")  # mov edx, 42
 
+    # eax is set to the write syscall number *inside* the loop: a partial write
+    # leaves the byte count in eax, so jumping straight to syscall would use
+    # that count as the next syscall number.  Re-running this mov fixes it.
     asm.label("write_loop")
+    asm.emit(b"\xb8\x01\x00\x00\x00")  # mov eax, 1 (write)
     asm.emit(b"\x0f\x05")  # syscall
     asm.emit(b"\x85\xc0")  # test eax, eax
     asm.emit(b"\x7e")  # jle exit
