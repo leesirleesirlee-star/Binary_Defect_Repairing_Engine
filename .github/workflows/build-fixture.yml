@@ -26,16 +26,30 @@ jobs:
       - name: Build twice and record manifest
         shell: bash
         run: |
-          set -eu
-          cd fixtures/stack-overflow-01
-          chmod +x build/build.sh
-          ./build/build.sh
-          first=$(sha256sum vuln.elf | cut -d' ' -f1)
-          cp vuln.elf /tmp/vuln-first.elf
-          ./build/build.sh
-          second=$(sha256sum vuln.elf | cut -d' ' -f1)
-          test "$first" = "$second"
-          python3 build/record_manifest.py --fixture . --second-sha256 "$second"
+          set +e
+          {
+            echo "== toolchain =="
+            gcc --version | head -1
+            ld --version | head -1
+            uname -a
+            echo "== build 1 =="
+            cd fixtures/stack-overflow-01
+            chmod +x build/build.sh
+            ./build/build.sh
+            first=$(sha256sum vuln.elf | cut -d' ' -f1)
+            cp vuln.elf /tmp/vuln-first.elf
+            echo "first=$first"
+            echo "== build 2 =="
+            ./build/build.sh
+            second=$(sha256sum vuln.elf | cut -d' ' -f1)
+            echo "second=$second"
+            test "$first" = "$second"
+            echo "== manifest =="
+            python3 build/record_manifest.py --fixture . --second-sha256 "$second"
+          } > build/ci.log 2>&1
+          status=$?
+          cat build/ci.log
+          exit $status
       - name: Fixture tests
         run: python -m pytest -q tests/fixture
       - name: Commit built artifact
@@ -53,4 +67,17 @@ jobs:
                   fixtures/stack-overflow-01/contract.json \
                   fixtures/stack-overflow-01/SHA256SUMS
           git commit -m "chore(fixture): build x86-64 vuln.elf [skip ci]"
+          git push
+      - name: Record build failure log
+        if: failure()
+        shell: bash
+        run: |
+          set -eu
+          if [ ! -f fixtures/stack-overflow-01/build/ci.log ]; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add fixtures/stack-overflow-01/build/ci.log
+          git commit -m "chore(fixture): record build failure [skip ci]"
           git push
