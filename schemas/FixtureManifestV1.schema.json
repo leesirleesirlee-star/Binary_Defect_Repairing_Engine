@@ -1,0 +1,321 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FixtureManifestV1",
+  "description": "Provenance and ELF facts of one frozen fixture. Produced by M3 at build time, frozen at G1. Carries the reserved R-X range required by ADR 0001.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "fixture_id",
+    "built_at",
+    "toolchain",
+    "command",
+    "source",
+    "binary",
+    "elf",
+    "segments",
+    "has_interp",
+    "needed",
+    "symbols",
+    "frame",
+    "strcpy_call",
+    "symbols_present",
+    "reproducible",
+    "second_sha256",
+    "cases",
+    "poc",
+    "reserved_range"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "fixture_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "built_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gcc",
+        "ld",
+        "uname"
+      ],
+      "properties": {
+        "gcc": {
+          "type": "string"
+        },
+        "ld": {
+          "type": "string"
+        },
+        "uname": {
+          "type": "string"
+        },
+        "python": {
+          "type": "string"
+        }
+      }
+    },
+    "command": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "binary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "size"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "elf": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "class",
+        "machine",
+        "type",
+        "entry",
+        "little_endian"
+      ],
+      "properties": {
+        "class": {
+          "enum": [
+            "ELF64"
+          ]
+        },
+        "machine": {
+          "enum": [
+            "EM_X86_64"
+          ]
+        },
+        "type": {
+          "enum": [
+            "ET_EXEC"
+          ]
+        },
+        "entry": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "little_endian": {
+          "type": "boolean"
+        }
+      }
+    },
+    "segments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "flags"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "vaddr": {
+            "type": "string",
+            "pattern": "^0x[0-9a-f]+$"
+          },
+          "filesz": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "memsz": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "flags": {
+            "type": "string",
+            "pattern": "^[R-][W-][X-]$"
+          }
+        }
+      }
+    },
+    "has_interp": {
+      "type": "boolean"
+    },
+    "needed": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "symbols": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^0x[0-9a-f]+$"
+      },
+      "minProperties": 1
+    },
+    "frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sub_rsp",
+        "buf_rbp_offset",
+        "saved_rip_offset",
+        "method"
+      ],
+      "properties": {
+        "sub_rsp": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "buf_rbp_offset": {
+          "type": "string",
+          "pattern": "^-?0x[0-9a-f]+$"
+        },
+        "saved_rip_offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "method": {
+          "type": "string"
+        }
+      }
+    },
+    "strcpy_call": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "address",
+        "bytes",
+        "target"
+      ],
+      "properties": {
+        "address": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "bytes": {
+          "type": "string",
+          "pattern": "^([0-9a-f]{2})*$",
+          "minLength": 2
+        },
+        "target": {
+          "type": "string"
+        }
+      }
+    },
+    "symbols_present": {
+      "type": "boolean"
+    },
+    "reproducible": {
+      "type": "boolean"
+    },
+    "second_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "cases": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "poc": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "reserved_range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start_vaddr",
+        "end_vaddr",
+        "size",
+        "zero_filled"
+      ],
+      "properties": {
+        "start_vaddr": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "end_vaddr": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "zero_filled": {
+          "const": true
+        },
+        "mechanism": {
+          "type": "string"
+        },
+        "script_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}
