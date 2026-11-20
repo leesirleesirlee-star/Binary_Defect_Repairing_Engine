@@ -78,3 +78,22 @@ def test_run_plan_requires_key_and_model() -> None:
     with mock.patch.dict("os.environ", {}, clear=True):
         with pytest.raises(ProviderError, match="DEEPSEEK_API_KEY"):
             run_plan(CONTRACT, view, POC)
+
+
+def test_run_plan_records_a_malformed_provider_response() -> None:
+    view = build_disassembly_view(FIXTURE)
+    bodies = (
+        {},
+        {"choices": []},
+        {"choices": [{}]},
+        {"choices": [{"message": {}}]},
+        {"choices": [{"message": {"content": 42}}]},
+    )
+    for body in bodies:
+        with mock.patch("pipeline.ai.provider.call_chat", return_value=body):
+            record = run_plan(CONTRACT, view, POC, api_key="x", model="deepseek-chat")
+        assert record["schema_valid"] is False
+        assert record["plan"] is None
+        assert record["response_sha256"] is None
+        assert record["raw"] is None
+        assert record["error"] == "malformed provider response"

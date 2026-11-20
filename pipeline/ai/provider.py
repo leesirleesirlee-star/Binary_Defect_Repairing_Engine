@@ -80,7 +80,9 @@ def run_plan(
     The returned record carries the prompt and response hashes, the provider's
     model id and token usage, and a ``schema_valid`` flag. Invalid JSON or a plan
     that fails FixPlanV1 is recorded as ``schema_valid: False``, never retried
-    silently here.
+    silently here. A malformed provider response is a record, not an
+    exception: the caller gets schema_valid False, plan None, raw None and a
+    short error.
     """
     api_key = api_key or os.environ.get("DEEPSEEK_API_KEY")
     model = model or os.environ.get("DEEPSEEK_MODEL")
@@ -92,7 +94,22 @@ def run_plan(
     prompt = build_prompt(contract, view, poc)
     response = call_chat(prompt["system"], prompt["user"], api_key, model)
 
-    content = response["choices"][0]["message"]["content"]
+    try:
+        content = response["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        content = None
+    if not isinstance(content, str):
+        return {
+            "prompt_sha256": prompt["prompt_sha256"],
+            "response_sha256": None,
+            "model": response.get("model") if isinstance(response, dict) else None,
+            "usage": response.get("usage") if isinstance(response, dict) else None,
+            "schema_valid": False,
+            "plan": None,
+            "raw": None,
+            "error": "malformed provider response",
+        }
+
     response_sha256 = _sha256(content)
 
     plan: dict | None = None
@@ -111,4 +128,6 @@ def run_plan(
         "usage": response.get("usage"),
         "schema_valid": schema_valid,
         "plan": plan,
+        "raw": content,
+        "error": None,
     }
