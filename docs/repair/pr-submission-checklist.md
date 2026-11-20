@@ -1,20 +1,21 @@
 # PR submission checklist (M5 dry-run)
 
-Status: **not submitted**. The local branch cannot be pushed until M1 fixes the
-repair owner in `modules.json`/`CODEOWNERS` and PR #14 is merged. This checklist
-is a preflight for the eventual PR.
+Status: **PR #19 opened** at
+<https://github.com/leesirleesirlee-star/Binary_Defect_Repairing_Engine/pull/19>;
+waiting for M1 review/merge. PR #14 (ADR 0001) is still open and M3's new
+fixture is not published. This checklist records what was verified before push.
 
 ## Before commit
 
-- [ ] All changes are under `pipeline/repair/`, `tests/repair/`, `docs/repair/`.
-- [ ] No `fixture`, `contract`, `cases`, `schemas`, `pipeline/verify` or `app`
+- [x] All changes are under `pipeline/repair/`, `tests/repair/`, `docs/repair/`.
+- [x] No `fixture`, `contract`, `cases`, `schemas`, `pipeline/verify` or `app`
       file was modified.
-- [ ] No `candidate.elf` exists anywhere in the workspace.
-- [ ] Every manifest has `dry_run: true`, `verdict: null`, and
+- [x] No `candidate.elf` exists anywhere in the workspace.
+- [x] Every manifest has `dry_run: true`, `verdict: null`, and
       `preview.candidate_written: false`.
-- [ ] No test or tool executed the fixture/candidate on the host.
-- [ ] Error string, input boundary and exit codes were not changed.
-- [ ] The new fixture, if not yet published, is still treated as unavailable;
+- [x] No test or tool executed the fixture/candidate on the host.
+- [x] Error string, input boundary and exit codes were not changed.
+- [x] The new fixture, if not yet published, is still treated as unavailable;
       no address was guessed.
 
 ## Local verification
@@ -37,10 +38,10 @@ module check                        OK: every changed file matches module repair
 
 ## Commit split
 
-- [ ] `feat(repair): add elf64 core + cave finder dry-run tools`
-- [ ] `feat(repair): add patch writer + self-check with manifest output`
-- [ ] `test(repair): add unit tests covering boundary, reversibility, determinism`
-- [ ] `docs(repair): add dry-run docs, guard ABI and preflight notes`
+- [x] `feat(repair): add elf64 core + cave finder dry-run tools`
+- [x] `feat(repair): add patch writer + self-check with manifest output`
+- [x] `test(repair): add unit tests covering boundary, reversibility, determinism`
+- [x] `docs(repair): add dry-run docs, guard ABI and preflight notes`
 
 Each commit must be independently reviewable and must not include unrelated
 files.
