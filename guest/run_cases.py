@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""Run M3 fixture cases on a Linux guest and emit observations only.
+"""Run M3 fixture cases on a Linux x86-64 guest; emit observations only.
 
-This script must run inside the disposable Linux guest. It never decides
-"verified"; it records exit code/signal/stdout/stderr for the verifier.
+The verifier, not this runner, decides pass/fail. The ELF is invoked with
+execve-style argv (never a shell), and stdout/stderr are base64-encoded so the
+evidence is byte-exact.
 
 Usage:
     python3 guest/run_cases.py \
       --fixture fixtures/stack-overflow-01 \
-      --out var/observations.json
+      --out var/observations-original.json
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import platform
@@ -20,6 +22,7 @@ import signal
 import struct
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -27,19 +30,17 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _check_elf32(path: Path) -> None:
+def _check_elf64(path: Path) -> None:
     data = path.read_bytes()
     if data[:4] != b"\x7fELF":
         raise ValueError("not an ELF file")
-    if data[4] != 1:
-        raise ValueError("fixture must be ELF32")
+    if data[4] != 2:
+        raise ValueError("fixture must be ELF64")
     if data[5] != 1:
         raise ValueError("fixture must be little-endian")
-    machine = struct.unpack_from("<H", data, 18)[0]
-    if machine != 3:
-        raise ValueError("fixture must be EM_386")
-    e_type = struct.unpack_from("<H", data, 16)[0]
-    if e_type != 2:
+    if struct.unpack_from("<H", data, 18)[0] != 62:
+        raise ValueError("fixture must be EM_X86_64")
+    if struct.unpack_from("<H", data, 16)[0] != 2:
         raise ValueError("fixture must be ET_EXEC (no PIE)")
 
 
@@ -53,11 +54,11 @@ def _signal_name(returncode: int) -> str | None:
 
 
 def _run_one(elf: Path, case: dict, timeout: float) -> dict:
-    data = (elf.parent / case["path"]).read_bytes()
+    start = time.monotonic()
     try:
         proc = subprocess.run(
-            [str(elf)],
-            input=data,
+            [str(elf), *case.get("argv", [])],
+            input=case.get("stdin", "").encode("utf-8"),
             capture_output=True,
             timeout=timeout,
             check=False,
@@ -70,18 +71,16 @@ def _run_one(elf: Path, case: dict, timeout: float) -> dict:
         timed_out = True
         stdout = exc.stdout or b""
         stderr = exc.stderr or b""
+    elapsed = int((time.monotonic() - start) * 1000)
     return {
-        "path": case["path"],
-        "kind": case["kind"],
-        "length": len(data),
-        "sha256": _sha(data),
+        "id": case["id"],
+        "argv_sha256": _sha(json.dumps(case.get("argv", []), separators=(",", ":")).encode()),
         "exit_code": exit_code,
         "signal": _signal_name(exit_code) if exit_code is not None else None,
+        "stdout_b64": base64.b64encode(stdout).decode("ascii"),
+        "stderr_b64": base64.b64encode(stderr).decode("ascii"),
+        "duration_ms": elapsed,
         "timed_out": timed_out,
-        "stdout_sha256": _sha(stdout),
-        "stderr_sha256": _sha(stderr),
-        "stdout_preview": stdout[:200].decode("utf-8", "replace"),
-        "stderr_preview": stderr[:200].decode("utf-8", "replace"),
     }
 
 
@@ -98,31 +97,27 @@ def main(argv: list[str] | None = None) -> int:
 
     fixture = args.fixture.resolve()
     elf = fixture / "vuln.elf"
-    _check_elf32(elf)
-    # A checkout may not preserve the executable bit; make it runnable.
+    _check_elf64(elf)
     try:
         elf.chmod(elf.stat().st_mode | 0o111)
     except OSError:
         pass
-    contract = json.loads((fixture / "contract.json").read_text(encoding="utf-8"))
-    observations = []
-    for case in contract["cases"]:
-        observations.append(_run_one(elf, case, args.timeout))
-
+    corpus = json.loads((fixture / "cases" / "cases.json").read_text(encoding="utf-8"))
+    observations = [_run_one(elf, case, args.timeout) for case in corpus["cases"]]
     payload = {
-        "schema_version": "m3-observations-v0",
-        "fixture_id": contract["fixture_id"],
-        "platform": {
-            "system": platform.system(),
-            "machine": platform.machine(),
-            "python": platform.python_version(),
+        "schema_version": 1,
+        "binary": {"path": "vuln.elf", "sha256": _sha(elf.read_bytes())},
+        "environment": {
+            "uname": " ".join(platform.uname()),
+            "kernel": platform.release(),
+            "libc": platform.libc_ver()[0] + " " + platform.libc_ver()[1],
         },
-        "elf_sha256": _sha(elf.read_bytes()),
+        "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "cases": observations,
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"fixture_id": payload["fixture_id"], "cases": len(observations)}))
+    print(json.dumps({"fixture_id": corpus["fixture_id"], "cases": len(observations)}))
     return 0
 
 

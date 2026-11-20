@@ -1,15 +1,19 @@
-"""Static contract tests for the M3 stack-overflow fixture.
+"""Static contract tests for the x86-64 stack-overflow fixture.
 
-These tests do not execute the ELF. Runtime behavior is checked by
-``guest/run_cases.py`` inside the Linux guest.
+These tests never execute the ELF. Runtime behavior belongs to
+guest/run_cases.py inside the Linux guest.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import re
 import struct
 from pathlib import Path
+
+from capstone import CS_ARCH_X86, CS_MODE_64, Cs
+from elftools.elf.elffile import ELFFile
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "fixtures" / "stack-overflow-01"
@@ -19,71 +23,88 @@ def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def test_elf_is_elf32_i386_exec() -> None:
-    data = (FIXTURE / "vuln.elf").read_bytes()
-    assert data[:4] == b"\x7fELF"
-    assert data[4] == 1, "ELF32"
-    assert data[5] == 1, "little-endian"
-    assert struct.unpack_from("<H", data, 16)[0] == 2, "ET_EXEC"
-    assert struct.unpack_from("<H", data, 18)[0] == 3, "EM_386"
-    assert struct.unpack_from("<I", data, 24)[0] == 0x08048054
-    phoff = struct.unpack_from("<I", data, 28)[0]
-    phentsize = struct.unpack_from("<H", data, 42)[0]
-    phnum = struct.unpack_from("<H", data, 44)[0]
-    assert phnum == 1
-    p_type = struct.unpack_from("<I", data, phoff)[0]
-    assert p_type == 1, "PT_LOAD"
-    assert phentsize == 32
+def _elf():
+    fh = (FIXTURE / "vuln.elf").open("rb")
+    return fh, ELFFile(fh)
 
 
-def test_elf_has_no_interpreter() -> None:
-    data = (FIXTURE / "vuln.elf").read_bytes()
-    phoff = struct.unpack_from("<I", data, 28)[0]
-    phnum = struct.unpack_from("<H", data, 44)[0]
-    types = [struct.unpack_from("<I", data, phoff + i * 32)[0] for i in range(phnum)]
-    assert 3 not in types, "PT_INTERP must be absent (static, no PIE)"
+def test_elf_header_and_interp() -> None:
+    fh, elf = _elf()
+    try:
+        assert elf.elfclass == 64
+        assert elf["e_machine"] == "EM_X86_64"
+        assert elf["e_type"] == "ET_EXEC"
+        assert elf.little_endian is True
+        segs = list(elf.iter_segments())
+        assert any(seg["p_type"] == "PT_INTERP" for seg in segs)
+        assert any(seg["p_type"] == "PT_GNU_STACK" for seg in segs)
+        for seg in segs:
+            if seg["p_type"] == "PT_LOAD":
+                flags = int(seg["p_flags"])
+                assert not (flags & 1 and flags & 2), "LOAD must not be W+X"
+        assert elf.get_section_by_name(".dynamic") is not None
+    finally:
+        fh.close()
 
 
-def test_code_shape() -> None:
-    data = (FIXTURE / "vuln.elf").read_bytes()
-    code = data[0x54:]
-    assert code.startswith(b"\xe8"), "entry must call vuln"
-    assert b"\x83\xec\x20" in code, "sub esp, 32"
-    assert b"\xba\x40\x00\x00\x00" in code, "read count 64"
-    assert code.endswith(b"\xc9\xc3"), "leave; ret"
+def test_symbols_and_no_stack_chk() -> None:
+    fh, elf = _elf()
+    try:
+        symtab = elf.get_section_by_name(".symtab")
+        names = {sym.name for sym in symtab.iter_symbols()}
+        assert {"handle", "main", "strcpy@plt", "puts@plt"} <= names
+        assert not any("stack_chk" in name for name in names)
+        dynamic = elf.get_section_by_name(".dynamic")
+        needed = [tag.needed for tag in dynamic.iter_tags() if tag.entry.d_tag == "DT_NEEDED"]
+        assert any("libc.so.6" in item for item in needed)
+    finally:
+        fh.close()
 
 
-def test_manifest_and_contract_hashes() -> None:
+def test_handle_calls_strcpy_plt() -> None:
+    fh, elf = _elf()
+    try:
+        symtab = elf.get_section_by_name(".symtab")
+        symbols = {sym.name: sym for sym in symtab.iter_symbols()}
+        handle = symbols["handle"]
+        text = elf.get_section_by_name(".text")
+        code = text.data()[handle["st_value"] - text["sh_addr"]: handle["st_value"] - text["sh_addr"] + handle["st_size"]]
+        md = Cs(CS_ARCH_X86, CS_MODE_64)
+        instructions = list(md.disasm(code, handle["st_value"]))
+        assert any(insn.mnemonic == "sub" and insn.op_str.startswith("rsp,") for insn in instructions)
+        calls = [insn for insn in instructions if insn.mnemonic == "call" and "strcpy" in insn.op_str]
+        assert calls, "handle must call strcpy@plt"
+        assert all(len(insn.bytes) == 5 for insn in calls)
+        assert calls[0].op_str.endswith("<strcpy@plt>")
+    finally:
+        fh.close()
+
+
+def test_manifest_contract_and_cases() -> None:
     manifest = json.loads((FIXTURE / "manifest.json").read_text(encoding="utf-8"))
     contract = json.loads((FIXTURE / "contract.json").read_text(encoding="utf-8"))
-    elf_sha = _sha(FIXTURE / "vuln.elf")
-    assert manifest["binary"]["sha256"] == elf_sha
-    assert contract["binary_sha256"] == elf_sha
-    assert contract["frozen"] is True
-    assert manifest["defect"]["buffer_bytes"] == 32
-    assert manifest["defect"]["read_bytes"] == 64
+    corpus = json.loads((FIXTURE / "cases" / "cases.json").read_text(encoding="utf-8"))
+    assert manifest["binary"]["sha256"] == _sha(FIXTURE / "vuln.elf")
+    assert contract["binary_sha256"] == manifest["binary"]["sha256"]
+    assert manifest["symbols_present"] is True
+    # Derive the return-address offset from the recorded frame, not a constant.
+    buf_offset = int(manifest["frame"]["buf_rbp_offset"], 16)
+    assert manifest["frame"]["saved_rip_offset"] == 8 - buf_offset
+    assert manifest["reproducible"] is True
+    valid = [case for case in corpus["cases"] if case["kind"] == "valid"]
+    invalid = [case for case in corpus["cases"] if case["kind"] == "invalid"]
+    assert len(valid) == 5 and len(invalid) == 4
+    assert all(len(case["argv"][0]) <= 31 for case in valid)
+    assert all(len(case["argv"][0]) >= 32 for case in invalid)
+    assert all(case["expected_candidate"]["stderr"] == contract["stated_criteria"]["invalid_stderr"] for case in invalid)
+    assert (FIXTURE / "cases" / "poc.txt").read_bytes() == b"A" * 64
 
 
-def test_cases_are_hashed_and_bounded() -> None:
-    contract = json.loads((FIXTURE / "contract.json").read_text(encoding="utf-8"))
-    seen = set()
-    for case in contract["cases"]:
-        path = FIXTURE / case["path"]
-        assert path.is_file(), case["path"]
-        assert _sha(path) == case["sha256"], case["path"]
-        assert len(path.read_bytes()) == case["length"]
-        seen.add(case["path"])
-        if case["kind"] == "valid":
-            assert case["length"] <= 32
-            if "exit_code" in case["expect"]:
-                assert case["expect"]["exit_code"] == 0
-        else:
-            assert case["expect"]["signal"] == "SIGSEGV"
-    assert "cases/poc.bin" in seen
-    assert len((FIXTURE / "cases" / "poc.bin").read_bytes()) == 64
-
-
-def test_reference_c_documents_the_same_defect() -> None:
+def test_source_is_build_only_and_quarantined() -> None:
     source = (FIXTURE / "build" / "vuln.c").read_text(encoding="utf-8")
+    assert source.startswith("/* BUILD-ONLY.")
+    assert "__attribute__((noinline))" in source
+    assert "static void handle(char *input)" in source
     assert "char buf[32]" in source
-    assert "sys_read(0, buf, 64)" in source
+    assert "strcpy(buf, input)" in source
+    assert "puts(buf)" in source

@@ -1,27 +1,29 @@
 # Case corpus
 
-`cases/valid/` contains inputs that must return normally:
+The frozen corpus is `cases/cases.json`; `poc.txt` is the 64-byte PoC.
 
 ```text
-empty.bin   0 bytes
-short.bin   6 bytes: "hello\n"
-max32.bin   32 bytes: the maximum accepted by the 32-byte buffer contract
+valid-0      ""             stdout "\n"
+valid-1      "A"            stdout "A\n"
+valid-5      "hello"        stdout "hello\n"
+valid-31     31 x "A"       stdout 31 x "A" + "\n"
+valid-punct  "a-b_c.9"      stdout "a-b_c.9\n"
+
+invalid-32   32 x "A"       original: crash or undefined; candidate: exit 1, stderr, no stdout
+invalid-33   33 x "A"       original: crash or undefined; candidate: exit 1, stderr, no stdout
+invalid-64   64 x "A"       original: SIGSEGV; candidate: exit 1, stderr, no stdout
+invalid-128  128 x "A"      original: SIGSEGV; candidate: exit 1, stderr, no stdout
 ```
 
-`cases/invalid/` contains inputs that must trigger the defect:
+Inputs are passed as `argv[1]`, never through a shell. Candidate invalid
+behaviour is exactly:
 
 ```text
-return-overwrite-40.bin  40 bytes: 32 buffer + saved EBP + return address
+ERROR: input exceeds destination capacity\n
+exit 1
+no stdout
+no signal
 ```
 
-`cases/poc.bin` is the canonical 64-byte PoC:
-
-```text
-offset 0..31   'A' * 32
-offset 32..35  'B' * 4          saved EBP
-offset 36..39  ef be ad de      return address (0xdeadbeef)
-offset 40..63  'C' * 24
-```
-
-The exact oracle is in `../contract.json`; do not edit this corpus after the
-fixture is frozen.
+The original's `invalid-32`/`invalid-33` result is recorded, not asserted as a
+crash: it may silently corrupt the saved frame.

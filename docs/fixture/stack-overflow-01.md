@@ -1,62 +1,46 @@
-# Fixture design — stack-overflow-01
+# Fixture design — stack-overflow-01 (x86-64)
 
 Owner: M3 (fixture + verifier).
 
 ## Scope
 
 ```text
-architecture  i386
-format        ELF32, ET_EXEC, no PIE, static
-size          122 bytes
-defect        read(0, buf[32], 64)
-oracle        valid inputs exit 0; 40/64-byte inputs SIGSEGV
+ELF64, EM_X86_64, ET_EXEC, non-PIE, dynamic libc
+source is build-only: fixtures/stack-overflow-01/build/vuln.c
+target function: handle (static, noinline, symbol kept)
+buffer: 32 bytes
+defect: strcpy(buf, input), unbounded
 ```
 
-The fixture deliberately uses no libc. `_start` calls `vuln`; `vuln` subtracts
-0x20 from ESP, reads up to 64 bytes into that 32-byte stack area, then executes
-`leave; ret`. A 40-byte or 64-byte input overwrites the saved return address.
+The source is quarantined by policy: `pipeline/analyze`, AI prompts and the
+auditor must not read `fixtures/**/build/**`.
 
-## Freeze
+## Why this shape
+
+- `handle` is a separate symbol, so G2 can slice its disassembly.
+- `-O0 -fno-builtin` keeps `call strcpy@plt` as one 5-byte patch site.
+- `-g0 -no-pie -fno-stack-protector` removes DWARF, PIE and canary side paths.
+- `puts` gives a deterministic valid-path output.
+
+## Evidence required
 
 ```text
-contract.json   frozen
-cases/          frozen
-manifest.json   binary hash / metadata
+build/vuln.elf + manifest.json + SHA256SUMS   gcc-built, reproducible
+guest observations-original.json              Linux guest, argv-based
+tests/fixture                                  ELF64/EM_X86_64, symbols, PLT
 ```
 
-M3 is the only role that edits `contract.json`, `cases/`, or `vuln.elf`.
-M4/M5 may read them; they must not write them.
-
-## Evidence
-
-Static, on the authoring host:
-
-```text
-tests/fixture/test_fixture.py   10 passed
-ELF32 / EM_386 / ET_EXEC        checked
-no PT_INTERP                    checked
-entry / sub esp,32 / read 64    checked by bytes
-manifest/contract/case hashes   checked
-```
-
-Runtime:
-
-```text
-guest/run_cases.py -> observations.json   NOT RUN on authoring host
-pipeline/verify/verdict.py -> verdict.json  requires observations
-```
-
-The host runs only the static tests. `guest/run_cases.py` refuses non-Linux
-hosts with exit 2, so the fixture cannot be accidentally executed on Windows.
+The workflow `.github/workflows/build-fixture.yml` builds on `ubuntu-latest`,
+runs the fixture tests, and commits the artifact + manifest + SHA256SUMS. It is
+the fallback when no local Linux toolchain exists.
 
 ## G1 status
 
 ```text
-fixture artifacts   COMPLETE
-static checks       PASS
-guest PoC run       PENDING (needs Linux guest)
-G1 runtime signoff  NOT CLAIMED
+source/build recipe       COMPLETE
+artifact                  PENDING gcc build
+runtime original run      PENDING Linux guest
+G1 signoff                NOT CLAIMED
 ```
 
-This distinction is intentional: a static hash/code-shape check is not a
-runtime PoC observation.
+A static header check is not a substitute for the guest observation.

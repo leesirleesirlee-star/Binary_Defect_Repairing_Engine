@@ -1,70 +1,38 @@
 {
-  "schema_version": "m3-contract-v0",
+  "schema_version": 1,
   "fixture_id": "stack-overflow-01",
-  "binary_sha256": "0f8633994016362d01809b18ab0aa3ed28ea01f1ccd96af52350c1bfaf68d9b0",
-  "defect": "CWE-121 stack buffer overflow in read()",
-  "oracle": {
-    "valid": {
-      "exit_code": 0,
-      "signal": null
-    },
-    "invalid": {
-      "signal": "SIGSEGV"
-    },
-    "poc": {
-      "signal": "SIGSEGV"
-    }
+  "target_function": "handle",
+  "stated_criteria": {
+    "capacity_bytes": 32,
+    "capacity_includes_terminator": true,
+    "max_valid_input_bytes": 31,
+    "valid_domain": "printable ASCII, length 0..31, no NUL",
+    "valid_behavior": "write the input followed by a single LF to stdout; exit 0",
+    "forbidden_behavior": "any write past buf[31], including the terminating NUL",
+    "invalid_response": "write exactly the bytes of invalid_stderr to fd 2; exit 1; write nothing to stdout; do not crash",
+    "invalid_stderr": "ERROR: input exceeds destination capacity\n"
   },
-  "cases": [
-    {
-      "path": "cases/valid/empty.bin",
-      "kind": "valid",
-      "length": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "expect": {
-        "exit_code": 0,
-        "signal": null
-      }
-    },
-    {
-      "path": "cases/valid/max32.bin",
-      "kind": "valid",
-      "length": 32,
-      "sha256": "22a48051594c1949deed7040850c1f0f8764537f5191be56732d16a54c1d8153",
-      "expect": {
-        "exit_code": 0,
-        "signal": null
-      }
-    },
-    {
-      "path": "cases/valid/short.bin",
-      "kind": "valid",
-      "length": 6,
-      "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
-      "expect": {
-        "exit_code": 0,
-        "signal": null
-      }
-    },
-    {
-      "path": "cases/invalid/return-overwrite-40.bin",
-      "kind": "invalid",
-      "length": 40,
-      "sha256": "f82f2e7a61cf1d9a80378555ef8e1a2bcc7d5bb1127520a27ef427c8a26399df",
-      "expect": {
-        "signal": "SIGSEGV"
-      }
-    },
-    {
-      "path": "cases/poc.bin",
-      "kind": "poc",
-      "length": 64,
-      "sha256": "124da10ea2ddd6daf1a39a3a55be016b79317ba0ea1410f591e00445048e300a",
-      "expect": {
-        "signal": "SIGSEGV"
-      }
-    }
-  ],
-  "frozen": true,
-  "notes": "M3-owned contract; AI may analyze the binary but must not edit this file or cases/."
+  "diagnostic_hypothesis": {
+    "statement": "handle copies argv[1] into a 32-byte stack buffer with an unbounded strcpy, so inputs of 32 bytes or more overwrite the saved frame",
+    "status": "to_be_confirmed_by_analysis",
+    "note": "A hypothesis, not an acceptance criterion. The AI may confirm or refute it."
+  },
+  "allowed_edits": {
+    "redirect": "one 5-byte relative call at the strcpy call site",
+    "added_code": "at most 256 bytes in the existing R-X segment verified-unused tail",
+    "added_data": "at most 64 bytes in the same R-X segment, RIP-relative references only",
+    "forbidden": [
+      "new segment",
+      "new dynamic import or PLT/GOT entry",
+      "text relocation",
+      "W+X permission",
+      "change to the entry point or the original function return value on the valid path"
+    ]
+  },
+  "environment_assumptions": [
+    "Linux x86-64, non-PIE",
+    "glibc with strcpy/puts PLT stubs",
+    "no CET shadow-stack enforcement",
+    "guest runs with no network and no credentials"
+  ]
 }

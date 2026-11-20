@@ -1,64 +1,51 @@
-# stack-overflow-01 (M3 fixture)
+# stack-overflow-01 (x86-64, build-only source)
 
-Frozen 32-bit Linux fixture for the new MVP.
-
-```text
-defect        CWE-121 stack buffer overflow
-buffer        32 bytes
-read          64 bytes into buf[32]
-binary        ELF32, EM_386, ET_EXEC, no PIE, static, 122 bytes
-PoC           64 bytes; overwrites saved return address with 0xdeadbeef
-valid inputs  0, 6, 32 bytes: exit 0, no fatal signal
-invalid       40 bytes: SIGSEGV
-```
-
-## Files
+Frozen fixture for MVP2, built from `build/vuln.c` with gcc.
 
 ```text
-vuln.elf                 committed artifact (canonical)
-build/build_elf.py       reproducible freestanding builder (Python only)
-build/build.sh           wrapper
-build/vuln.c             reference C shape; not the canonical bytes
-manifest.json            hashes, ELF metadata, oracle
-contract.json            frozen expected behavior (M3-owned)
-cases/poc.bin            64-byte PoC
-cases/valid/*.bin        valid corpus
-cases/invalid/*.bin      invalid corpus
+target function   handle (static, noinline, symbol kept)
+buffer            32 bytes
+defect            unbounded strcpy into buf[32]
+binary            ELF64, EM_X86_64, ET_EXEC, non-PIE, dynamic libc
+valid             0..31 bytes: input + LF on stdout, exit 0
+invalid           32+ bytes: candidate must exit 1, exact stderr, empty stdout
+PoC               64 x 'A' passed as argv[1]; original SIGSEGV expected
 ```
 
-`contract.json` and `cases/` are frozen by M3. AI analysis may read the
-binary and manifest but must not write these files.
+## Provenance
 
-## Build
+`build/vuln.c` is **BUILD-ONLY**. Analysis, AI and audit code must not read
+`build/`. The committed `vuln.elf` is produced by `build/build.sh` with the
+exact flags in the spec, not by a byte generator.
 
 ```bash
-cd fixtures/stack-overflow-01/build
-./build_elf.py
+gcc -O0 -g0 -fno-stack-protector -fno-pie -no-pie -fno-builtin \
+    -m64 -Wall -Wextra -Wl,-z,noexecstack -Wl,--build-id=none \
+    -o vuln.elf vuln.c
 ```
 
-The builder needs only Python 3. No cross-compiler is required. It writes
-`../vuln.elf`; the manifest hash must then be updated only by M3.
+`build/record_manifest.py` runs after the build and records toolchain, command,
+hashes, ELF headers/segments, symbols, `handle` frame, and reproducibility.
 
-## Run in the guest
+## Current build status
 
-Never run the ELF on the Windows host.
+```text
+vuln.elf, manifest.json, SHA256SUMS   PENDING the gcc build
+build source + workflow              committed
+```
+
+The build is produced by `.github/workflows/build-fixture.yml` on
+`ubuntu-latest` (or by a Linux guest). Do not claim G1 until
+`vuln.elf`, `manifest.json` and `observations-original.json` exist.
+
+## Run
 
 ```bash
-python3 guest/run_cases.py \
-  --fixture fixtures/stack-overflow-01 \
-  --out var/observations.json
+python3 guest/run_cases.py --fixture fixtures/stack-overflow-01 \
+  --out var/observations-original.json
 python3 pipeline/verify/verdict.py \
   --contract fixtures/stack-overflow-01/contract.json \
-  --observations var/observations.json \
-  --out var/verdict.json
+  --cases fixtures/stack-overflow-01/cases/cases.json \
+  --observations var/observations-original.json \
+  --role original --out var/verdict-original.json
 ```
-
-Expected verdict: `verified_against_stated_criteria`.
-
-## Runtime status
-
-The artifact is statically checked (ELF32/EM_386/ET_EXEC, code shape, hashes,
-case lengths) but **not executed on the authoring Windows host**. Runtime
-execution and the SIGSEGV observation must be produced in the Linux guest; do
-not mark the fixture runtime-verified until `run_cases.py` has an observation
-file.

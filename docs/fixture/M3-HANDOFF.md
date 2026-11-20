@@ -1,4 +1,4 @@
-# M3 handoff — stack-overflow-01
+# M3 handoff — stack-overflow-01 (x86-64)
 
 Date: 2026-11-20  
 Owner: M3 (fixture + verifier)
@@ -7,69 +7,54 @@ Owner: M3 (fixture + verifier)
 
 ```text
 fixtures/stack-overflow-01/
-  vuln.elf
-  manifest.json
-  contract.json
-  SHA256SUMS
-  build/{build_elf.py,build.sh,vuln.c}
-  cases/{poc.bin,valid/*,invalid/*}
-guest/run_cases.py
-pipeline/verify/verdict.py
-tests/fixture/test_fixture.py
-tests/fixture/test_verdict.py
-docs/fixture/stack-overflow-01.md
+  build/vuln.c              exact MVP2 source (BUILD-ONLY)
+  build/build.sh            exact gcc recipe
+  build/record_manifest.py  post-build manifest recorder
+  contract.json             frozen stated criteria
+  cases/cases.json          argv-based corpus
+  cases/poc.txt             64 x A PoC
+  README.md
+  cases/README.md
+guest/run_cases.py           Linux guest observation runner
+pipeline/verify/verdict.py   deterministic candidate/original verdict
+tests/fixture/               ELF64/EM_X86_64 + verifier tests
+docs/fixture/                design + this handoff
+.github/workflows/build-fixture.yml
 ```
 
-## Pinned artifact
+## Pending artifact
 
 ```text
-file      fixtures/stack-overflow-01/vuln.elf
-size      122 bytes
-sha256    0f8633994016362d01809b18ab0aa3ed28ea01f1ccd96af52350c1bfaf68d9b0
-class     ELF32, EM_386, ET_EXEC, no PIE, static
-entry     0x08048054
+vuln.elf, manifest.json, SHA256SUMS   PENDING gcc build
 ```
 
-## Oracle
+The build must run on Linux x86-64 with gcc/ld. The workflow builds twice,
+requires equal sha256, records toolchain/ELF/symbol/frame facts, runs
+`tests/fixture`, and commits the artifact on success.
+
+## Required checks after build
 
 ```text
-valid (0/6/32 bytes)       exit 0, no fatal signal
-invalid (40 bytes)         SIGSEGV
-PoC (64 bytes)             SIGSEGV
+readelf -h vuln.elf              ELF64, EM_X86_64, EXEC
+readelf -sW vuln.elf             handle, main, strcpy@plt, puts@plt
+objdump -d vuln.elf              call strcpy@plt inside handle
+readelf -d vuln.elf              NEEDED libc.so.6
+readelf -sW vuln.elf             no stack_chk
+manifest                         reproducible=true, actual saved_rip_offset
 ```
 
-The PoC writes `0xdeadbeef` at the saved return-address slot (offset 36).
+## Runtime
 
-## Static evidence
-
-```text
-python -m pytest -q tests/fixture
-10 passed
-
-sha256sum -c fixtures/stack-overflow-01/SHA256SUMS
-10/10 OK
+```bash
+python3 guest/run_cases.py --fixture fixtures/stack-overflow-01 \
+  --out var/observations-original.json
 ```
 
-The checks cover ELF32/EM_386/ET_EXEC, absence of PT_INTERP, code shape,
-manifest/contract hashes, case lengths/hashes, and verifier decision logic.
+`observations-original.json` is required for G1. Do not claim G1 from the static
+tests alone.
 
-## Runtime evidence
+## Branch hygiene
 
-```text
-guest/run_cases.py        NOT RUN on the Windows authoring host
-pipeline/verify/verdict.py requires observations.json
-```
-
-The runner refuses non-Linux hosts with exit 2. Do not claim G1 runtime signoff
-until a Linux guest produces `observations.json` and the verifier writes
-`verified_against_stated_criteria`.
-
-## Freeze
-
-```text
-contract.json   frozen
-cases/          frozen
-vuln.elf        frozen
-```
-
-Only M3 edits these files. M4/M5 may read them; they must not write them.
+M3 branch touches `fixtures/`, `guest/`, `pipeline/verify/` and `tests/fixture/`.
+M1 should review with `module:integration`; split into fixture/guest/verifier
+branches if the project requires one-module PRs.
