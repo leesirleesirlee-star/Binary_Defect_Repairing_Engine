@@ -27,13 +27,13 @@ jobs:
         shell: bash
         run: |
           set +e
+          cd fixtures/stack-overflow-01
           {
             echo "== toolchain =="
             gcc --version | head -1
             ld --version | head -1
             uname -a
             echo "== build 1 =="
-            cd fixtures/stack-overflow-01
             chmod +x build/build.sh
             ./build/build.sh
             first=$(sha256sum vuln.elf | cut -d' ' -f1)
@@ -81,4 +81,5 @@ jobs:
           git add fixtures/stack-overflow-01/build/ci-build.txt
           git commit -m "chore(fixture): record build failure [skip ci]"
           git push
+
 
