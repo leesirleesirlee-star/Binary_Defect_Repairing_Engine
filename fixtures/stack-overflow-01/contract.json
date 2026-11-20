@@ -1,0 +1,70 @@
+{
+  "schema_version": "m3-contract-v0",
+  "fixture_id": "stack-overflow-01",
+  "binary_sha256": "0f8633994016362d01809b18ab0aa3ed28ea01f1ccd96af52350c1bfaf68d9b0",
+  "defect": "CWE-121 stack buffer overflow in read()",
+  "oracle": {
+    "valid": {
+      "exit_code": 0,
+      "signal": null
+    },
+    "invalid": {
+      "signal": "SIGSEGV"
+    },
+    "poc": {
+      "signal": "SIGSEGV"
+    }
+  },
+  "cases": [
+    {
+      "path": "cases/valid/empty.bin",
+      "kind": "valid",
+      "length": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expect": {
+        "exit_code": 0,
+        "signal": null
+      }
+    },
+    {
+      "path": "cases/valid/max32.bin",
+      "kind": "valid",
+      "length": 32,
+      "sha256": "22a48051594c1949deed7040850c1f0f8764537f5191be56732d16a54c1d8153",
+      "expect": {
+        "exit_code": 0,
+        "signal": null
+      }
+    },
+    {
+      "path": "cases/valid/short.bin",
+      "kind": "valid",
+      "length": 6,
+      "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+      "expect": {
+        "exit_code": 0,
+        "signal": null
+      }
+    },
+    {
+      "path": "cases/invalid/return-overwrite-40.bin",
+      "kind": "invalid",
+      "length": 40,
+      "sha256": "f82f2e7a61cf1d9a80378555ef8e1a2bcc7d5bb1127520a27ef427c8a26399df",
+      "expect": {
+        "signal": "SIGSEGV"
+      }
+    },
+    {
+      "path": "cases/poc.bin",
+      "kind": "poc",
+      "length": 64,
+      "sha256": "124da10ea2ddd6daf1a39a3a55be016b79317ba0ea1410f591e00445048e300a",
+      "expect": {
+        "signal": "SIGSEGV"
+      }
+    }
+  ],
+  "frozen": true,
+  "notes": "M3-owned contract; AI may analyze the binary but must not edit this file or cases/."
+}

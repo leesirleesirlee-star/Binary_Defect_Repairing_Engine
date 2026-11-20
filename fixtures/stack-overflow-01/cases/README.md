@@ -1,9 +1,27 @@
-# Case sets
+# Case corpus
 
-- `valid.json` - the correct inputs: 0, 1, 5, 31 bytes and a punctuation case.
-- `invalid.json` - 32, 33, 64 and 128 bytes.
-- `poc.json` - the 64-byte PoC and its observed original output.
+`cases/valid/` contains inputs that must return normally:
 
-The format is `CaseSetV1` in `schemas/`. Inputs are byte strings passed as
-`argv[1]`, never shell strings. The set freezes at G1; a change needs a new
-fixture version and a new gate.
+```text
+empty.bin   0 bytes
+short.bin   6 bytes: "hello\n"
+max32.bin   32 bytes: the maximum accepted by the 32-byte buffer contract
+```
+
+`cases/invalid/` contains inputs that must trigger the defect:
+
+```text
+return-overwrite-40.bin  40 bytes: 32 buffer + saved EBP + return address
+```
+
+`cases/poc.bin` is the canonical 64-byte PoC:
+
+```text
+offset 0..31   'A' * 32
+offset 32..35  'B' * 4          saved EBP
+offset 36..39  ef be ad de      return address (0xdeadbeef)
+offset 40..63  'C' * 24
+```
+
+The exact oracle is in `../contract.json`; do not edit this corpus after the
+fixture is frozen.
