@@ -1,0 +1,103 @@
+== toolchain ==
+gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+GNU ld (GNU Binutils for Ubuntu) 2.46
+Linux runnervmccnms 7.0.0-1019-azure #20-Ubuntu SMP PREEMPT Mon Oct 19 22:41:16 UTC 2026 x86_64 GNU/Linux
+== build 1 ==
+first=a6f8fed47a30b8e4c18e5d0d8e539918c0e7d18f6b6c327b7c621b45029a36aa
+== build 2 ==
+second=a6f8fed47a30b8e4c18e5d0d8e539918c0e7d18f6b6c327b7c621b45029a36aa
+== manifest ==
+{
+  "schema_version": 1,
+  "fixture_id": "stack-overflow-01",
+  "built_at": "2026-11-20T09:21:26Z",
+  "toolchain": {
+    "gcc": "gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+    "ld": "GNU ld (GNU Binutils for Ubuntu) 2.46",
+    "uname": "Linux runnervmccnms 7.0.0-1019-azure #20-Ubuntu SMP PREEMPT Mon Oct 19 22:41:16 UTC 2026 x86_64 GNU/Linux",
+    "python": "3.12.16"
+  },
+  "command": "gcc -O0 -g0 -fno-stack-protector -fno-pie -no-pie -fno-builtin -m64 -Wall -Wextra -Wl,-z,noexecstack -Wl,--build-id=none -o vuln.elf vuln.c",
+  "source": {
+    "path": "build/vuln.c",
+    "sha256": "03842dcf921a79598b9dd94eb5184b4825faa81a2fa368e35a2204f884a91d01"
+  },
+  "binary": {
+    "path": "vuln.elf",
+    "sha256": "a6f8fed47a30b8e4c18e5d0d8e539918c0e7d18f6b6c327b7c621b45029a36aa",
+    "size": 15944
+  },
+  "elf": {
+    "class": "ELF64",
+    "machine": "EM_X86_64",
+    "type": "ET_EXEC",
+    "entry": "0x401090",
+    "little_endian": true
+  },
+  "segments": [
+    {
+      "type": "PT_LOAD",
+      "vaddr": "0x400000",
+      "filesz": 1336,
+      "memsz": 1336,
+      "flags": "R--"
+    },
+    {
+      "type": "PT_LOAD",
+      "vaddr": "0x401000",
+      "filesz": 529,
+      "memsz": 529,
+      "flags": "R-X"
+    },
+    {
+      "type": "PT_LOAD",
+      "vaddr": "0x402000",
+      "filesz": 368,
+      "memsz": 368,
+      "flags": "R--"
+    },
+    {
+      "type": "PT_LOAD",
+      "vaddr": "0x403df8",
+      "filesz": 560,
+      "memsz": 600,
+      "flags": "RW-"
+    },
+    {
+      "type": "PT_GNU_STACK",
+      "flags": "RW-"
+    }
+  ],
+  "has_interp": true,
+  "needed": [
+    "libc.so.6"
+  ],
+  "symbols": {
+    "handle": "0x401176",
+    "main": "0x4011a8",
+    "strcpy@plt": "0x401060",
+    "puts@plt": "0x401070"
+  },
+  "frame": {
+    "sub_rsp": "0x30",
+    "buf_rbp_offset": "-0x20",
+    "saved_rip_offset": 40,
+    "method": "lea rbp displacement"
+  },
+  "strcpy_call": {
+    "address": "0x401194",
+    "bytes": "e8c7feffff",
+    "target": "strcpy@plt"
+  },
+  "symbols_present": true,
+  "reproducible": true,
+  "second_sha256": "a6f8fed47a30b8e4c18e5d0d8e539918c0e7d18f6b6c327b7c621b45029a36aa",
+  "cases": {
+    "path": "cases/cases.json",
+    "sha256": "fae5efd054358d16610987f5645eadc582ce53ac12debeb356941d6617ceec3d"
+  },
+  "poc": {
+    "path": "cases/poc.txt",
+    "sha256": "d53eda7a637c99cc7fb566d96e9fa109bf15c478410a3f5eb4d4c4e26cd081f6"
+  }
+}
