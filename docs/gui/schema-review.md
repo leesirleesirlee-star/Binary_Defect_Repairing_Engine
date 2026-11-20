@@ -1,13 +1,28 @@
 # GUI schema review for the four screens
 
-Status: M2 review against PR #22 (`m1/schemas-v0`). The review is intentionally
-incomplete: the PR publishes `ContractV1`, `FixPlanV1`, `ObservationV1`,
-`VerdictV1` and `EditManifestV1`; the schemas owned by other gates are still
-absent. No GUI field has been invented to cover a missing schema field.
+Status: M2 review against PR #22 (`m1/schemas-v0`) under the **roadmap
+authority**. The roadmap section 5 vocabulary and the `schemas/README.md` naming
+rule win over stale text in issue #2.
 
 The four screens themselves move to #12. This document records what each screen
-needs, the persisted JSON path it would use, and the gaps that must be filed on
-issue #3 before G1 freezes.
+needs, the persisted JSON path it uses, and the gaps that remain at later gates.
+
+## Authority decisions
+
+- **Verdict vocabulary is the roadmap six-word set**:
+  `verified_against_stated_criteria`, `rejected`, `unverified`, `unsupported`,
+  `error`, `not_run`. Issue #2's three-word acceptance text is stale and must be
+  corrected; no `not_verified` alias is added.
+- **Schema filenames follow `schemas/README.md`**:
+  `<Name>V<major>.schema.json`. Issue #2's lowercase filenames are stale.
+- **`not_run` is a verdict/criterion state, never a success.** It comes from
+  `VerdictV1.verdict` or `VerdictV1.criteria[].status`. A required case missing
+  from `ObservationV1` is not inferred from `timed_out`; that join needs
+  `CaseSetV1` at G1.
+- **Contract revision is file identity, not a new JSON field.** The Task screen
+  displays the SHA-256 of the persisted contract file; `app/loader.digest()`
+  computes it without inventing a schema property. `schema_version` remains the
+  schema major version.
 
 ## Screen field lists
 
@@ -18,8 +33,8 @@ issue #3 before G1 freezes.
 | fixture id | `ContractV1` | `fixture_id` | available in PR #22 |
 | original binary hash | `ContractV1` | `binary_sha256` | available in PR #22 |
 | target function | `ContractV1` | `target_function` | available in PR #22 |
-| contract revision | `ContractV1` | none | **gap** |
-| ELF metadata / fixture manifest identity | `FixtureManifestV1` | not published (G1) | blocked on M3 |
+| contract revision | `ContractV1` file identity | SHA-256 via `app/loader.digest()` | convention, no schema change |
+| ELF metadata / manifest identity | `FixtureManifestV1` | not published (G1) | blocked on M3 |
 | run action | no persisted field | GUI action binding | GUI-only |
 
 ### 2. Analysis screen
@@ -46,10 +61,9 @@ issue #3 before G1 freezes.
 | per-criterion status | `VerdictV1` | `criteria[].id`, `criteria[].required`, `criteria[].status`, `criteria[].evidence_sha256` | available in PR #22 |
 | coverage | `VerdictV1` | `coverage.cases_total`, `coverage.cases_run`, `coverage.unmeasured` | available in PR #22 |
 | limitations | `VerdictV1` | `limitations[]` | available in PR #22 |
-| original/candidate case rows | `ObservationV1` | `cases[].id`, `cases[].argv_sha256`, `cases[].exit_code`, `cases[].signal`, `cases[].stdout_b64`, `cases[].stderr_b64`, `cases[].duration_ms`, `cases[].timed_out` | partially available |
-| explicit case `not_run` state | `ObservationV1` | none | **gap** |
-| case input and expected boundary data | `CaseSetV1` | not published (G1) | blocked on M3 |
-| 31/32 boundary identity | `CaseSetV1` / `ObservationV1` | unresolved | **gap** |
+| original/candidate case rows | `ObservationV1` | `cases[].id`, `cases[].argv_sha256`, `cases[].exit_code`, `cases[].signal`, `cases[].stdout_b64`, `cases[].stderr_b64`, `cases[].duration_ms`, `cases[].timed_out` | available in PR #22 |
+| case list / 31-32 boundary identity | `CaseSetV1` | not published (G1) | blocked on M3 |
+| required-but-missing case -> `not_run` | `CaseSetV1` join rule | not published (G1) | **gap for M3** |
 
 ### 4. Evidence screen
 
@@ -62,59 +76,42 @@ issue #3 before G1 freezes.
 | download links | `EvidenceBundleV1` | not published (G4) | blocked on M1 |
 | missing-artifact state | `EvidenceBundleV1` | not published (G4) | blocked on M1 |
 
-## Gaps to file on issue #3 before G1 freeze
+## Gaps to file on #3
 
-1. **`ObservationV1` has no per-case status.** `cases[]` requires
-   `exit_code`, `signal`, `timed_out`, stdout/stderr and duration, but no explicit
-   `ran` / `not_run` field. A GUI cannot render `not_run` verbatim for a case
-   without inventing a mapping from `timed_out` or null exit code. Add a
-   case-level status vocabulary (for example `ran`, `not_run`, `timed_out`,
-   `error`) or an explicit `not_run` boolean.
-2. **`ContractV1` has no contract revision.** The Task screen needs a contract
-   revision; `schema_version` is a schema major version, not the revision of
-   this contract file. Define a revision field or document that the GUI displays
-   the contract file's content hash computed outside the schema.
-3. **`ContractV1` has no contract digest**, while `VerdictV1.contract_sha256`
-   binds a verdict to a contract. The Task screen should show the bound contract
-   identity; define how the contract file is canonicalized/hashed.
-4. **`ObservationV1` has no case input/expected data** and `CaseSetV1` is not
-   published. The 31/32 boundary and expected behaviour cannot be rendered from
-   observations alone. Record a `CaseSetV1` requirement at G1.
-5. **The verdict vocabulary conflicts.** Issue #2 acceptance says exactly
-   `verified_against_stated_criteria` / `not_verified` / `not_run`; PR #22 and
-   roadmap section 5 use six words
-   (`verified_against_stated_criteria`, `rejected`, `unverified`, `unsupported`,
-   `error`, `not_run`). Decide the single vocabulary before either issue or
-   schema freezes; the GUI cannot support both.
-6. **Issue #2 filenames conflict with `schemas/README.md`.** Issue #2 says
-   `schemas/contract.schema.json` and `schemas/fix-plan.schema.json`; the PR uses
-   `ContractV1.schema.json` and `FixPlanV1.schema.json`. Update issue #2 or add
-   aliases before closing it.
-7. **`TaskViewV1` and `EvidenceBundleV1` are not in PR #22.** Both are needed by
-   the four-screen flow; `TaskViewV1` is M2-owned at G4 and
-   `EvidenceBundleV1` is M1-owned at G4. The field review for Task/Evidence
-   cannot complete until their schemas exist.
+1. `FixtureManifestV1` (G1, M3) must carry fixture identity and ELF facts for the
+   Task screen.
+2. `CaseSetV1` (G1, M3) must expose case ids, input identity/expected behavior
+   and the 31/32 boundary. The verification screen also needs the documented
+   join rule for a required case absent from `ObservationV1` so it can render
+   `not_run` without inference.
+3. `DisassemblyViewV1` and `FindingV1` (G2, M4) must carry the function slice,
+   call site and defect location without source paths.
+4. `TaskViewV1` (G4, M2) and `EvidenceBundleV1` (G4, M1) are required by the
+   Task/Evidence screens; their field reviews remain open until published.
+5. Issue #2's verdict vocabulary and schema filenames are stale; correct them to
+   the roadmap/`schemas/README.md` authority in the issue or PR description.
 
-## Read-only data layer
+No GUI field has been invented to cover an absent schema field. The contract
+revision is rendered from persisted file bytes, not added to `ContractV1`.
 
-`app/loader.py` implements `load(path, *, root=None) -> dict`:
+## Read-only data layer and examples
+
+`app/loader.py` implements `load(path, *, root=None) -> dict` and
+`digest(path, *, root=None) -> str`:
 
 - resolves every path below the repository data root;
-- rejects absolute paths outside the root, `..` escapes, NUL bytes, non-`.json`
+- rejects absolute paths outside the root, `..` escapes, NUL bytes, non-JSON
   files and symlink escapes;
 - raises `ArtifactMissing` for a missing file, `ArtifactInvalid` for malformed or
   non-object JSON and `ArtifactUnsafe` for path violations;
 - returns the decoded object unchanged and has no verdict or schema logic.
 
+`app/examples/` contains the five PR #22 artifact examples copied for GUI
+development. `tests/app/test_examples.py` validates them against
+`schemas/*.schema.json` when the schema files are present. On the clean GUI
+branch (schemas not merged) that test reports `not_run`; on the local integration
+branch with PR #22 it validates five examples.
+
 `app/render.py` renders missing values as `missing`, observation statuses
-verbatim and a verdict only from the persisted
-`VerdictV1.verdict` field. Observations alone cannot produce
-`verified_against_stated_criteria`.
-
-## Remaining #3 acceptance items after PR #22
-
-- `app/examples/*.json` validation is blocked until the additional schemas land
-  and PR #22 is merged; `tests/app/test_examples.py` reports that as `not_run`
-  rather than validating guessed fields.
-- The field review above is complete for the five artifacts in PR #22; the
-  evidence and task-view rows remain blocked on their G4 schemas.
+verbatim and a verdict only from the persisted `VerdictV1.verdict` field.
+Observations alone cannot produce `verified_against_stated_criteria`.

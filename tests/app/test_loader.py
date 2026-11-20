@@ -11,6 +11,7 @@ from app.loader import (
     ArtifactInvalid,
     ArtifactMissing,
     ArtifactUnsafe,
+    digest,
     load,
 )
 
@@ -84,3 +85,17 @@ def test_empty_and_nul_paths_are_rejected(tmp_path: Path) -> None:
     for bad_path in ("", "   ", "artifact\x00.json"):
         with pytest.raises(ArtifactUnsafe):
             load(bad_path, root=tmp_path)
+
+
+def test_digest_is_a_sha256_of_the_persisted_bytes(tmp_path: Path) -> None:
+    import hashlib
+
+    target = _write(tmp_path, "artifact.json", {"verdict": "not_run"})
+    assert digest("artifact.json", root=tmp_path) == hashlib.sha256(target.read_bytes()).hexdigest()
+
+
+def test_digest_uses_the_same_path_boundary(tmp_path: Path) -> None:
+    with pytest.raises(ArtifactMissing):
+        digest("missing.json", root=tmp_path)
+    with pytest.raises(ArtifactUnsafe):
+        digest("../outside.json", root=tmp_path)

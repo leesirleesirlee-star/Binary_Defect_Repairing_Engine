@@ -16,6 +16,7 @@ validation is the contract module's job.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -108,3 +109,36 @@ def load(path: str | Path, *, root: str | Path | None = None) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ArtifactInvalid(f"artifact top level must be a JSON object: {raw}")
     return payload
+
+
+def digest(path: str | Path, *, root: str | Path | None = None) -> str:
+    """Return the SHA-256 of one persisted artifact using the same path rules.
+
+    This is file identity, not a verdict or a schema field.  The Task screen can
+    display it as the contract revision while the contract schema has no
+    dedicated revision field.
+    """
+    if not isinstance(path, (str, Path)):
+        raise ArtifactUnsafe("artifact path must be a string or Path")
+    raw = str(path).strip()
+    if not raw or "\x00" in raw:
+        raise ArtifactUnsafe("artifact path is empty or contains a NUL byte")
+    base = _data_root(root)
+    requested = Path(raw).expanduser()
+    candidate = requested if requested.is_absolute() else base / requested
+    try:
+        resolved = candidate.resolve(strict=False)
+    except OSError as exc:
+        raise ArtifactUnsafe(f"artifact path cannot be resolved: {raw}") from exc
+    try:
+        resolved.relative_to(base)
+    except ValueError as exc:
+        raise ArtifactUnsafe(f"artifact path escapes the data root: {raw}") from exc
+    if not resolved.exists():
+        raise ArtifactMissing(raw)
+    if not resolved.is_file():
+        raise ArtifactUnsafe(f"artifact is not a regular file: {raw}")
+    try:
+        return hashlib.sha256(resolved.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise ArtifactMissing(raw) from exc
