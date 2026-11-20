@@ -35,9 +35,6 @@ def main() -> int:
     root = args.fixture.resolve()
     source = root / "build" / "vuln.c"
     binary = root / "vuln.elf"
-    cases = json.loads(
-        (root / "cases" / "cases.json").read_text(encoding="utf-8")
-    )
     contract_path = root / "contract.json"
     contract = json.loads(contract_path.read_text(encoding="utf-8"))
 
