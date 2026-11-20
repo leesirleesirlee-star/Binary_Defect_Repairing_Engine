@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CaseSetV1",
+  "description": "Frozen valid/invalid/PoC inputs and their expected behaviour on the original and on a repaired candidate. Frozen at G1 with the contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "fixture_id",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "fixture_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "argv",
+          "stdin",
+          "expected_original",
+          "expected_candidate"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+          },
+          "kind": {
+            "enum": [
+              "valid",
+              "invalid",
+              "poc"
+            ]
+          },
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "stdin": {
+            "type": "string"
+          },
+          "expected_original": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "exit_code": {
+                "type": "integer"
+              },
+              "stdout": {
+                "type": "string"
+              },
+              "stderr": {
+                "type": "string"
+              },
+              "signal": {
+                "type": "string"
+              },
+              "crash_or_undefined": {
+                "const": true
+              }
+            },
+            "anyOf": [
+              {
+                "required": [
+                  "exit_code"
+                ]
+              },
+              {
+                "required": [
+                  "signal"
+                ]
+              },
+              {
+                "required": [
+                  "crash_or_undefined"
+                ]
+              }
+            ]
+          },
+          "expected_candidate": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "exit_code": {
+                "type": "integer"
+              },
+              "stdout": {
+                "type": "string"
+              },
+              "stderr": {
+                "type": "string"
+              },
+              "signal": {
+                "type": "string"
+              },
+              "crash_or_undefined": {
+                "const": true
+              }
+            },
+            "anyOf": [
+              {
+                "required": [
+                  "exit_code"
+                ]
+              },
+              {
+                "required": [
+                  "signal"
+                ]
+              },
+              {
+                "required": [
+                  "crash_or_undefined"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -19,11 +19,23 @@ EXAMPLES = SCHEMAS / "examples"
 
 PAIRS = {
     "ContractV1": "ContractV1.example.json",
+    "FixtureManifestV1": "FixtureManifestV1.example.json",
+    "CaseSetV1": "CaseSetV1.example.json",
     "FixPlanV1": "FixPlanV1.example.json",
     "ObservationV1": "ObservationV1.example.json",
     "VerdictV1": "VerdictV1.example.json",
     "EditManifestV1": "EditManifestV1.example.json",
 }
+
+# FixtureManifestV1 legitimately records the build source path; the other
+# examples must never carry source material because they can feed a prompt.
+PROMPT_FACING = (
+    "ContractV1",
+    "FixPlanV1",
+    "ObservationV1",
+    "VerdictV1",
+    "EditManifestV1",
+)
 
 
 def load(path: Path) -> dict:
@@ -97,8 +109,37 @@ def test_edit_manifest_refuses_a_written_candidate() -> None:
     assert validate("EditManifestV1", payload)
 
 
-@pytest.mark.parametrize("example", sorted(PAIRS.values()))
-def test_examples_carry_no_source_material(example: str) -> None:
-    text = (EXAMPLES / example).read_text(encoding="utf-8")
+@pytest.mark.parametrize("name", PROMPT_FACING)
+def test_prompt_facing_examples_carry_no_source_material(name: str) -> None:
+    text = (EXAMPLES / PAIRS[name]).read_text(encoding="utf-8")
     assert "vuln.c" not in text
     assert "fixtures/stack-overflow-01/build" not in text
+
+
+def test_manifest_requires_reserved_range() -> None:
+    payload = example_for("FixtureManifestV1.example.json")
+    del payload["reserved_range"]
+    assert validate("FixtureManifestV1", payload)
+
+
+def test_manifest_reserved_range_matches_the_rx_segment() -> None:
+    payload = example_for("FixtureManifestV1.example.json")
+    executable = [segment for segment in payload["segments"] if segment["flags"] == "R-X"]
+    assert len(executable) == 1
+    segment = executable[0]
+    assert segment["filesz"] == segment["memsz"] == 0x1000
+    reserved = payload["reserved_range"]
+    assert int(reserved["end_vaddr"], 16) - int(reserved["start_vaddr"], 16) == reserved["size"]
+    assert int(reserved["end_vaddr"], 16) == int(segment["vaddr"], 16) + segment["memsz"]
+
+
+def test_case_kind_is_closed() -> None:
+    payload = example_for("CaseSetV1.example.json")
+    payload["cases"][0]["kind"] = "fuzz"
+    assert validate("CaseSetV1", payload)
+
+
+def test_expected_outcome_requires_a_shape() -> None:
+    payload = example_for("CaseSetV1.example.json")
+    payload["cases"][0]["expected_candidate"] = {}
+    assert validate("CaseSetV1", payload)
