@@ -1,7 +1,9 @@
-# M2 GUI plan — minimal chat-first repair console (Revision 2)
+# M2 GUI plan — minimal chat-first repair console (Revision 2.1, AI-hosted chat)
 
-- **Status:** Revision 2 for M2, 2026-11-20 late (Asia/Shanghai), written after the Lead review of
-  Revision 1 (merged in #33). Revision 2 replaces Revision 1; the old text stays in git history.
+- **Status:** Revision 2.1 for M2, 2026-11-21 (Asia/Shanghai). Revision 2 (minimal chat-first)
+  responded to the Lead review of Revision 1; Revision 2.1 goes one step further per the Lead
+  decision: **the chat itself is AI-hosted** — an LLM assistant drives the conversation, with a
+  deterministic fallback when the provider is unavailable. Revision 1 text stays in git history.
 - **Module:** `gui` (M2). Paths: `app/`, `tests/app/`, `docs/gui/`. Gate: G4, staged with G1–G3.
 - **Lead review of Revision 1:** (1) the cards added by Revision 1 make the UI cluttered;
   (2) the process must be controlled through the AI conversation — the user must not see
@@ -13,14 +15,21 @@
 ## 1. Design principle (Lead decision)
 
 1. **The chat is the only surface.** One thread drives the whole task.
-2. **The AI drives the roadmap.** It asks for the binary, the normal inputs and the crash input,
-   narrates progress, asks for confirmation, and ends with the download. The user answers in
-   natural language, attaches files, and taps inline action chips.
+2. **The chat is AI-hosted.** An LLM assistant runs the whole conversation: it asks for the
+   binary, the normal inputs and the crash input, narrates progress, answers follow-up questions
+   like a normal AI, proposes the next action and ends with the download. The user answers in
+   natural language, attaches files, and taps inline action chips. Without a provider key (or on
+   any provider failure) the assistant falls back to scripted deterministic lines with an honest
+   mode badge — the conversation still completes, it is just not model-generated.
 3. **Hidden by default:** corpus JSON, contract JSON, event journal, tool/command rows, the rubric
    table, per-run scores and raw responses. They exist in the backend and in the evidence, and are
    reachable only through one unobtrusive evidence entry and the final download bundle.
 4. **Keep the v1.2.2 shell** (layout, CSS, composer, streaming, i18n, a11y). Simplification is done
    by **hiding components**, not by redesigning them.
+5. **Gates stay machine-enforced.** The AI hosts the dialogue, not the decisions: the backend
+   still refuses to start before approval, the G2 decision still requires the user's chip, and
+   only the deterministic verifier writes a verdict. The chat AI proposes; the system and the user
+   dispose.
 
 ## 2. The whole UI is this conversation (MVP2 demo script)
 
@@ -56,22 +65,31 @@ That is the entire product surface. The only UI elements beyond chat text:
 | tool / command / `file_change` / event rows | never rendered in the chat; the journal stays for the archive and for honesty |
 | right execution pane (workbench preview) | hidden by default (focus mode is the default) |
 
-## 4. Narrator (the new M2 component)
+## 4. Assistant: AI-hosted chat with a deterministic fallback (the new M2 component)
 
-- `app/narrator.py`: a **deterministic** mapping from journal events to short chat lines
-  (Chinese labels, English data). MVP2 narration needs no model call — it is cheap, reproducible
-  and honest. Free-form user questions are answered by a scripted FAQ subset; an optional LLM chat
-  mode may come later and must never write into `FixPlanV1`, the audit report or the verdict.
-- Narrator rules (test-locked):
+- `app/assistant.py` implements the chat assistant: intake questions, progress narration from the
+  journal, free-form answers and action chips, emitted as a small validated envelope
+  (`{reply, actions[]}`); invalid model output falls back to the scripted reply.
+- **Two AIs, one wall between them.** The audit model (fixed prompt, temperature 0, three hashed
+  runs — the G2 evidence) and the chat assistant are separate. The chat assistant never writes
+  `FixPlanV1`, the audit report or the verdict, never sees source, the hidden corpus, keys or raw
+  provider diagnostics, and its text is never evidence.
+- **Provider seam (v1.2.2 `assistant_llm` pattern).** M2 implements a `client` seam
+  (`chat_json(messages, ...)`) plus a fake transport for tests; M1's infra injects the real
+  DeepSeek client, so the key stays in one host process and never reaches `app/` or the browser.
+  No client, no key or a failed call → deterministic fallback (`mode: deterministic`, honest
+  badge, localized fallback code, no raw provider text).
+- Rules (test-locked):
   1. verdict words come verbatim from `VerdictV1.verdict` (six-word vocabulary), nothing else;
   2. a failure is one line with the stable reason code + a 详情 link, never a guess;
   3. no invented numbers: missing tokens/model are simply not mentioned;
-  4. scripted vs LLM mode is stated plainly when relevant (no "llm not wired" masquerade);
+  4. mode badge tells the truth (`llm` / `deterministic` / `llm (not wired)`); fallback shows its
+     localized code, never raw provider text;
   5. chat text is never evidence and never enters the audit inputs.
 
 ## 5. Interface deltas vs Revision 1
 
-- SSE and the event journal are still consumed **internally** to drive the narrator and the
+- SSE and the event journal are still consumed **internally** to drive the assistant and the
   progress line; the 18 event types and `docs/interfaces/gui-events-v1.md` are unchanged.
 - The browser API (§5.1 of Revision 1) is unchanged; the UI simply stops rendering most returned
   fields in the chat.
@@ -84,7 +102,7 @@ That is the entire product surface. The only UI elements beyond chat text:
 |---|---|---|
 | T1 | static shell port; hide plan-checklist / tool-row / approval-card components by default | none |
 | T2 | intake Q&A flow: binary attach, normal inputs, crash input, action chips | none |
-| T3 | `app/narrator.py` + progress line + final download message, against a synthetic journal | gui-events-v1 (#37, merged) |
+| T3 | `app/assistant.py` (LLM chat + deterministic fallback + action chips) + progress line + final download message, against a synthetic journal | gui-events-v1 (#37, merged); real client injected by M1 infra |
 | T4 | `app/api.py` + SSE reader (Revision 1 T-GUI-4/5 minus the card renderers) | none beyond #37 |
 | T5 | evidence link to the archive + honesty tests | #11 merged |
 | T6 | demo fixtures, headless Edge walkthrough, screenshots, G4 evidence | T1–T5 |
@@ -100,10 +118,14 @@ Each PR stays ≤400 changed lines with one `module:gui` label; no PR imports
   the evidence entry or the download bundle.
 - The verdict renders only the six words from `VerdictV1`; `not_run` and failures stay honest;
   no `pipeline.*` imports; honesty tests green; headless walkthrough captured.
+- The assistant completes the §2 conversation in `llm` mode with a key, and in `deterministic`
+  mode without one — the badge says which, and the fallback never fabricates model metadata.
 
 ## 8. Mainline notes
 
 - ADR 0003, `docs/interfaces/gui-events-v1.md` and the runner (#37/#38, merged) are unchanged.
+- The chat assistant depends on the same DeepSeek key decision as G2 (roadmap §9.4); without it
+  the console runs in deterministic mode and still completes the flow.
 - PR #39 (roadmap/START-HERE wording) should say "minimal chat-first console" rather than the
   Revision 1 card wording — M1 to adjust before merging #39.
 - Issue #12 acceptance items that mention corpus/contract cards are dropped (Appendix A).
@@ -120,6 +142,7 @@ Each PR stays ≤400 changed lines with one `module:gui` label; no PR imports
 >
 > **Acceptance**
 > - [ ] the §2 conversation reproduces end-to-end on the frozen fixture
+> - [ ] the chat is AI-hosted with an honest deterministic fallback (badge, no fake metadata)
 > - [ ] no corpus/contract/event/score cards in the chat
 > - [ ] verdict renders only the six-word vocabulary; `not_run` verbatim
 > - [ ] no `pipeline.*` imports; honesty tests green; headless walkthrough captured
