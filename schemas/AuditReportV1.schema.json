@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AuditReportV1",
+  "description": "The three-run AI audit: every run stays in the table, scored by two reviewers, ending in one human decision.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "report_id",
+    "date",
+    "fixture_sha256",
+    "contract_sha256",
+    "corpus_sha256",
+    "model",
+    "prompt_sha256",
+    "runs",
+    "selected_plan",
+    "reviewer_scores",
+    "correctness_established",
+    "decision",
+    "rationale",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "report_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "fixture_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "contract_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "corpus_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "name",
+        "temperature"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2
+        }
+      }
+    },
+    "prompt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "runs": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "run_index",
+          "schema_valid",
+          "plan_sha256",
+          "score",
+          "critical_errors",
+          "usable",
+          "notes"
+        ],
+        "properties": {
+          "run_index": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "schema_valid": {
+            "type": "boolean"
+          },
+          "plan_sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "critical_errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "usable": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "selected_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_index",
+        "plan_sha256",
+        "summary"
+      ],
+      "properties": {
+        "run_index": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plan_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "reviewer_scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "m1",
+        "m5",
+        "resolved"
+      ],
+      "properties": {
+        "m1": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "m5": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "resolved": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "correctness_established": {
+      "type": "boolean"
+    },
+    "decision": {
+      "enum": [
+        "proceed",
+        "iterate",
+        "change_scope"
+      ]
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}
