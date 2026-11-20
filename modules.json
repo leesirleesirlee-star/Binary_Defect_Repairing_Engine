@@ -172,7 +172,8 @@
       "owner": "@hxw64",
       "paths": [
         "pipeline/ai/",
-        "prompts/"
+        "prompts/",
+        "tests/ai/"
       ],
       "may_depend_on": [
         "contract",
@@ -196,7 +197,8 @@
       "owner": "@hxw64",
       "paths": [
         "pipeline/audit/",
-        "docs/audit/"
+        "docs/audit/",
+        "tests/audit/"
       ],
       "may_depend_on": [
         "contract",
