@@ -8,6 +8,7 @@ included); a summary line is printed per run.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -27,10 +28,19 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     root = args.fixture_dir
-    contract = json.loads((root / "contract.json").read_text(encoding="utf-8"))
+    contract_bytes = (root / "contract.json").read_bytes()
+    contract = json.loads(contract_bytes.decode("utf-8"))
+    contract_sha256 = hashlib.sha256(contract_bytes).hexdigest()
     view = build_disassembly_view(root / "vuln.elf")
 
-    records = run_audit(contract, view, _POC, runs=args.runs)
+    records = run_audit(
+        contract,
+        view,
+        _POC,
+        runs=args.runs,
+        contract_sha256=contract_sha256,
+        fixture_id=contract.get("fixture_id"),
+    )
 
     raw = args.raw_dir
     raw.mkdir(parents=True, exist_ok=True)
