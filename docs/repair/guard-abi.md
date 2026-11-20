@@ -30,16 +30,16 @@ Offsets are relative to the cave entry.
 | 8 | `ff c0` | `inc eax` |
 | 10 | `83 f8 20` | `cmp eax, 32` |
 | 13 | `72 f3` | `jb scan` (offset 2) |
-| 15 | `b8 01 00 00 00` | `mov eax, 1` — write |
-| 20 | `bf 02 00 00 00` | `mov edi, 2` — stderr |
-| 25 | `48 8d 35 25 00 00 00` | `lea rsi, [rip+0x25]` — message |
-| 32 | `ba 2a 00 00 00` | `mov edx, 42` |
+| 15 | `bf 02 00 00 00` | `mov edi, 2` — stderr |
+| 20 | `48 8d 35 2a 00 00 00` | `lea rsi, [rip+0x2a]` — message |
+| 27 | `ba 2a 00 00 00` | `mov edx, 42` |
+| 32 | `b8 01 00 00 00` | `mov eax, 1` — write, reset each loop |
 | 37 | `0f 05` | `syscall` — write |
 | 39 | `85 c0` | `test eax, eax` |
 | 41 | `7e 07` | `jle exit` (offset 50) |
 | 43 | `48 01 c6` | `add rsi, rax` — partial write |
 | 46 | `29 c2` | `sub edx, eax` |
-| 48 | `75 f3` | `jnz write_loop` (offset 37) |
+| 48 | `75 ee` | `jnz write_loop` (offset 32, reset `eax`) |
 | 50 | `b8 e7 00 00 00` | `mov eax, 231` — exit_group |
 | 55 | `bf 01 00 00 00` | `mov edi, 1` |
 | 60 | `0f 05` | `syscall` — exit_group |
@@ -68,6 +68,8 @@ same as a direct call because no `push`/`call` occurs in the guard.
 The guard sets up `write(2, message, 42)` and loops while `write` returns a
 positive count:
 
+- `mov eax, 1` is re-executed at the top of every iteration, so a partial-write
+  return count in `eax` can never become the next syscall number;
 - `add rsi, rax` advances over bytes already written;
 - `sub edx, eax` reduces the remaining count;
 - `jne` repeats while the count is non-zero.
