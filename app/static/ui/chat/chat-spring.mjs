@@ -1,4 +1,4 @@
-import {motionReduced} from '../shared/motion.mjs?v=20261120ar';
+import {motionReduced} from '../shared/motion.mjs?v=20261120as';
 
 // Animate the sidebar width and keep the content grid in step with it.
 export function bindSidebarSpring(sidebar, toggle, options = {}) {

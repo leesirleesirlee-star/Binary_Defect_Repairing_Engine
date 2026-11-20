@@ -1,7 +1,7 @@
-import {animateDetails} from '../shared/details-anim.mjs?v=20261120ar';
-import {el} from '../shared/dom.mjs?v=20261120ar';
-import {icon} from '../shared/icons.mjs?v=20261120ar';
-import {stepCard} from './chat-steps.mjs?v=20261120ar';
+import {animateDetails} from '../shared/details-anim.mjs?v=20261120as';
+import {el} from '../shared/dom.mjs?v=20261120as';
+import {icon} from '../shared/icons.mjs?v=20261120as';
+import {stepCard} from './chat-steps.mjs?v=20261120as';
 
 export function control(text, onClick, {glyph, compact = false, tone = '', ...attrs} = {}) {
   return el('button', {type: 'button', class: 'control ' + tone + (compact ? ' icon-only' : ''),

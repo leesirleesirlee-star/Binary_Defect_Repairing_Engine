@@ -21,3 +21,11 @@ contract and corpus; the chat hero opens a read-only intake/approval dialog. The
 S3-S6 API, SSE journal, audit/repair/verify payloads and Start action are not
 part of this slice; the GUI still never computes a verdict and Start stays
 disabled until the S3 runner exists.
+
+## S3 API and event journal
+
+`GET /api/session`, `/api/tasks`, `/api/tasks/{id}/events` and the labelled
+synthetic preview journal are implemented. Start currently returns an honest
+`503 runner_unavailable`; no fake run result is written. See
+[`docs/interfaces/gui-events-v1.md`](../docs/interfaces/gui-events-v1.md) and
+[`docs/gui/s3-api-events.md`](../docs/gui/s3-api-events.md).

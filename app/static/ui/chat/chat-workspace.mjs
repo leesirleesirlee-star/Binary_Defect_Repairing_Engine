@@ -1,9 +1,9 @@
-import {el} from '../shared/dom.mjs?v=20261120ar';
-import {icon} from '../shared/icons.mjs?v=20261120ar';
-import {control} from './chat-view.mjs?v=20261120ar';
-import {createProgress} from './chat-progress.mjs?v=20261120ar';
-import {createStepGroups, disclosure} from './chat-steps.mjs?v=20261120ar';
-import {motionReduced} from '../shared/motion.mjs?v=20261120ar';
+import {el} from '../shared/dom.mjs?v=20261120as';
+import {icon} from '../shared/icons.mjs?v=20261120as';
+import {control} from './chat-view.mjs?v=20261120as';
+import {createProgress} from './chat-progress.mjs?v=20261120as';
+import {createStepGroups, disclosure} from './chat-steps.mjs?v=20261120as';
+import {motionReduced} from '../shared/motion.mjs?v=20261120as';
 
 export const activityTypes = new Set(['thinking', 'plan_update', 'tool_call', 'file_change',
   'command', 'verification', 'error', 'run_end']);

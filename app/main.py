@@ -13,12 +13,14 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api import router as api_router
 from app.fixture import approve, binding_digest, snapshot
 
 BASE_DIR = Path(__file__).resolve().parent
 UI_ROOT = BASE_DIR / "static" / "ui"
 
 app = FastAPI(title="BinaryRepair conversation console")
+app.include_router(api_router)
 app.mount("/ui", StaticFiles(directory=UI_ROOT, html=True), name="ui")
 
 

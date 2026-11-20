@@ -1,6 +1,6 @@
-import {el} from '../shared/dom.mjs?v=20261120ar';
-import {icon} from '../shared/icons.mjs?v=20261120ar';
-import {currentEvaluation} from '../workbench/api.mjs?v=20261120ar';
+import {el} from '../shared/dom.mjs?v=20261120as';
+import {icon} from '../shared/icons.mjs?v=20261120as';
+import {currentEvaluation} from '../workbench/api.mjs?v=20261120as';
 
 const labels = ['milestoneReview', 'milestoneQueue', 'milestoneRun', 'milestoneVerdict'];
 

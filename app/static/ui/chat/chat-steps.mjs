@@ -1,7 +1,7 @@
-import {el} from '../shared/dom.mjs?v=20261120ar';
-import {icon} from '../shared/icons.mjs?v=20261120ar';
+import {el} from '../shared/dom.mjs?v=20261120as';
+import {icon} from '../shared/icons.mjs?v=20261120as';
 
-import {motionReduced} from '../shared/motion.mjs?v=20261120ar';
+import {motionReduced} from '../shared/motion.mjs?v=20261120as';
 
 const motion = () => motionReduced();
 

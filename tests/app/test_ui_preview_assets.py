@@ -64,4 +64,10 @@ class PreviewAssetsTest(unittest.TestCase):
             self.assert_local_file(UI_ROOT, path)
         page = (UI_ROOT / "chat/index.html").read_text(encoding="utf-8")
         self.assertIn("guided-intake.mjs", page)
+    def test_s3_event_console_assets_are_present(self):
+        for path in ("chat/events.css", "chat/event-console.mjs"):
+            self.assert_local_file(UI_ROOT, path)
+        page = (UI_ROOT / "chat/index.html").read_text(encoding="utf-8")
+        self.assertIn("events.css", page)
+
 

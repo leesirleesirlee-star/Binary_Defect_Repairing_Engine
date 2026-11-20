@@ -1,5 +1,5 @@
-import {el} from './dom.mjs?v=20261120ar';
-import {icon} from './icons.mjs?v=20261120ar';
+import {el} from './dom.mjs?v=20261120as';
+import {icon} from './icons.mjs?v=20261120as';
 
 export const MODEL_IDS = ['default', 'deepseek-flash', 'deepseek-v4-pro'];
 

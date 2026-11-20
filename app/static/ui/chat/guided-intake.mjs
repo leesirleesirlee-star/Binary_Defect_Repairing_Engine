@@ -5,8 +5,8 @@
  * verdict, score or success label; the approval binding is computed by the
  * server, and Start remains disabled until a later-stage runner exists.
  */
-import {el} from '../shared/dom.mjs?v=20261120ar';
-import {icon} from '../shared/icons.mjs?v=20261120ar';
+import {el} from '../shared/dom.mjs?v=20261120as';
+import {icon} from '../shared/icons.mjs?v=20261120as';
 
 const state = {snapshot: null, promise: null, approved: false, denied: false, dialog: null};
 const wired = new WeakSet();
@@ -203,8 +203,13 @@ function launchCard(data) {
   const card = el('div', {class: 'guided-launch'},
     el('div', {}, el('strong', {}, 'S2 · 冻结样例已就绪'),
       el('p', {}, `${data.fixture_id} · ${data.corpus.total} cases · ${data.binary.sha256.slice(0, 12)}…`)),
-    el('button', {type: 'button', class: 'button primary', onclick: () => openDialog(data)},
-      icon('file', 15), '审阅语料与契约'));
+    el('div', {class: 'guided-launch-actions'},
+      el('button', {type: 'button', class: 'button primary', onclick: () => openDialog(data)},
+        icon('file', 15), '审阅语料与契约'),
+      el('button', {type: 'button', class: 'button subtle', onclick: async () => {
+        const module = await import('./event-console.mjs?v=20261120as');
+        await module.openEventConsole();
+      }}, icon('terminal', 15), 'S3 事件流')));
   return card;
 }
 

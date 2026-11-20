@@ -7,7 +7,7 @@
  * and slides in from the matching side.
  */
 
-import {motionReduced} from './motion.mjs?v=20261120ar';
+import {motionReduced} from './motion.mjs?v=20261120as';
 
 const KEY = 'binaryrepair.page-slide';
 const EXIT_MS = 320;

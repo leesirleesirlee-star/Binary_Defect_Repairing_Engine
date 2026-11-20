@@ -1,0 +1,30 @@
+# S3 API and event-journal console
+
+Status: implemented (S3), 2026-11-20. Interface: `docs/interfaces/gui-events-v1.md`.
+
+## API
+
+`app/api.py` provides session cookie/CSRF, task creation, task snapshot, frozen
+contract read/reject, approval binding, start/cancel, SSE replay and the
+evidence/export placeholders. `app/journal.py` is the append-only
+`var/events/{task_id}.jsonl` validator and tail reader.
+
+## Preview
+
+`POST /api/tasks {"preview":true}` creates a task with `source: synthetic`
+events. The UI labels them `合成预览`; every verification check is `not_run`, the
+evaluation verdict is `null`, and the terminal run is `failed`. Preview never
+produces a success verdict.
+
+## Start
+
+Start requires approval and an `Idempotency-Key`. The runner is not wired, so the
+endpoint fails honestly with `503 runner_unavailable`; no journal success record
+is fabricated. A real runner must append events to the journal; the GUI never
+imports pipeline modules.
+
+## UI
+
+The chat hero card has `S3 事件流`; it creates a preview task and renders the SSE
+timeline (plan steps, corpus, commands, changes, checks, audit table, error,
+run_end) with raw records available under each row.

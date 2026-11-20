@@ -1,10 +1,10 @@
-import {assistantKey} from '../shared/assistant-key.mjs?v=20261120ar';
-import {LANGUAGES} from '../shared/languages.mjs?v=20261120ar';
-import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261120ar';
-import {modelLabel, modelPicker} from '../shared/model-picker.mjs?v=20261120ar';
-import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261120ar';
-import {el} from '../shared/dom.mjs?v=20261120ar';
-import {control, displayTitle} from './chat-view.mjs?v=20261120ar';
+import {assistantKey} from '../shared/assistant-key.mjs?v=20261120as';
+import {LANGUAGES} from '../shared/languages.mjs?v=20261120as';
+import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261120as';
+import {modelLabel, modelPicker} from '../shared/model-picker.mjs?v=20261120as';
+import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261120as';
+import {el} from '../shared/dom.mjs?v=20261120as';
+import {control, displayTitle} from './chat-view.mjs?v=20261120as';
 
 function dialog(title, content, t) {
   const trigger = document.activeElement;
