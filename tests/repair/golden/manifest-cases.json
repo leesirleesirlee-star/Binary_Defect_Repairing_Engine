@@ -12,6 +12,16 @@
     "json": "sort_keys=True, separators=(',', ':'), ensure_ascii=False",
     "tool_version": "0.1.0-dryrun"
   },
+  "snapshot_history": [
+    {
+      "change": "Issue #21: reset eax=1 inside the write loop after a partial write",
+      "old_manifest_sha256": "436b0f6b31611adfc1cb29f8c4d60e125f18672fc64b922d0ac9a87e3516d9cc",
+      "new_manifest_sha256": "2864df6037958c0f31eefcee8ac9e4b7075f1a4711f2b9f736946683d63bf875",
+      "old_trampoline_blob_sha256": "6d992a1c96c71ddcd5fc8fd3ce125c79207e01bb772c47dfe468420fe6e6cc95",
+      "new_trampoline_blob_sha256": "596ad85c9d402d78ef49e3ddf4def02afbe1b81bac02e6439fb7b24abba9a332",
+      "note": "Manual snapshot update; the golden test never rewrites the file."
+    }
+  ],
   "cases": [
     {
       "id": "with-reserved-tail",
@@ -24,7 +34,7 @@
       },
       "expected": {
         "status": "manifest_written",
-        "manifest_sha256": "436b0f6b31611adfc1cb29f8c4d60e125f18672fc64b922d0ac9a87e3516d9cc",
+        "manifest_sha256": "2864df6037958c0f31eefcee8ac9e4b7075f1a4711f2b9f736946683d63bf875",
         "original_sha256": "d46109edcf062dbadefef28e00b12fc0a350361935d96638e44eef8c560983d5",
         "patch_site": {
           "vaddr": "0x401194",
@@ -40,8 +50,8 @@
           "code_size": 69,
           "message_size": 42
         },
-        "trampoline_blob_sha256": "6d992a1c96c71ddcd5fc8fd3ce125c79207e01bb772c47dfe468420fe6e6cc95",
-        "preview_sha256": "4f52cf39b54cf1440dd9338436be51ca6235fec2a60a3e175a3895398c1d959b",
+        "trampoline_blob_sha256": "596ad85c9d402d78ef49e3ddf4def02afbe1b81bac02e6439fb7b24abba9a332",
+        "preview_sha256": "8781e4ac2a1f7971c1c98941208a6969682db5715e1a28a660c278b8d1961eec",
         "invariants": {
           "headers_unchanged": true,
           "entry_unchanged": true,

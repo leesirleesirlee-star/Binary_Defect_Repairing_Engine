@@ -23,6 +23,10 @@ the same hash across runs and machines.
   snapshot.
 - An intentional format/tool change requires a reviewed update to
   `manifest-cases.json` and a note in the change description.
+- Issue #21 changed the guard's write-loop encoding (reset `eax=1` after a
+  partial write). The manifest and trampoline hashes changed; the old/new
+  values are recorded in `snapshot_history` and were updated by hand, not by a
+  test-side rewrite.
 - The no-tail case intentionally has no manifest hash: the tool must return
   `unsupported` instead of inventing one.
 
