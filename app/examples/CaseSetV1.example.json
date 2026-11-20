@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "fixture_id": "stack-overflow-01",
+  "cases": [
+    {
+      "id": "valid-0",
+      "kind": "valid",
+      "argv": [
+        ""
+      ],
+      "stdin": "",
+      "expected_original": {
+        "exit_code": 0,
+        "stdout": "\n",
+        "stderr": ""
+      },
+      "expected_candidate": {
+        "exit_code": 0,
+        "stdout": "\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "invalid-64",
+      "kind": "invalid",
+      "argv": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "stdin": "",
+      "expected_original": {
+        "signal": "SIGSEGV"
+      },
+      "expected_candidate": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "ERROR: input exceeds destination capacity\n"
+      }
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "manifest_kind": "EditManifestV1",
+  "tool": "m5-patch-writer",
+  "dry_run": true,
+  "fixture_id": "stack-overflow-01",
+  "plan_id": "plan-2026-11-20-run1",
+  "original": {
+    "path": "vuln.elf",
+    "sha256": "10602531c92092cffbdc34688e12e4b97548cc2c03f4453506bdd4f1c9058d07",
+    "size": 16016,
+    "entry": "0x401090",
+    "class": "ELF64",
+    "machine": "EM_X86_64",
+    "type": "ET_EXEC"
+  },
+  "contract": null,
+  "patch_site": {
+    "vaddr": "0x401194",
+    "file_offset": "0x1194",
+    "size": 5,
+    "segment_index": 3,
+    "segment_flags": "R-X",
+    "original_bytes": "e8c7feffff",
+    "patch_bytes": "e887000000",
+    "call_rel32": 135,
+    "target_cave_vaddr": "0x401220",
+    "purpose": "redirect the original strcpy call to the guard"
+  },
+  "cave": {
+    "vaddr": "0x401220",
+    "file_offset": "0x1220",
+    "segment_index": 3,
+    "segment_flags": "R-X",
+    "total_size": 96,
+    "code_size": 54,
+    "message_size": 42,
+    "message_vaddr": "0x401280",
+    "fill": "00",
+    "reserved_end": "0x402000"
+  },
+  "trampoline": {
+    "entry_vaddr": "0x401220",
+    "blob": "554889e5",
+    "blob_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "code_size": 54,
+    "message_size": 42,
+    "total_size": 96,
+    "jmp_plt_offset": 40,
+    "jmp_plt_rel32": 100,
+    "strcpy_plt_vaddr": "0x401060",
+    "labels": {}
+  },
+  "edits": [
+    {
+      "name": "patch_site",
+      "purpose": "redirect",
+      "vaddr": "0x401194",
+      "file_offset": "0x1194",
+      "size": 5,
+      "original_bytes": "e8c7feffff",
+      "patch_bytes": "e887000000"
+    },
+    {
+      "name": "cave",
+      "purpose": "guard code and message",
+      "vaddr": "0x401220",
+      "file_offset": "0x1220",
+      "size": 96,
+      "original_bytes": "",
+      "patch_bytes": "554889e5"
+    }
+  ],
+  "invariants": {
+    "headers_unchanged": true,
+    "segment_count_unchanged": true,
+    "permissions_unchanged": true
+  },
+  "reversibility": {
+    "inverse_restores_original": true
+  },
+  "preview": {
+    "candidate_sha256_if_applied": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "candidate_written": false
+  },
+  "limits": {
+    "code_bytes": 256,
+    "data_bytes": 64
+  },
+  "warnings": [
+    "Dry-run only: no candidate file was written and no code was executed."
+  ],
+  "verdict": null,
+  "verdict_note": "M5 does not write or infer verdicts; M3 owns verification."
+}
