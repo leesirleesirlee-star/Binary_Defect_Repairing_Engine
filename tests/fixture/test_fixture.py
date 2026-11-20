@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
-import struct
 from pathlib import Path
 
 from capstone import CS_ARCH_X86, CS_MODE_64, Cs
@@ -70,10 +68,14 @@ def test_handle_calls_strcpy_plt() -> None:
         symbols = {sym.name: sym for sym in symtab.iter_symbols()}
         handle = symbols["handle"]
         text = elf.get_section_by_name(".text")
-        code = text.data()[handle["st_value"] - text["sh_addr"]: handle["st_value"] - text["sh_addr"] + handle["st_size"]]
+        start = handle["st_value"] - text["sh_addr"]
+        code = text.data()[start:start + handle["st_size"]]
         md = Cs(CS_ARCH_X86, CS_MODE_64)
         instructions = list(md.disasm(code, handle["st_value"]))
-        assert any(insn.mnemonic == "sub" and insn.op_str.startswith("rsp,") for insn in instructions)
+        assert any(
+            insn.mnemonic == "sub" and insn.op_str.startswith("rsp,")
+            for insn in instructions
+        )
         manifest = json.loads((FIXTURE / "fixture-manifest.json").read_text(encoding="utf-8"))
         calls = [insn for insn in instructions if insn.mnemonic == "call"]
         assert len(calls) >= 2, "handle must call strcpy@plt then puts@plt"
@@ -108,13 +110,18 @@ def test_manifest_contract_and_cases() -> None:
     elf = ELFFile((FIXTURE / "vuln.elf").open("rb"))
     text = elf.get_section_by_name(".fini")
     file_start = text["sh_offset"] + text["sh_size"]
-    assert all(byte == 0 for byte in (FIXTURE / "vuln.elf").read_bytes()[file_start:file_start + (end - start)])
+    tail = (FIXTURE / "vuln.elf").read_bytes()[file_start:file_start + (end - start)]
+    assert all(byte == 0 for byte in tail)
     valid = [case for case in corpus["cases"] if case["kind"] == "valid"]
     invalid = [case for case in corpus["cases"] if case["kind"] == "invalid"]
     assert len(valid) == 5 and len(invalid) == 4
     assert all(len(case["argv"][0]) <= 31 for case in valid)
     assert all(len(case["argv"][0]) >= 32 for case in invalid)
-    assert all(case["expected_candidate"]["stderr"] == contract["stated_criteria"]["invalid_stderr"] for case in invalid)
+    for case in invalid:
+        assert (
+            case["expected_candidate"]["stderr"]
+            == contract["stated_criteria"]["invalid_stderr"]
+        )
     assert (FIXTURE / "cases" / "poc.txt").read_bytes() == b"A" * 64
 
 

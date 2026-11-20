@@ -72,7 +72,8 @@ def main(argv: list[str] | None = None) -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(verdict, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(verdict))
-    return 0 if verdict["outcome"] in {"verified_against_stated_criteria", "observed_original"} else 1
+    success = {"verified_against_stated_criteria", "observed_original"}
+    return 0 if verdict["outcome"] in success else 1
 
 
 if __name__ == "__main__":
