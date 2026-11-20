@@ -102,7 +102,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Process exit status, or null when the process was terminated by a signal."
           },
           "signal": {
             "anyOf": [

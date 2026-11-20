@@ -21,7 +21,10 @@ PAIRS = {
     "ContractV1": "ContractV1.example.json",
     "FixtureManifestV1": "FixtureManifestV1.example.json",
     "CaseSetV1": "CaseSetV1.example.json",
+    "DisassemblyViewV1": "DisassemblyViewV1.example.json",
+    "FindingV1": "FindingV1.example.json",
     "FixPlanV1": "FixPlanV1.example.json",
+    "AuditReportV1": "AuditReportV1.example.json",
     "ObservationV1": "ObservationV1.example.json",
     "VerdictV1": "VerdictV1.example.json",
     "EditManifestV1": "EditManifestV1.example.json",
@@ -31,6 +34,7 @@ PAIRS = {
 # examples must never carry source material because they can feed a prompt.
 PROMPT_FACING = (
     "ContractV1",
+    "DisassemblyViewV1",
     "FixPlanV1",
     "ObservationV1",
     "VerdictV1",
@@ -143,3 +147,28 @@ def test_expected_outcome_requires_a_shape() -> None:
     payload = example_for("CaseSetV1.example.json")
     payload["cases"][0]["expected_candidate"] = {}
     assert validate("CaseSetV1", payload)
+
+
+def test_fix_plan_requires_diagnosis_and_coverage() -> None:
+    for field in ("diagnosis", "stated_criteria_coverage", "stub"):
+        payload = example_for("FixPlanV1.example.json")
+        del payload[field]
+        assert validate("FixPlanV1", payload), field
+
+
+def test_audit_report_requires_exactly_three_runs() -> None:
+    payload = example_for("AuditReportV1.example.json")
+    payload["runs"] = payload["runs"][:2]
+    assert validate("AuditReportV1", payload)
+
+
+def test_finding_status_is_closed() -> None:
+    payload = example_for("FindingV1.example.json")
+    payload["status"] = "certain"
+    assert validate("FindingV1", payload)
+
+
+def test_disassembly_example_is_prompt_material_without_source() -> None:
+    text = (EXAMPLES / "DisassemblyViewV1.example.json").read_text(encoding="utf-8")
+    assert "vuln.c" not in text
+    assert "#include" not in text
