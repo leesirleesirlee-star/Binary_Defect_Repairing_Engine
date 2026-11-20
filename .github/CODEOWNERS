@@ -3,58 +3,59 @@
 # the default. A second handle on a path is a review backup, not an edit
 # permission. The module registry in modules.json is the source of truth.
 #
-# Every path lists M1 as a co-owner. A pull request author cannot approve their
-# own PR, so a module whose only code owner is the author would be permanently
-# blocked by "Require review from Code Owners". The co-owner is a review backup,
-# not an edit permission: editing stays with the module owner as in modules.json.
+# The reviewers on each path mirror the "May review" column of
+# docs/plan/01-team-ownership.md section 3. A pull request author cannot approve
+# their own PR, so a path whose only reviewer is the author would never merge;
+# every path therefore names more than one designated reviewer. Review is not
+# edit permission: editing stays with the module owner as in modules.json.
 # Seat mapping (confirmed 2026-11-20): M1 @leesirleesirlee-star (lead), M2 @huajinyao,
 # M3 @chenfanaichifan, M4 @hxw64, M5 @lyz200807.
 
-*                                   @leesirleesirlee-star @huajinyao
+*                                   @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
 
-/.github/                           @leesirleesirlee-star @huajinyao
-/README.md                          @leesirleesirlee-star @huajinyao
-/START-HERE.md                      @leesirleesirlee-star @huajinyao
-/AGENTS.md                          @leesirleesirlee-star @huajinyao
-/CONTRIBUTING.md                    @leesirleesirlee-star @huajinyao
-/SECURITY.md                        @leesirleesirlee-star @huajinyao
-/LICENSE                            @leesirleesirlee-star @huajinyao
-/requirements.txt                   @leesirleesirlee-star @huajinyao
-/pyproject.toml                     @leesirleesirlee-star @huajinyao
-/modules.json                       @leesirleesirlee-star @huajinyao
-/scripts/                           @leesirleesirlee-star @huajinyao
-/docs/plan/                         @leesirleesirlee-star @huajinyao
-/docs/MIGRATION.md                  @leesirleesirlee-star @huajinyao
-/docs/README.md                     @leesirleesirlee-star @huajinyao
-/docs/archive/                      @leesirleesirlee-star @huajinyao
+/.github/                           @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/README.md                          @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/START-HERE.md                      @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/AGENTS.md                          @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/CONTRIBUTING.md                    @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/SECURITY.md                        @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/LICENSE                            @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/requirements.txt                   @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/pyproject.toml                     @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/modules.json                       @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/scripts/                           @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/docs/plan/                         @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/docs/MIGRATION.md                  @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/docs/README.md                     @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/docs/archive/                      @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
 
 # contract module
-/schemas/                           @leesirleesirlee-star @huajinyao
-/docs/interfaces/                   @leesirleesirlee-star @huajinyao
-/docs/adr/                          @leesirleesirlee-star @huajinyao
-/tests/contract/                    @leesirleesirlee-star @huajinyao
+/schemas/                           @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/docs/interfaces/                   @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/docs/adr/                          @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
+/tests/contract/                    @leesirleesirlee-star @huajinyao @chenfanaichifan @hxw64 @lyz200807
 
 # fixture, guest and verify modules (M3)
-/fixtures/                          @chenfanaichifan @leesirleesirlee-star
-/guest/                             @chenfanaichifan @leesirleesirlee-star
-/pipeline/verify/                   @chenfanaichifan @leesirleesirlee-star
-/tests/fixture/                     @chenfanaichifan @leesirleesirlee-star
-/tests/verify/                      @chenfanaichifan @leesirleesirlee-star
-/docs/fixture/                      @chenfanaichifan @leesirleesirlee-star
+/fixtures/                          @chenfanaichifan @leesirleesirlee-star @lyz200807
+/guest/                             @chenfanaichifan @leesirleesirlee-star @lyz200807
+/pipeline/verify/                   @chenfanaichifan @leesirleesirlee-star @lyz200807
+/tests/fixture/                     @chenfanaichifan @leesirleesirlee-star @lyz200807
+/tests/verify/                      @chenfanaichifan @leesirleesirlee-star @lyz200807
+/docs/fixture/                      @chenfanaichifan @leesirleesirlee-star @lyz200807
 
 # analysis, ai and audit modules (M4)
-/pipeline/analyze/                  @hxw64 @leesirleesirlee-star
-/pipeline/ai/                       @hxw64 @leesirleesirlee-star
-/pipeline/audit/                    @hxw64 @leesirleesirlee-star
-/prompts/                           @hxw64 @leesirleesirlee-star
-/tests/analysis/                    @hxw64 @leesirleesirlee-star
-/docs/analysis/                     @hxw64 @leesirleesirlee-star
-/docs/audit/                        @hxw64 @leesirleesirlee-star
+/pipeline/analyze/                  @hxw64 @leesirleesirlee-star @lyz200807
+/pipeline/ai/                       @hxw64 @leesirleesirlee-star @lyz200807
+/pipeline/audit/                    @hxw64 @leesirleesirlee-star @lyz200807
+/prompts/                           @hxw64 @leesirleesirlee-star @lyz200807
+/tests/analysis/                    @hxw64 @leesirleesirlee-star @lyz200807
+/docs/analysis/                     @hxw64 @leesirleesirlee-star @lyz200807
+/docs/audit/                        @hxw64 @leesirleesirlee-star @lyz200807
 
 # repair module (M5)
-/pipeline/repair/                   @lyz200807 @leesirleesirlee-star
-/tests/repair/                      @lyz200807 @leesirleesirlee-star
-/docs/repair/                       @lyz200807 @leesirleesirlee-star
+/pipeline/repair/                   @lyz200807 @leesirleesirlee-star @chenfanaichifan
+/tests/repair/                      @lyz200807 @leesirleesirlee-star @chenfanaichifan
+/docs/repair/                       @lyz200807 @leesirleesirlee-star @chenfanaichifan
 
 # gui module (M2)
 /app/                               @huajinyao @leesirleesirlee-star
