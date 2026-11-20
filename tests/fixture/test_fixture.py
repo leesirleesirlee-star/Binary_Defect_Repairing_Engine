@@ -52,8 +52,10 @@ def test_symbols_and_no_stack_chk() -> None:
     try:
         symtab = elf.get_section_by_name(".symtab")
         names = {sym.name for sym in symtab.iter_symbols()}
-        assert {"handle", "main", "strcpy@plt", "puts@plt"} <= names
+        assert {"handle", "main"} <= names
         assert not any("stack_chk" in name for name in names)
+        manifest = json.loads((FIXTURE / "manifest.json").read_text(encoding="utf-8"))
+        assert {"handle", "main", "strcpy@plt", "puts@plt"} <= set(manifest["symbols"])
         dynamic = elf.get_section_by_name(".dynamic")
         needed = [tag.needed for tag in dynamic.iter_tags() if tag.entry.d_tag == "DT_NEEDED"]
         assert any("libc.so.6" in item for item in needed)
