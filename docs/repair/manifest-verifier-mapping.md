@@ -1,17 +1,34 @@
 # Manifest to M3 verifier mapping
 
-Status: **interface reference only**. This document does not replace M3's
-verifier, does not define the verdict vocabulary and must not be treated as an
-acceptance rule.
+Status: **EditManifestV1-aligned interface reference; schema merged in
+`fd2b784`.** This document does not replace M3's verifier, does not define the
+verdict vocabulary and must not be treated as an acceptance rule.
 
 M5 writes a dry-run manifest; M3 must independently parse the candidate (or its
 observations), recompute every check, and write the verdict. The manifest is
 untrusted input to that process.
 
+## Schema version alignment
+
+`pipeline/repair/manifest_schema.py` now has an opt-in mapper for the merged
+`EditManifestV1` schema (`fd2b784`):
+
+- `schema_version` is integer `1`;
+- `manifest_kind` is `EditManifestV1`;
+- `fixture_id` and `plan_id` are required;
+- `schema_kind` / `schema_status` are removed;
+- non-standard provenance (`schema_mapping`, `provisional`) is under
+  `extensions`;
+- `build_manifest` remains provisional; `build_manifest_v1` is the opt-in
+  switch for adopting v1 by default.
+
 ## Field mapping
 
 | Manifest field | Suggested verifier use | Independence note |
 |---|---|---|
+| `schema_version` | Require integer `1` for this mapping | Do not accept the provisional string |
+| `manifest_kind` / `schema_note` | Identify the artifact and its provisional status | Metadata only, not a verdict |
+| `fixture_id` / `plan_id` | Bind the manifest to the frozen fixture/plan | Verifier must compare with its own approved IDs |
 | `original.sha256` / `original.size` | Identify the original fixture; reject a mismatch before comparing results | Verifier must hash the original itself |
 | `preview.candidate_sha256_if_applied` | Cross-check the expected candidate hash after M5 applies edits | This is a hash, not a candidate file; verifier must hash the actual bytes it receives |
 | `edits[].file_offset` | Locate the expected change site | Verifier must confirm the offset is inside the approved range |
@@ -26,7 +43,9 @@ untrusted input to that process.
 | `invariants.dynamic_sha256_*` | Reference for no-new-import checks | Verifier must reparse `.dynamic` |
 | `invariants.changed_bytes_covered` | Claim that all changes are in edits | Verifier must compute the full byte diff independently |
 | `reversibility.restored_sha256` | Claim that inverse edits restore original | Verifier should independently reverse or reapply the edits |
-| `manifest_sha256` | Integrity of the manifest payload (excludes `created_at`, the hash itself, and local paths) | Not a candidate hash; verifier must not use it as a verdict input |
+| `manifest_sha256` | Integrity of the manifest payload, if present (excludes `created_at`, the hash itself, and local paths) | Not a candidate hash; verifier must not use it as a verdict input |
+| `extensions.schema_mapping` | Provenance of the provisional-to-v1 mapping | Informational only; never a verdict input |
+| `extensions.provisional` | Marks the dry-run mapping as provisional | Must not be read as approval |
 | `verdict` | Always `null` | M3 is the only verdict writer; ignore non-null values as a defect |
 
 ## What M3 must not accept from M5

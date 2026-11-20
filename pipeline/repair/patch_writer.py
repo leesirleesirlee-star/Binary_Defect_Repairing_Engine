@@ -44,6 +44,7 @@ from pipeline.repair.guard import (
 )
 from pipeline.repair.manifest_schema import (
     normalize_provisional,
+    to_edit_manifest_v1,
     validate_provisional_shape,
 )
 
@@ -464,6 +465,11 @@ def build_manifest(
         manifest["created_at"] = created_at
     manifest["manifest_sha256"] = manifest_sha256(manifest)
     return manifest
+
+
+def build_manifest_v1(elf_path: str | Path, **kwargs: Any) -> dict[str, Any]:
+    """Build the opt-in EditManifestV1-aligned manifest; no candidate is written."""
+    return to_edit_manifest_v1(build_manifest(elf_path, **kwargs))
 
 
 def write_manifest(manifest: dict[str, Any], out_path: str | Path) -> Path:
