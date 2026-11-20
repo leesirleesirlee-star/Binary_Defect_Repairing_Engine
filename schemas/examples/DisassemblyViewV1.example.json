@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "elf": {
+    "sha256": "9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f",
+    "class": "ELF64",
+    "machine": "x86-64",
+    "type": "ET_EXEC",
+    "entry": "0x401090",
+    "pie": false
+  },
+  "segments": [
+    {
+      "type": "PT_LOAD",
+      "vaddr": "0x400000",
+      "filesz": 1336,
+      "memsz": 1336,
+      "flags": "R--"
+    },
+    {
+      "type": "PT_LOAD",
+      "vaddr": "0x401000",
+      "filesz": 4096,
+      "memsz": 4096,
+      "flags": "R-X"
+    },
+    {
+      "type": "PT_LOAD",
+      "vaddr": "0x403df8",
+      "filesz": 560,
+      "memsz": 600,
+      "flags": "RW-"
+    }
+  ],
+  "symbols": {
+    "handle": "0x401176",
+    "main": "0x4011a8",
+    "strcpy@plt": "0x401060",
+    "puts@plt": "0x401070"
+  },
+  "instructions": [
+    {
+      "address": "0x401176",
+      "bytes": "55",
+      "mnemonic": "push",
+      "op_str": "rbp"
+    },
+    {
+      "address": "0x401177",
+      "bytes": "48 89 e5",
+      "mnemonic": "mov",
+      "op_str": "rbp, rsp"
+    },
+    {
+      "address": "0x40117a",
+      "bytes": "48 83 ec 30",
+      "mnemonic": "sub",
+      "op_str": "rsp, 0x30"
+    },
+    {
+      "address": "0x401194",
+      "bytes": "e8 c7 fe ff ff",
+      "mnemonic": "call",
+      "op_str": "0x401060 <strcpy@plt>"
+    }
+  ],
+  "plt": {
+    "strcpy": "0x401060",
+    "puts": "0x401070"
+  },
+  "sections": [
+    {
+      "name": ".text",
+      "vaddr": "0x401090",
+      "size": 370,
+      "flags": "AX"
+    },
+    {
+      "name": ".plt.sec",
+      "vaddr": "0x401060",
+      "size": 48,
+      "flags": "AX"
+    }
+  ]
+}

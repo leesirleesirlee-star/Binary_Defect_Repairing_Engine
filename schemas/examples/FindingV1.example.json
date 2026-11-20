@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "fixture_id": "stack-overflow-01",
+  "function": "handle",
+  "address": "0x401194",
+  "instruction": "call strcpy@plt",
+  "cwe": "CWE-121",
+  "confidence": 0.82,
+  "status": "confirmed_by_analysis",
+  "evidence": [
+    "the destination at 0x401194 is rbp-0x20",
+    "the frame reserves 0x30 bytes",
+    "the saved return address is 40 bytes from the buffer start"
+  ],
+  "view_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "frame": {
+    "sub_rsp": "0x30",
+    "buf_rbp_offset": "-0x20",
+    "saved_rip_offset": 40
+  }
+}

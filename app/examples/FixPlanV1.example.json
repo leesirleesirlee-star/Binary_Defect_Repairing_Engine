@@ -2,42 +2,71 @@
   "schema_version": 1,
   "plan_id": "plan-2026-11-20-run1",
   "fixture_id": "stack-overflow-01",
-  "contract_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "contract_sha256": "856b6ad2dabf69b705836f3a7c6466b534034cb1a4770a43f3fb596a11ce578c",
   "model": {
     "provider": "deepseek",
     "name": "deepseek-chat",
     "prompt_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
   },
-  "target": {
+  "diagnosis": {
     "function": "handle",
-    "edit_site_vaddr": "0x401194",
-    "cave_vaddr": "0x401220"
+    "address": "0x401194",
+    "instruction": "call strcpy@plt",
+    "cwe": "CWE-121",
+    "confidence": 0.82,
+    "evidence": [
+      "handle subtracts 0x30 from rsp and uses rbp-0x20 as the destination",
+      "the call at 0x401194 targets strcpy@plt",
+      "no length check precedes the call"
+    ]
   },
+  "root_cause": "unbounded strcpy into a 32-byte stack buffer; the saved return address sits 40 bytes from the buffer start",
+  "strategy": "trampoline_guard",
   "edits": [
     {
-      "kind": "redirect",
-      "vaddr": "0x401194",
-      "bytes_hex": "e887000000",
+      "kind": "redirect_call",
+      "address": "0x401194",
+      "original_bytes": "e8 c7 fe ff ff",
+      "new_bytes": "e8 87 00 00 00",
+      "target": "cave",
       "reason": "redirect the original strcpy call to the guard"
     },
     {
-      "kind": "code",
-      "vaddr": "0x401220",
-      "bytes_hex": "554889e5",
-      "reason": "guard prologue"
+      "kind": "guard_stub",
+      "address": "0x401220",
+      "original_bytes": "",
+      "new_bytes": "55 48 89 e5",
+      "target": "reserved_tail",
+      "reason": "guard prologue in the reserved R-X tail"
+    }
+  ],
+  "stub": {
+    "language": "asm",
+    "source": "scan 32 bytes for NUL; if found tail-jump to strcpy@plt; else write(2, message, 42); exit_group(1)",
+    "estimated_size_bytes": 69
+  },
+  "valid_path": "0..31 bytes: NUL found, tail-jump to the original strcpy, return value and stack unchanged",
+  "invalid_path": "32+ bytes: no NUL in the first 32, write the frozen error to stderr, exit 1, no crash",
+  "stated_criteria_coverage": [
+    {
+      "criterion": "valid_behavior",
+      "how": "the guard does not touch rdi/rsi or the pushed return address on the valid path"
     },
     {
-      "kind": "data",
-      "vaddr": "0x401280",
-      "bytes_hex": "4552524f520a",
-      "reason": "frozen error message bytes"
+      "criterion": "invalid_response",
+      "how": "the guard writes exactly the frozen 42 bytes to fd 2 and calls exit_group(1)"
     }
   ],
   "assumptions": [
-    "the destination buffer is at rbp-0x20 at the call site",
+    "the destination is rbp-0x20 at the call site",
     "stderr is writable in the guest"
   ],
   "uncertainties": [
-    "the model cannot prove the guard preserves all caller-saved registers"
+    "the model cannot prove the guard preserves every caller-saved register"
+  ],
+  "verification_proposal": [
+    "PoC 64 bytes: no SIGSEGV, stderr exact, exit 1",
+    "31-byte boundary unchanged",
+    "32-byte rejection"
   ]
 }
