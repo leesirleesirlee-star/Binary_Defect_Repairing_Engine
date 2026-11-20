@@ -1,5 +1,11 @@
 # `app` - FastAPI + Jinja GUI
 
+> **S1 shell:** the v1.2.2 conversation UI is copied unchanged under
+> `app/static/ui/` and served by `app.main` for visual review only. See
+> [`STATIC-SHELL.md`](STATIC-SHELL.md). The plan is
+> [`docs/gui/conversation-console-plan.md`](../docs/gui/conversation-console-plan.md).
+# `app` - FastAPI + Jinja GUI
+
 Owner: M2 (`gui` module). Gate: G4.
 
 ## Four screens
