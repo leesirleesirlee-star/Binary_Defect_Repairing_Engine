@@ -433,9 +433,10 @@ Replace the handles only if the confirmed mapping in `01-team-ownership.md`
 changes. The file must exist on `main` before "Require review from Code Owners" is
 enabled.
 
-The second handle on an M1-owned path is a **review backup**, not an edit
-permission: it lets an M1-authored infra PR be approved by M2 without disabling
-the code-owner rule. Edit ownership stays with M1 as listed in the matrix.
+The second handle on every path is a **review backup**, not an edit permission.
+GitHub cannot require a code-owner approval that the author is unable to give:
+a module whose only code owner is the PR author would never merge. Each module
+therefore lists its owner plus M1 as backup; M2 is the backup on M1's own paths.
 
 ```text
 # Default: M1 owns integration; M2 is the review backup for M1-authored PRs.
@@ -454,27 +455,27 @@ the code-owner rule. Edit ownership stays with M1 as listed in the matrix.
 /docs/interfaces/                   @leesirleesirlee-star @huajinyao
 /docs/README.md                     @leesirleesirlee-star @huajinyao
 
-/app/                               @huajinyao
-/tests/app/                         @huajinyao
-/docs/gui/                          @huajinyao
+/app/                               @huajinyao @leesirleesirlee-star
+/tests/app/                         @huajinyao @leesirleesirlee-star
+/docs/gui/                          @huajinyao @leesirleesirlee-star
 
-/fixtures/                          @chenfanaichifan
-/guest/                             @chenfanaichifan
-/pipeline/verify/                   @chenfanaichifan
-/tests/fixture/                     @chenfanaichifan
-/docs/fixture/                      @chenfanaichifan
+/fixtures/                          @chenfanaichifan @leesirleesirlee-star
+/guest/                             @chenfanaichifan @leesirleesirlee-star
+/pipeline/verify/                   @chenfanaichifan @leesirleesirlee-star
+/tests/fixture/                     @chenfanaichifan @leesirleesirlee-star
+/docs/fixture/                      @chenfanaichifan @leesirleesirlee-star
 
-/pipeline/analyze/                  @hxw64
-/pipeline/ai/                       @hxw64
-/pipeline/audit/                    @hxw64
-/prompts/                           @hxw64
-/tests/analysis/                    @hxw64
-/docs/analysis/                     @hxw64
-/docs/audit/                        @hxw64
+/pipeline/analyze/                  @hxw64 @leesirleesirlee-star
+/pipeline/ai/                       @hxw64 @leesirleesirlee-star
+/pipeline/audit/                    @hxw64 @leesirleesirlee-star
+/prompts/                           @hxw64 @leesirleesirlee-star
+/tests/analysis/                    @hxw64 @leesirleesirlee-star
+/docs/analysis/                     @hxw64 @leesirleesirlee-star
+/docs/audit/                        @hxw64 @leesirleesirlee-star
 
-/pipeline/repair/                   @lyz200807
-/tests/repair/                      @lyz200807
-/docs/repair/                       @lyz200807
+/pipeline/repair/                   @lyz200807 @leesirleesirlee-star
+/tests/repair/                      @lyz200807 @leesirleesirlee-star
+/docs/repair/                       @lyz200807 @leesirleesirlee-star
 ```
 
 ## 12. Weekly gate record

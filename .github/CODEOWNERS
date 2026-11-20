@@ -1,7 +1,12 @@
 # CODEOWNERS for Binary_Defect_Repairing_Engine.
 # GitHub uses the last matching pattern, so specific module rules come after
-# the default. A second handle on an M1 path is a review backup, not an edit
+# the default. A second handle on a path is a review backup, not an edit
 # permission. The module registry in modules.json is the source of truth.
+#
+# Every path lists M1 as a co-owner. A pull request author cannot approve their
+# own PR, so a module whose only code owner is the author would be permanently
+# blocked by "Require review from Code Owners". The co-owner is a review backup,
+# not an edit permission: editing stays with the module owner as in modules.json.
 # Seat mapping (confirmed 2026-11-20): M1 @leesirleesirlee-star (lead), M2 @huajinyao,
 # M3 @chenfanaichifan, M4 @hxw64, M5 @lyz200807.
 
@@ -30,28 +35,28 @@
 /tests/contract/                    @leesirleesirlee-star @huajinyao
 
 # fixture, guest and verify modules (M3)
-/fixtures/                          @chenfanaichifan
-/guest/                             @chenfanaichifan
-/pipeline/verify/                   @chenfanaichifan
-/tests/fixture/                     @chenfanaichifan
-/tests/verify/                      @chenfanaichifan
-/docs/fixture/                      @chenfanaichifan
+/fixtures/                          @chenfanaichifan @leesirleesirlee-star
+/guest/                             @chenfanaichifan @leesirleesirlee-star
+/pipeline/verify/                   @chenfanaichifan @leesirleesirlee-star
+/tests/fixture/                     @chenfanaichifan @leesirleesirlee-star
+/tests/verify/                      @chenfanaichifan @leesirleesirlee-star
+/docs/fixture/                      @chenfanaichifan @leesirleesirlee-star
 
 # analysis, ai and audit modules (M4)
-/pipeline/analyze/                  @hxw64
-/pipeline/ai/                       @hxw64
-/pipeline/audit/                    @hxw64
-/prompts/                           @hxw64
-/tests/analysis/                    @hxw64
-/docs/analysis/                     @hxw64
-/docs/audit/                        @hxw64
+/pipeline/analyze/                  @hxw64 @leesirleesirlee-star
+/pipeline/ai/                       @hxw64 @leesirleesirlee-star
+/pipeline/audit/                    @hxw64 @leesirleesirlee-star
+/prompts/                           @hxw64 @leesirleesirlee-star
+/tests/analysis/                    @hxw64 @leesirleesirlee-star
+/docs/analysis/                     @hxw64 @leesirleesirlee-star
+/docs/audit/                        @hxw64 @leesirleesirlee-star
 
 # repair module (M5)
-/pipeline/repair/                   @lyz200807
-/tests/repair/                      @lyz200807
-/docs/repair/                       @lyz200807
+/pipeline/repair/                   @lyz200807 @leesirleesirlee-star
+/tests/repair/                      @lyz200807 @leesirleesirlee-star
+/docs/repair/                       @lyz200807 @leesirleesirlee-star
 
 # gui module (M2)
-/app/                               @huajinyao
-/tests/app/                         @huajinyao
-/docs/gui/                          @huajinyao
+/app/                               @huajinyao @leesirleesirlee-star
+/tests/app/                         @huajinyao @leesirleesirlee-star
+/docs/gui/                          @huajinyao @leesirleesirlee-star
