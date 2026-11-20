@@ -1,0 +1,362 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EditManifestV1",
+  "description": "Dry-run patch manifest. Records every byte a candidate would change; no candidate is written at this stage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "dry_run",
+    "fixture_id",
+    "plan_id",
+    "original",
+    "patch_site",
+    "cave",
+    "trampoline",
+    "edits",
+    "invariants",
+    "reversibility",
+    "preview",
+    "verdict"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "manifest_kind": {
+      "type": "string"
+    },
+    "tool": {
+      "type": "string"
+    },
+    "tool_version": {
+      "type": "string"
+    },
+    "schema_note": {
+      "type": "string"
+    },
+    "dry_run": {
+      "const": true
+    },
+    "fixture_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "plan_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "original": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "size",
+        "entry",
+        "class",
+        "machine",
+        "type"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "entry": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "class": {
+          "enum": [
+            "ELF64"
+          ]
+        },
+        "machine": {
+          "enum": [
+            "EM_X86_64"
+          ]
+        },
+        "type": {
+          "enum": [
+            "ET_EXEC"
+          ]
+        }
+      }
+    },
+    "contract": {
+      "anyOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "patch_site": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "vaddr",
+        "file_offset",
+        "size",
+        "original_bytes",
+        "patch_bytes",
+        "target_cave_vaddr"
+      ],
+      "properties": {
+        "vaddr": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "file_offset": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "segment_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "segment_flags": {
+          "type": "string"
+        },
+        "original_bytes": {
+          "type": "string",
+          "pattern": "^([0-9a-f]{2})*$"
+        },
+        "patch_bytes": {
+          "type": "string",
+          "pattern": "^([0-9a-f]{2})*$"
+        },
+        "call_rel32": {
+          "type": "integer"
+        },
+        "target_cave_vaddr": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "purpose": {
+          "type": "string"
+        }
+      }
+    },
+    "cave": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "vaddr",
+        "file_offset",
+        "total_size",
+        "fill"
+      ],
+      "properties": {
+        "vaddr": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "file_offset": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "segment_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "segment_flags": {
+          "type": "string"
+        },
+        "total_size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "code_size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "message_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "message_vaddr": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "fill": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{2}$"
+        },
+        "reserved_end": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^0x[0-9a-f]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "trampoline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry_vaddr",
+        "blob",
+        "blob_sha256",
+        "total_size"
+      ],
+      "properties": {
+        "entry_vaddr": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "blob": {
+          "type": "string",
+          "pattern": "^([0-9a-f]{2})*$"
+        },
+        "blob_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "code_size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "message_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "jmp_plt_offset": {
+          "type": "integer"
+        },
+        "jmp_plt_rel32": {
+          "type": "integer"
+        },
+        "strcpy_plt_vaddr": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "labels": {
+          "type": "object"
+        }
+      }
+    },
+    "edits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "vaddr",
+          "file_offset",
+          "size",
+          "original_bytes",
+          "patch_bytes"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "vaddr": {
+            "type": "string",
+            "pattern": "^0x[0-9a-f]+$"
+          },
+          "file_offset": {
+            "type": "string",
+            "pattern": "^0x[0-9a-f]+$"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "original_bytes": {
+            "type": "string",
+            "pattern": "^([0-9a-f]{2})*$"
+          },
+          "patch_bytes": {
+            "type": "string",
+            "pattern": "^([0-9a-f]{2})*$"
+          }
+        }
+      }
+    },
+    "invariants": {
+      "type": "object"
+    },
+    "reversibility": {
+      "type": "object"
+    },
+    "preview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_written"
+      ],
+      "properties": {
+        "candidate_sha256_if_applied": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidate_written": {
+          "const": false
+        }
+      }
+    },
+    "limits": {
+      "type": "object"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verdict": {
+      "type": "null"
+    },
+    "verdict_note": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "extensions": {
+      "type": "object"
+    }
+  }
+}
