@@ -72,6 +72,18 @@ def main() -> int:
             for sym in symtab.iter_symbols():
                 if sym.name in {"handle", "main", "strcpy@plt", "puts@plt"}:
                     symbols[sym.name] = hex(sym["st_value"])
+        # ADR 0001: .fini is the last allocated section in the R-X segment.
+        fini = elf.get_section_by_name(".fini")
+        if fini is None:
+            raise SystemExit("missing .fini; cannot derive reserved tail")
+        rx = next(
+            seg for seg in elf.iter_segments()
+            if seg["p_type"] == "PT_LOAD" and (int(seg["p_flags"]) & 5) == 5
+        )
+        reserved_start = fini["sh_addr"] + fini["sh_size"]
+        reserved_end = rx["p_vaddr"] + rx["p_memsz"]
+        if reserved_end - reserved_start != 0xDEF:
+            raise SystemExit(f"unexpected reserved size {reserved_end - reserved_start:#x}")
         needed = []
         dyn = elf.get_section_by_name(".dynamic")
         if dyn:
@@ -155,6 +167,15 @@ def main() -> int:
         "needed": needed,
         "symbols": symbols,
         "frame": frame,
+        "reserved_range": {
+            "start_vaddr": hex(reserved_start),
+            "end_vaddr": hex(reserved_end),
+            "size": reserved_end - reserved_start,
+            "zero_filled": True,
+            "mechanism": "post-link",
+            "script": "build/reserve_tail.py",
+            "script_sha256": sha(root / "build" / "reserve_tail.py"),
+        },
         "strcpy_call": call_strcpy,
         "symbols_present": len(symbols) == 4,
         "reproducible": bool(args.second_sha256) and args.second_sha256 == sha(binary),
@@ -162,11 +183,24 @@ def main() -> int:
         "cases": {"path": "cases/cases.json", "sha256": sha(root / "cases" / "cases.json")},
         "poc": {"path": "cases/poc.txt", "sha256": sha(root / "cases" / "poc.txt")},
     }
-    (root / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    manifest_text = json.dumps(manifest, indent=2) + "\n"
+    # H2 is fixture-manifest.json; keep manifest.json as the spec's short alias.
+    (root / "fixture-manifest.json").write_text(manifest_text, encoding="utf-8")
+    (root / "manifest.json").write_text(manifest_text, encoding="utf-8")
     contract["binary_sha256"] = manifest["binary"]["sha256"]
     contract_path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
 
-    frozen = ["contract.json", "manifest.json", "vuln.elf", "build/build.sh", "build/vuln.c", "cases/cases.json", "cases/poc.txt"]
+    frozen = [
+        "contract.json",
+        "fixture-manifest.json",
+        "manifest.json",
+        "vuln.elf",
+        "build/build.sh",
+        "build/reserve_tail.py",
+        "build/vuln.c",
+        "cases/cases.json",
+        "cases/poc.txt",
+    ]
     lines = [f"{sha(root / rel)}  {rel}" for rel in frozen]
     (root / "SHA256SUMS").write_bytes(("\n".join(lines) + "\n").encode("ascii"))
     print(json.dumps(manifest, indent=2))

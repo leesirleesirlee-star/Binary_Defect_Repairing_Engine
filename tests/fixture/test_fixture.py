@@ -85,7 +85,9 @@ def test_handle_calls_strcpy_plt() -> None:
 
 
 def test_manifest_contract_and_cases() -> None:
-    manifest = json.loads((FIXTURE / "manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((FIXTURE / "fixture-manifest.json").read_text(encoding="utf-8"))
+    alias = json.loads((FIXTURE / "manifest.json").read_text(encoding="utf-8"))
+    assert alias == manifest
     contract = json.loads((FIXTURE / "contract.json").read_text(encoding="utf-8"))
     corpus = json.loads((FIXTURE / "cases" / "cases.json").read_text(encoding="utf-8"))
     assert manifest["binary"]["sha256"] == _sha(FIXTURE / "vuln.elf")
@@ -95,6 +97,20 @@ def test_manifest_contract_and_cases() -> None:
     buf_offset = int(manifest["frame"]["buf_rbp_offset"], 16)
     assert manifest["frame"]["saved_rip_offset"] == 8 - buf_offset
     assert manifest["reproducible"] is True
+    assert manifest["reserved_range"]["zero_filled"] is True
+    assert manifest["reserved_range"]["size"] == 0xDEF
+    assert manifest["reserved_range"]["mechanism"] == "post-link"
+    rx = next(
+        seg for seg in manifest["segments"]
+        if seg["type"] == "PT_LOAD" and seg["flags"] == "R-X"
+    )
+    assert rx["filesz"] == rx["memsz"] == 0x1000
+    start = int(manifest["reserved_range"]["start_vaddr"], 16)
+    end = int(manifest["reserved_range"]["end_vaddr"], 16)
+    elf = ELFFile((FIXTURE / "vuln.elf").open("rb"))
+    text = elf.get_section_by_name(".fini")
+    file_start = text["sh_offset"] + text["sh_size"]
+    assert all(byte == 0 for byte in (FIXTURE / "vuln.elf").read_bytes()[file_start:file_start + (end - start)])
     valid = [case for case in corpus["cases"] if case["kind"] == "valid"]
     invalid = [case for case in corpus["cases"] if case["kind"] == "invalid"]
     assert len(valid) == 5 and len(invalid) == 4

@@ -93,6 +93,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add fixtures/stack-overflow-01/vuln.elf \
+                  fixtures/stack-overflow-01/fixture-manifest.json \
                   fixtures/stack-overflow-01/manifest.json \
                   fixtures/stack-overflow-01/contract.json \
                   fixtures/stack-overflow-01/SHA256SUMS \

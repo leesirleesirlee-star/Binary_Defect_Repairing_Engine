@@ -14,4 +14,5 @@ objcopy --add-symbol 'strcpy@plt=.plt.sec:0x0' \
         --add-symbol 'puts@plt=.plt.sec:0x10' \
         ../vuln.elf "$tmp"
 mv "$tmp" ../vuln.elf
+python3 reserve_tail.py ../vuln.elf
 chmod +x ../vuln.elf 2>/dev/null || true
