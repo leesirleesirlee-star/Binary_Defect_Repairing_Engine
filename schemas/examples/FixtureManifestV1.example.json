@@ -97,6 +97,7 @@
     "size": 3567,
     "zero_filled": true,
     "mechanism": "post-link: R-X PT_LOAD p_filesz = p_memsz = 0x1000",
-    "script_sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+    "script_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+    "script": "build/reserve_tail.py"
   }
 }
