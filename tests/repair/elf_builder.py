@@ -113,8 +113,8 @@ def synthetic_elf_bytes(
     ``reserved_tail=False`` produces the pre-ADR 0x211-byte R-X segment so tests
     can verify the tools reject a fixture without a reserved tail.
     """
-    if not 0x401000 <= patch_site_vaddr <= 0x40120C:
-        raise ValueError("patch site must fit in .text before 0x401211")
+    if not 0x401000 <= patch_site_vaddr <= 0x401FFB:
+        raise ValueError("patch site must fit inside the R-X segment")
     image = bytearray(FILE_SIZE)
 
     # ELF header and program headers.
@@ -135,8 +135,13 @@ def synthetic_elf_bytes(
     text[0x60:0x66] = b"\xff\x25\x00\x00\x00\x00"
     site_offset = patch_site_vaddr - 0x401000
     call_rel32 = STRCPY_PLT_VADDR - (patch_site_vaddr + 5)
-    text[site_offset : site_offset + 5] = b"\xe8" + struct.pack("<i", call_rel32)
+    call_bytes = b"\xe8" + struct.pack("<i", call_rel32)
+    if site_offset + len(call_bytes) <= len(text):
+        text[site_offset : site_offset + len(call_bytes)] = call_bytes
     image[0x1000 : 0x1000 + len(text)] = text
+    # A patch site near the end of the R-X segment can live beyond .text; write
+    # the fake call directly into the file-backed tail for that test variant.
+    image[0x1000 + site_offset : 0x1000 + site_offset + len(call_bytes)] = call_bytes
 
     # .rodata in the second segment.
     image[0x2000:0x2010] = b"rodata\x00" + b"\x00" * 9

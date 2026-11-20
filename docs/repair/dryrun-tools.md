@@ -1,4 +1,4 @@
-# M5 dry-run repair tools
+﻿# M5 dry-run repair tools
 
 > **This is a dry-run version. It is not repair evidence, not a candidate and
 > not a verdict.** G2 has not approved a repair plan; the real fixture must not
@@ -49,10 +49,12 @@ pipeline/repair/manifest_schema.py provisional shape + v1 mapping slots
 pipeline/repair/validate_fixture.py one-shot preflight framework
 ```
 
-Related notes: `guard-abi.md` (byte/ABI review), `m4-handoff-checklist.md`
-(proposal cross-check), `repair-feasibility-note.md` (G2 pre-read),
-`g2-review-QA.md`, `fixture-exception-handling.md`, `pr-submission-checklist.md`
-and `manifest-verifier-mapping.md`.
+Related notes: `guard-abi.md` (byte/ABI review), `guard-byte-breakdown.md`
+(per-byte arithmetic), `m4-handoff-checklist.md` (proposal cross-check),
+`repair-feasibility-note.md` (G2 pre-read), `g2-review-QA.md`,
+`preflight-report-template.md`, `fixture-exception-handling.md`,
+`pr-submission-checklist.md`, `manifest-verifier-mapping.md`,
+`pr-review-responses.md` and `m5-p0-delivery-summary.md`.
 
 ## Risks and unverified assumptions
 
@@ -152,8 +154,8 @@ fail closed (`ELFError`/`error`/`unsupported`) and must not write a manifest.
 ## Evidence for this change
 
 ```text
-python -m pytest -q -m "not guest"    108 passed
-python -m pytest -q tests/repair      79 passed
+python -m pytest -q -m "not guest"    177 passed (178 collected; 1 Windows symlink-only failure)
+python -m pytest -q tests/repair      91 passed
 ruff check .                          passed (ruff 0.17.6)
 ```
 
