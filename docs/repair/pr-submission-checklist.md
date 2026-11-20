@@ -1,9 +1,9 @@
 # PR submission checklist (M5 dry-run)
 
-Status: **PR #19 opened** at
-<https://github.com/leesirleesirlee-star/Binary_Defect_Repairing_Engine/pull/19>;
-waiting for M1 review/merge. PR #14 (ADR 0001) is still open and M3's new
-fixture is not published. This checklist records what was verified before push.
+Status: **PR #19 merged** as `e634d5d`; the hardening follow-up is **PR #20**
+(<https://github.com/leesirleesirlee-star/Binary_Defect_Repairing_Engine/pull/20>).
+PR #14 (ADR 0001) is merged, but M3's new fixture is still not published. This
+checklist records what was verified before the initial push.
 
 ## Before commit
 
