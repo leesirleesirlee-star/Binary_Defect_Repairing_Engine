@@ -1,0 +1,10 @@
+== toolchain ==
+gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+GNU ld (GNU Binutils for Ubuntu) 2.46
+Linux runnervmccnms 7.0.0-1019-azure #20-Ubuntu SMP PREEMPT Mon Oct 19 22:41:16 UTC 2026 x86_64 GNU/Linux
+== build 1 ==
+first=a6f8fed47a30b8e4c18e5d0d8e539918c0e7d18f6b6c327b7c621b45029a36aa
+== build 2 ==
+second=a6f8fed47a30b8e4c18e5d0d8e539918c0e7d18f6b6c327b7c621b45029a36aa
+== manifest ==
+could not recover handle frame / strcpy call
