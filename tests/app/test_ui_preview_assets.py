@@ -69,5 +69,11 @@ class PreviewAssetsTest(unittest.TestCase):
             self.assert_local_file(UI_ROOT, path)
         page = (UI_ROOT / "chat/index.html").read_text(encoding="utf-8")
         self.assertIn("events.css", page)
+    def test_s6_archive_bridge_assets_are_present(self):
+        for path in ("workbench/archive-bridge.css", "workbench/archive-bridge.mjs"):
+            self.assert_local_file(UI_ROOT, path)
+        page = (UI_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn("archive-bridge.mjs", page)
+
 
 

@@ -1,6 +1,6 @@
-import {el} from '../shared/dom.mjs?v=20261120as';
-import {icon} from '../shared/icons.mjs?v=20261120as';
-import {control, displayTitle} from './chat-view.mjs?v=20261120as';
+import {el} from '../shared/dom.mjs?v=20261120au';
+import {icon} from '../shared/icons.mjs?v=20261120au';
+import {control, displayTitle} from './chat-view.mjs?v=20261120au';
 
 export function appMark(className) {
   return el('span', {class: className, 'aria-hidden': 'true'},

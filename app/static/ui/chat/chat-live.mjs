@@ -4,8 +4,8 @@
 // check and verdict comes from an API response. The only locally authored text
 // is a short status sentence derived from those values, and it is labelled as a
 // local summary, never as a model answer.
-import {currentEvaluation, live} from '../workbench/api.mjs?v=20261120as';
-import {label} from './chat-copy.mjs?v=20261120as';
+import {currentEvaluation, live} from '../workbench/api.mjs?v=20261120au';
+import {label} from './chat-copy.mjs?v=20261120au';
 
 const newId = () => crypto.randomUUID();
 const ACTIVE = new Set(['queued', 'waiting_for_executor', 'running', 'cancelling']);

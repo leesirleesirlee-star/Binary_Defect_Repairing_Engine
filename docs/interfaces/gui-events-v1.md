@@ -1,127 +1,120 @@
-# GUI events v1 — browser API and event journal
+# GUI events v1 — journal, SSE and runner contract
 
-Status: approved for S3 (M2 console implementation), 2026-11-20.
-Owner: M1 contract; consumer: M2 GUI. This document binds the HTTP API and SSE
-journal used by `docs/gui/conversation-console-plan.md` §§5.1–5.3.
+- **Version:** 1 (frozen for G2–G4)
+- **Producer:** the runner (`scripts/run_task.py`, `infra`) for run events; the GUI for conversation events; the verifier only for `verification` events it owns
+- **Consumer:** `app/journal.py` (validation and tail), `app/api.py` (SSE replay)
+- **Decision:** ADR 0003
 
-## 1. Session and CSRF
+The GUI reads `var/events/{task_id}.jsonl` and `var/artifacts/` and never imports
+a `pipeline/*` module. This document is the only contract between the two sides.
+Where the plan (`docs/gui/conversation-console-plan.md` §5) and this document
+differ, this document wins for v1 and the change needs an ADR.
 
-All write requests require the local session cookie and header `x-csrf-token`.
-The token is returned by `GET /api/session`; secrets never reach the browser.
+## 1. Journal file
 
-```json
-GET /api/session -> 200
-{"session": true, "csrf_token": "<csrf>"}
-```
+- Path: `var/events/{task_id}.jsonl`, one JSON object per line, UTF-8, append-only.
+- `task_id` matches `^[A-Za-z0-9._-]{1,128}$`.
+- A record is at most 1,000,000 bytes; a larger record is a hard error.
+- `seq` starts at 1 and is contiguous with no gaps. A gap fails the read closed
+  (`JournalGap`); the reader never skips ahead.
+- Readers tolerate a partially written final line only by ignoring it until it is
+  complete; writers append one line per event and `fsync`.
 
-Unauthenticated requests return `401` with `{"code":"session_required"}`. A
-missing/invalid CSRF token returns `403` with `{"code":"request_forbidden"}`.
+## 2. Envelope
 
-## 2. HTTP API
+Every record has exactly these envelope fields plus `payload`:
 
-| Method | Path | Request | Success response |
-|---|---|---|---|
-| GET | `/api/tasks?limit=50` | — | `200 {tasks:[{id,fixture_id,phase,created_at,verdict}]}` |
-| POST | `/api/tasks` | multipart `binary` + `defect` + optional `cases`; or JSON `{preview:true, fixture_id}` | `201 {id, phase}` |
-| GET | `/api/tasks/{id}` | — | `200 {id, phase, demo, contract{...}, corpus{...}, execution{...}}` |
-| GET | `/api/tasks/{id}/contract` | — | `200 {contract, revision, sha256, review_binding_digest}` |
-| PUT | `/api/tasks/{id}/contract` | `{expected_revision, contract}` | `200 {revision, sha256, review_binding_digest}`; frozen fixture → `409 frozen_contract` |
-| POST | `/api/tasks/{id}/approve` | `{expected_review_binding_digest, reviewer_label}` | `200 {approved, approved_at, binding_digest}`; stale → `409 stale_approval` |
-| POST | `/api/tasks/{id}/start` | `{expected_review_binding_digest}`, `Idempotency-Key` | `200 {run_id, phase}`; same key replays; not approved → `409` |
-| POST | `/api/tasks/{id}/cancel` | `{run_id}` | `200 {run_id, phase, execution}` |
-| GET | `/api/tasks/{id}/events` | SSE | event journal; `Last-Event-ID` replay |
-| GET | `/api/tasks/{id}/audit` | — | `AuditReportV1` or `{available:false}` |
-| GET | `/api/tasks/{id}/manifest` | — | `EditManifestV1` or `{available:false}` |
-| GET | `/api/tasks/{id}/verdict` | — | `VerdictV1` or `{available:false, finalized:false}` |
-| GET | `/api/tasks/{id}/artifacts` | — | `{artifacts:[...]}` |
-| GET | `/api/artifacts/{artifact_id}` / `/api/artifacts/{artifact_id}/download` | — | metadata / bytes; only owning task |
-| GET | `/api/tasks/{id}/export` | — | JSON export bundle |
+| Field | Type | Rule |
+|---|---|---|
+| `version` | integer | `1` |
+| `type` | string | one of §3 |
+| `conversation_id` | string | the task id for run events |
+| `seq` | integer | `>= 1`, contiguous per file |
+| `run_id` | string or null | present for run events, stable for the whole run |
+| `step_id` | string or null | one of §4 |
+| `ts` | string | RFC 3339 UTC, e.g. `2026-11-20T15:12:03.123Z` |
+| `source` | string | `runner`, `verifier`, `gui` or `synthetic` |
+| `payload` | object | per §3; never a string, never an array |
 
-`verdict.outcome` is exactly the roadmap vocabulary:
-`verified_against_stated_criteria`, `rejected`, `unverified`, `unsupported`,
-`error`, `not_run`; `null` means not finalized. The GUI never derives it.
-
-## 3. SSE envelope
-
-Every retained journal record has exactly these keys:
+Example:
 
 ```json
-{
-  "version": 1,
-  "type": "run_state",
-  "conversation_id": "tsk_...",
-  "seq": 7,
-  "run_id": "run_...",
-  "step_id": "analyze",
-  "ts": "2026-11-20T15:00:00Z",
-  "source": "runner",
-  "payload": {}
-}
+{"version":1,"type":"plan_update","conversation_id":"tsk_ab12cd34ef56ab78cd90ef12","seq":7,"run_id":"run_7f3a","step_id":"analyze","ts":"2026-11-20T15:12:03.123Z","source":"runner","payload":{"revision":1,"steps":[]}}
 ```
 
-- `seq` is a positive contiguous integer starting at 1. Replay stops at the
-  first gap and reports `journal_gap`; it never skips ahead.
-- `source` ∈ `runner | verifier | gui | synthetic`.
-- SSE `id:` is `seq`; `event:` is the envelope `type`; `data:` is the full envelope.
-- Heartbeats are comments (`: heartbeat`) every 15 s and are not journal records.
-- `Last-Event-ID` replays records with `seq > id`; absent header replays from 1.
-- Queueing, delivery status and replay are presentation semantics: the journal is
-  append-only and ordered by `seq`.
+## 3. Event types
 
-## 4. Event payloads
+The GUI keeps the sixteen v1.2.2 types and adds two for MVP2
+(`corpus_update`, `audit_runs`). The runner emits only the ones marked R; the GUI
+emits the conversation ones; `verification` is owned by the verifier when it
+lands.
 
-All events carry the envelope above. Unless stated otherwise, data fields are
-English ASCII and UI labels are localized by the GUI.
+| Type | Who | Payload |
+|---|---|---|
+| `user_message` | GUI | GUI-internal |
+| `message_dispatched` | GUI | GUI-internal |
+| `assistant_delta` | GUI | GUI-internal |
+| `assistant_end` | GUI | GUI-internal |
+| `thinking` | GUI | GUI-internal |
+| `tool_call` | GUI | GUI-internal |
+| `tool_result` | GUI | GUI-internal |
+| `run_state` | R | `{status: "running"\|"cancelled"\|"failed"\|"completed", message_id: string\|null}` |
+| `plan_update` | R | `{revision: int, steps: [{step_id, label_code, status}]}`, status \in `pending / in_progress / completed / failed / skipped` |
+| `corpus_update` | R | `{fixture_id, counts: {valid, invalid, poc}, total, cases_sha256}` |
+| `awaiting_user` | R | `{request_id, kind: "audit_decision", allowed: ["proceed","iterate","change_scope"], binding: {contract_revision, contract_sha256, corpus_sha256, binary_sha256}}` |
+| `user_response` | GUI | GUI-internal |
+| `file_change` | R | `{change_id, stage: "proposed"\|"applied", files: [{display_path, added, removed, diff: {text, truncated}}]}`; display paths only, never absolute host paths |
+| `command` | R | `{command_id, phase: "started"\|"output"\|"finished", label_code, display_cwd, exit_code: int\|null}`; `output` adds `text, truncated` |
+| `verification` | R/V | `kind: "check"`: `{level: "V0".."V4", status: "passed"\|"failed"\|"not_run", obligation_id, evidence_ids: [], reason_code: string\|null}`; `kind: "evaluation"`: `{evaluation_id, verdict: null\|six-word, generated_at}` |
+| `audit_runs` | R | `{report_sha256: hex64\|null, runs: [{run_index, schema_valid, score: int\|null, critical_errors: [], usable, notes}]}`; always three rows once emitted, invalid JSON included |
+| `error` | R | `{code, correlation_id, retry: {kind: "manual"\|"none"}}`; `code` is a stable string, no stack traces |
+| `run_end` | R | `{execution: "completed"\|"failed"\|"cancelled", duration_ms, steps_taken, files_changed, ai: {calls: int\|null, tokens: int\|null, cost_usd: number\|null}, evaluation_id: string\|null}` |
 
-| Type | Payload |
-|---|---|
-| `user_message` | `{message_id, text, attachment_ids[], delivery}` |
-| `message_dispatched` | `{message_id}` |
-| `assistant_delta` | `{message_id, append}` |
-| `assistant_end` | `{message_id, status}` |
-| `thinking` | `{phase: started|finished, duration_ms?, summary_code?}` |
-| `tool_call` | `{call_id, tool_code, label_code, input_summary}` |
-| `tool_result` | `{call_id, status, duration_ms, output{text,truncated}}` |
-| `run_state` | `{job_id?, status, message_id?}` |
-| `plan_update` | `{revision, steps:[{step_id,label_code,status}]}`; steps are `collect, freeze, analyze, audit, decision, repair, verify, export` |
-| `corpus_update` | `{fixture_id, counts{valid,invalid,poc}, total, cases_sha256}` |
-| `awaiting_user` | `{kind: contract_review|audit_decision, request_id, label_code, binding, allowed[]}`; contract binding is `{contract_revision,contract_sha256,corpus_sha256,binary_sha256}`; audit decisions are `proceed|iterate|change_scope` |
-| `user_response` | `{kind, request_id, decision, binding?}` |
-| `file_change` | `{change_id, stage: proposed|applied, files:[{display_path,added,removed,diff{text,truncated},sha256?}]}` |
-| `command` | `{command_id, phase: started|output|finished, label_code, display_cwd, channel?, append?, exit_code?, duration_ms?}` |
-| `verification` | `kind: check` → `{level:V0..V4, status:passed|failed|not_run, obligation_id, evidence_ids[], reason_code?}`; `kind: evaluation` → `{evaluation_id, verdict:{outcome, criteria[], coverage, limitations}|null, generated_at}` |
-| `audit_runs` | `{report_sha256, runs:[{run_id,schema_valid,score,critical_errors,usable,notes,model,tokens,cost_usd}]}` |
-| `error` | `{code, correlation_id, retry{kind}}` |
-| `run_end` | `{job_id?, execution, duration_ms, steps_taken, files_changed, ai{calls,tokens,cost_usd}, evaluation_id?}` |
+Rules that are honesty-critical:
 
-### Required honesty rules
+1. `verification.evaluation.verdict` is `null` until the verifier finalizes; the
+   GUI renders only the persisted `VerdictV1.verdict` and never infers it.
+2. `run_end.ai` values are `null` when the provider did not report them; the GUI
+   shows "not provided", never a guess.
+3. A run that did not reach a verdict ends with `execution: "failed"` and, before
+   that, an `error` with a stable `code`. Success is never synthesized.
+4. Synthetic preview events use `source: "synthetic"` and can never satisfy
+   acceptance.
 
-1. `verification.check.status` and `VerdictV1.criteria[].status` use exactly
-   `passed / failed / not_run`; `not_run` is rendered verbatim and never converted
-   to success.
-2. `verification.evaluation.verdict` is `null` until a persisted `VerdictV1`
-   exists. The GUI renders `unverified`/`not_run` when it is null.
-3. `audit_runs` may contain invalid or missing rows; the GUI displays them as
-   persisted, never drops them to make a table look complete.
-4. `source: synthetic` events are visibly labelled demo/preview; they cannot
-   satisfy acceptance and are never written as real run history.
-5. Unknown `reason_code`/`error.code` shows the raw status and an honest
-   "unknown reason" label; no inferred cause.
+## 4. Step ids
 
-## 5. Journal storage
+```text
+collect -> freeze -> analyze -> audit -> decision -> repair -> verify -> export
+```
 
-`var/events/{task_id}.jsonl`, one envelope per line, UTF-8, append-only. The GUI
-reads this file and `var/artifacts/` only; it never imports pipeline modules.
-`var/tasks/{task_id}.json` stores task metadata and approval binding (no secrets).
+`plan_update` carries the whole checklist every time (revision increments). A
+stage that has not started is `pending`; a stage that cannot run in the current
+gate is `skipped` with a following `error`/`not_run` record, never `completed`.
 
-A runner (owned by infra, `scripts/run_task.py`) is the only writer of real
-journal events. Until it is wired to the pipeline, Start returns an honest
-`runner_unavailable` error; S3 preview uses `source: synthetic` only.
+## 5. Runner CLI contract
 
-## 6. SSE error behavior
+```bash
+python -m scripts.run_task --task <task_id> --var-root var
+```
 
-- Unknown task → `404`.
-- Journal gap or malformed record → emit `event: journal_gap`, then close; never
-  silently skip.
-- Cancel → runner appends a terminal `run_end`; the GUI closes after it.
-- Disconnect does not cancel the run.
+- Reads `var/tasks/{task_id}.json` (the GUI-written task snapshot).
+- Refuses to run unless `approval.approved` is true and
+  `approval.binding_digest == review_binding_digest`; otherwise exit code `3`
+  and no journal events.
+- Appends `source: "runner"` events for one `run_id`; exactly one terminal
+  `run_end` per run.
+- Writes artifacts under `var/artifacts/{task_id}/` and events that point at them
+  by `display_path` only.
+- Exit codes: `0` journal written and terminated (even when stages are `not_run`),
+  `2` invalid task or journal, `3` not approved / stale binding, `4` internal error
+  after a terminal `run_end` was written.
+- Prints one JSON summary to stdout: `{task_id, run_id, execution, reason_code, events}`.
+- Never reads a provider key; the audit stage's own CLI owns that, and the runner
+  records only the provider id/usage the audit reports.
+
+## 6. What this contract does not cover
+
+- SSE transport details (heartbeat, `Last-Event-ID` reconnect) — GUI-owned.
+- Artifact registry and download endpoints — later S-stage; the runner only writes
+  files under `var/artifacts/{task_id}/` and names them in `file_change`.
+- Provider prompts and responses — `pipeline/ai` and the audit report own those.

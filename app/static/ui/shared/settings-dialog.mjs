@@ -1,13 +1,13 @@
-import {assistantKey} from './assistant-key.mjs?v=20261120as';
-import {enableDialogCloseMotion} from './dialog-motion.mjs?v=20261120as';
-import {el} from './dom.mjs?v=20261120as';
-import {icon} from './icons.mjs?v=20261120as';
-import {LANGUAGES} from './languages.mjs?v=20261120as';
-import {modelPicker} from './model-picker.mjs?v=20261120as';
-import {settingsCopy} from './settings-copy.mjs?v=20261120as';
+import {assistantKey} from './assistant-key.mjs?v=20261120au';
+import {enableDialogCloseMotion} from './dialog-motion.mjs?v=20261120au';
+import {el} from './dom.mjs?v=20261120au';
+import {icon} from './icons.mjs?v=20261120au';
+import {LANGUAGES} from './languages.mjs?v=20261120au';
+import {modelPicker} from './model-picker.mjs?v=20261120au';
+import {settingsCopy} from './settings-copy.mjs?v=20261120au';
 import {
   getSetting, getSettings, importSettings, resetSettings, setSetting,
-} from './settings-preferences.mjs?v=20261120as';
+} from './settings-preferences.mjs?v=20261120au';
 
 const BUILD = new URL(import.meta.url).searchParams.get('v') || 'dev';
 

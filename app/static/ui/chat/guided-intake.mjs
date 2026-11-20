@@ -5,8 +5,8 @@
  * verdict, score or success label; the approval binding is computed by the
  * server, and Start remains disabled until a later-stage runner exists.
  */
-import {el} from '../shared/dom.mjs?v=20261120as';
-import {icon} from '../shared/icons.mjs?v=20261120as';
+import {el} from '../shared/dom.mjs?v=20261120au';
+import {icon} from '../shared/icons.mjs?v=20261120au';
 
 const state = {snapshot: null, promise: null, approved: false, denied: false, dialog: null};
 const wired = new WeakSet();
@@ -40,6 +40,31 @@ async function load() {
     .then(value => { state.snapshot = value; return value; })
     .catch(error => { state.error = error; throw error; });
   return state.promise;
+}
+
+async function session() {
+  const response = await fetch('/api/session', {credentials: 'same-origin', cache: 'no-store'});
+  if (!response.ok) throw new Error('session unavailable');
+  return response.json();
+}
+
+async function ensureTask() {
+  if (state.taskId) return state.taskId;
+  if (!state.taskPromise) {
+    state.taskPromise = (async () => {
+      const current = await session();
+      const response = await fetch('/api/tasks', {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'x-csrf-token': current.csrf_token},
+        body: JSON.stringify({}),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail?.code || 'task creation failed');
+      state.taskId = payload.id;
+      return payload.id;
+    })();
+  }
+  return state.taskPromise;
 }
 
 function caseText(item) {
@@ -124,7 +149,7 @@ function dialogMarkup(data) {
       el('button', {type: 'button', class: 'button subtle', id: 'guided-edit'}, '尝试编辑冻结契约')),
     el('p', {class: 'guided-status', id: 'guided-approval-status', role: 'status'}),
     el('button', {type: 'button', class: 'button primary', id: 'guided-start', disabled: true},
-      icon('arrow', 16), '开始修复（S3 runner 接入后开放）'));
+      icon('arrow', 16), '开始修复'));
 
   return el('div', {class: 'guided-body'},
     el('div', {class: 'guided-grid'}, fixture, intake),
@@ -155,11 +180,14 @@ function openDialog(data) {
 
   approve.addEventListener('click', async () => {
     approve.disabled = true;
-    status.textContent = '正在提交审批…';
+    status.textContent = '正在创建任务并提交审批…';
     status.dataset.state = 'pending';
     try {
-      const response = await fetch('/api/fixture/approve', {
-        method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
+      const taskId = await ensureTask();
+      const current = await session();
+      const response = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/approve', {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'x-csrf-token': current.csrf_token},
         body: JSON.stringify({expected_review_binding_digest: data.review_binding_digest,
           reviewer_label: 'M2 console user'}),
       });
@@ -171,14 +199,45 @@ function openDialog(data) {
         return;
       }
       state.approved = true;
-      status.textContent = '已批准 · ' + payload.approved_at + ' · binding ' + short(payload.binding_digest, 16, 8);
+      status.textContent = '已批准 · ' + payload.approved_at + ' · task ' + taskId +
+        ' · binding ' + short(payload.binding_digest, 16, 8);
       status.dataset.state = 'good';
       deny.disabled = true;
-      start.disabled = true;
+      start.disabled = false;
     } catch (error) {
       status.textContent = '审批失败：' + error.message;
       status.dataset.state = 'bad';
       approve.disabled = false;
+    }
+  });
+  start.addEventListener('click', async () => {
+    start.disabled = true;
+    status.textContent = '正在启动真实 runner…';
+    status.dataset.state = 'pending';
+    try {
+      const taskId = await ensureTask();
+      const current = await session();
+      const key = crypto.randomUUID();
+      const response = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/start', {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'x-csrf-token': current.csrf_token,
+          'Idempotency-Key': key},
+        body: JSON.stringify({expected_review_binding_digest: data.review_binding_digest}),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        status.textContent = '启动失败：' + (payload.detail?.code || response.status);
+        status.dataset.state = 'bad';
+        start.disabled = false;
+        return;
+      }
+      status.textContent = '已启动 · ' + payload.run_id + ' · 正在读取真实事件…';
+      const module = await import('./event-console.mjs?v=20261120au');
+      await module.openEventConsole({taskId});
+    } catch (error) {
+      status.textContent = '启动失败：' + error.message;
+      status.dataset.state = 'bad';
+      start.disabled = false;
     }
   });
   deny.addEventListener('click', () => {
@@ -190,12 +249,23 @@ function openDialog(data) {
   });
   edit.addEventListener('click', async () => {
     status.textContent = '正在验证冻结契约拒绝语义…';
-    const response = await fetch('/api/fixture/contract', {method: 'PUT', credentials: 'same-origin'});
-    const payload = await response.json().catch(() => ({}));
-    status.textContent = response.status === 409
-      ? '已拒绝编辑：' + (payload.detail?.code || 'frozen_contract') + '（冻结契约只能新建 freeze）'
-      : '意外状态：' + response.status;
-    status.dataset.state = response.status === 409 ? 'good' : 'bad';
+    try {
+      const taskId = await ensureTask();
+      const current = await session();
+      const response = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/contract', {
+        method: 'PUT', credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'x-csrf-token': current.csrf_token},
+        body: JSON.stringify({expected_revision: data.contract_revision, contract: {}}),
+      });
+      const payload = await response.json().catch(() => ({}));
+      status.textContent = response.status === 409
+        ? '已拒绝编辑：' + (payload.detail?.code || 'frozen_contract') + '（冻结契约只能新建 freeze）'
+        : '意外状态：' + response.status;
+      status.dataset.state = response.status === 409 ? 'good' : 'bad';
+    } catch (error) {
+      status.textContent = '验证失败：' + error.message;
+      status.dataset.state = 'bad';
+    }
   });
 }
 
@@ -207,7 +277,7 @@ function launchCard(data) {
       el('button', {type: 'button', class: 'button primary', onclick: () => openDialog(data)},
         icon('file', 15), '审阅语料与契约'),
       el('button', {type: 'button', class: 'button subtle', onclick: async () => {
-        const module = await import('./event-console.mjs?v=20261120as');
+        const module = await import('./event-console.mjs?v=20261120au');
         await module.openEventConsole();
       }}, icon('terminal', 15), 'S3 事件流')));
   return card;

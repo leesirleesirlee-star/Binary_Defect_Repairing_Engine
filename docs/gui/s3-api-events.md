@@ -18,10 +18,10 @@ produces a success verdict.
 
 ## Start
 
-Start requires approval and an `Idempotency-Key`. The runner is not wired, so the
-endpoint fails honestly with `503 runner_unavailable`; no journal success record
-is fabricated. A real runner must append events to the journal; the GUI never
-imports pipeline modules.
+Start requires approval and an `Idempotency-Key`; the API spawns
+`scripts/run_task.py` (M1 runner). The runner executes the available analysis
+stage and reports not-yet-wired stages as skipped/failed; it never fabricates a
+verdict or success. The GUI never imports pipeline modules.
 
 ## UI
 

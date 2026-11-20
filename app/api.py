@@ -12,11 +12,15 @@ import hmac
 import json
 import os
 import secrets
+import subprocess
+import sys
+from hashlib import sha256
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import quote, unquote
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from app import tasks
 from app.journal import JournalError, read_records, wait_for_records
@@ -55,6 +59,12 @@ def _error(status: int, code: str, **extra: Any) -> HTTPException:
     return HTTPException(status_code=status, detail={"code": code, **extra})
 
 
+def append_gui_event(task_id: str, event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
+    from app.journal import append_event
+
+    return append_event(task_id, event_type, payload, source="gui")
+
+
 def require_session(request: Request) -> None:
     if request.cookies.get(SESSION_COOKIE) != SESSION_TOKEN:
         raise _error(401, "session_required")
@@ -69,9 +79,60 @@ def require_csrf(
 
 def _task(task_id: str) -> dict[str, Any]:
     try:
-        return tasks.get(task_id)
+        task = tasks.get(task_id)
     except tasks.TaskNotFound as error:
         raise _error(404, "not_found") from error
+    try:
+        records = read_records(task_id)
+    except JournalError:
+        records = []
+    terminal = next((record for record in reversed(records) if record["type"] == "run_end"), None)
+    if terminal and not (task.get("execution") or {}).get("terminal"):
+        execution = task.get("execution") or {}
+        execution.update(
+            {
+                "status": terminal["payload"].get("execution") or "failed",
+                "terminal": True,
+            }
+        )
+        tasks.set_execution(task_id, execution)
+        task = tasks.get(task_id)
+    return task
+
+
+_ARTIFACT_ROOT = _BASE / "var" / "artifacts"
+
+
+def _artifact_dir(task_id: str) -> Path:
+    if not task_id or "/" in task_id or ".." in task_id:
+        raise _error(404, "artifact_unavailable")
+    return _ARTIFACT_ROOT / task_id
+
+
+def _artifact_info(task_id: str, path: Path) -> dict[str, Any]:
+    relative = path.relative_to(_ARTIFACT_ROOT).as_posix()
+    encoded = quote(relative, safe="")
+    return {
+        "artifact_id": encoded,
+        "display_path": path.relative_to(_artifact_dir(task_id)).as_posix(),
+        "sha256": sha256(path.read_bytes()).hexdigest(),
+        "size": path.stat().st_size,
+        "metadata_url": "/api/artifacts/" + encoded,
+        "download_url": "/api/artifacts/" + encoded + "/download",
+    }
+
+
+def _artifact_path(artifact_id: str) -> Path:
+    # artifact_id is the URL-encoded ``task_id/display_path`` and always stays
+    # below var/artifacts; path traversal is rejected before any filesystem use.
+    relative = unquote(artifact_id)
+    candidate = (_ARTIFACT_ROOT / relative).resolve()
+    root = _ARTIFACT_ROOT.resolve()
+    if candidate != root and root not in candidate.parents:
+        raise _error(404, "artifact_unavailable")
+    if candidate == root or not candidate.is_file():
+        raise _error(404, "artifact_unavailable")
+    return candidate
 
 
 @router.get("/session")
@@ -148,6 +209,30 @@ def approve_task(task_id: str, body: Annotated[dict[str, Any], Body()]) -> dict[
 
 
 @router.post(
+    "/tasks/{task_id}/decision", dependencies=[Depends(require_session), Depends(require_csrf)]
+)
+def decide_task(task_id: str, body: Annotated[dict[str, Any], Body()]) -> dict[str, Any]:
+    "Record a G2 decision and journal it; repair remains blocked until runner consumes it."
+    task = _task(task_id)
+    if not (task.get("approval") or {}).get("approved"):
+        raise _error(409, "approval_required")
+    decision = str(body.get("decision") or "")
+    if decision not in {"proceed", "iterate", "change_scope"}:
+        raise _error(422, "invalid_decision")
+    request_id = str(body.get("request_id") or "decision")
+    record = append_gui_event(
+        task_id,
+        "user_response",
+        {
+            "request_id": request_id,
+            "kind": "audit_decision",
+            "decision": decision,
+        },
+    )
+    return {"decision": decision, "seq": record["seq"]}
+
+
+@router.post(
     "/tasks/{task_id}/start", dependencies=[Depends(require_session), Depends(require_csrf)]
 )
 def start_task(
@@ -170,17 +255,58 @@ def start_task(
         raise _error(409, "stale_approval") from error
     except PermissionError as error:
         raise _error(409, "approval_required") from error
-    # No runner is wired yet. Fail honestly instead of fabricating a run.
-    tasks.set_execution(
-        task_id,
+    runner = _BASE / "scripts" / "run_task.py"
+    if not runner.is_file():
+        tasks.set_execution(
+            task_id,
+            {
+                "run_id": acknowledgement["run_id"],
+                "status": "blocked",
+                "terminal": True,
+                "reason_code": "runner_unavailable",
+            },
+        )
+        raise _error(503, "runner_unavailable", run_id=acknowledgement["run_id"])
+    try:
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "scripts.run_task",
+                "--task",
+                task_id,
+                "--var-root",
+                str(_BASE / "var"),
+                "--repo-root",
+                str(_BASE),
+            ],
+            cwd=_BASE,
+            start_new_session=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as error:
+        tasks.set_execution(
+            task_id,
+            {
+                "run_id": acknowledgement["run_id"],
+                "status": "blocked",
+                "terminal": True,
+                "reason_code": "runner_unavailable",
+            },
+        )
+        raise _error(503, "runner_unavailable") from error
+    execution = task.get("execution") or {}
+    execution.update(
         {
             "run_id": acknowledgement["run_id"],
-            "status": "blocked",
-            "terminal": True,
-            "reason_code": "runner_unavailable",
-        },
+            "status": "queued",
+            "terminal": False,
+            "pid": process.pid,
+        }
     )
-    raise _error(503, "runner_unavailable", run_id=acknowledgement["run_id"])
+    tasks.set_execution(task_id, execution)
+    return {"run_id": acknowledgement["run_id"], "phase": "queued"}
 
 
 @router.post(
@@ -259,42 +385,91 @@ async def task_events(
     )
 
 
+def _read_task_file(task_id: str, name: str) -> dict[str, Any] | None:
+    path = _artifact_dir(task_id) / name
+    if not path.is_file():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
 @router.get("/tasks/{task_id}/audit", dependencies=[Depends(require_session)])
 def get_audit(task_id: str) -> dict[str, Any]:
     _task(task_id)
-    return {"available": False}
+    return _read_task_file(task_id, "audit.json") or {"available": False}
 
 
 @router.get("/tasks/{task_id}/manifest", dependencies=[Depends(require_session)])
 def get_manifest(task_id: str) -> dict[str, Any]:
     _task(task_id)
-    return {"available": False}
+    return _read_task_file(task_id, "edit-manifest.json") or {"available": False}
 
 
 @router.get("/tasks/{task_id}/verdict", dependencies=[Depends(require_session)])
 def get_verdict(task_id: str) -> dict[str, Any]:
     _task(task_id)
-    return {"available": False, "finalized": False}
+    value = _read_task_file(task_id, "verdict.json")
+    if value is None:
+        return {"available": False, "finalized": False}
+    return {"available": True, "finalized": True, **value}
+
+
+@router.get("/tasks/{task_id}/analysis", dependencies=[Depends(require_session)])
+def get_analysis(task_id: str) -> dict[str, Any]:
+    _task(task_id)
+    view = _read_task_file(task_id, "disassembly.json")
+    finding = _read_task_file(task_id, "finding.json")
+    return {"available": bool(view and finding), "view": view, "finding": finding}
 
 
 @router.get("/tasks/{task_id}/artifacts", dependencies=[Depends(require_session)])
 def get_artifacts(task_id: str) -> dict[str, Any]:
     _task(task_id)
-    return {"artifacts": []}
+    directory = _artifact_dir(task_id)
+    if not directory.is_dir():
+        return {"artifacts": []}
+    artifacts = [
+        _artifact_info(task_id, path) for path in sorted(directory.iterdir()) if path.is_file()
+    ]
+    return {"artifacts": artifacts}
+
+
+@router.get("/artifacts/{artifact_id:path}/download", dependencies=[Depends(require_session)])
+def artifact_download(artifact_id: str) -> FileResponse:
+    path = _artifact_path(artifact_id)
+    task_id = path.relative_to(_ARTIFACT_ROOT).parts[0]
+    _task(task_id)
+    return FileResponse(path, filename=path.name, media_type="application/octet-stream")
+
+
+@router.get("/artifacts/{artifact_id:path}", dependencies=[Depends(require_session)])
+def artifact(artifact_id: str) -> dict[str, Any]:
+    path = _artifact_path(artifact_id)
+    task_id = path.relative_to(_ARTIFACT_ROOT).parts[0]
+    _task(task_id)
+    return _artifact_info(task_id, path)
 
 
 @router.get("/tasks/{task_id}/export", dependencies=[Depends(require_session)])
 def export_task(task_id: str) -> dict[str, Any]:
     task = _task(task_id)
     task.pop("idempotency", None)
-    return {"task": task, "verdict": None, "artifacts": []}
-
-
-@router.get("/artifacts/{artifact_id}", dependencies=[Depends(require_session)])
-def artifact(artifact_id: str) -> None:
-    raise _error(404, "artifact_unavailable")
-
-
-@router.get("/artifacts/{artifact_id}/download", dependencies=[Depends(require_session)])
-def artifact_download(artifact_id: str) -> None:
-    raise _error(404, "artifact_unavailable")
+    audit = _read_task_file(task_id, "audit.json")
+    manifest = _read_task_file(task_id, "edit-manifest.json")
+    verdict = _read_task_file(task_id, "verdict.json")
+    directory = _artifact_dir(task_id)
+    artifacts = (
+        [_artifact_info(task_id, path) for path in sorted(directory.iterdir()) if path.is_file()]
+        if directory.is_dir()
+        else []
+    )
+    return {
+        "task": task,
+        "audit": audit,
+        "manifest": manifest,
+        "verdict": verdict,
+        "artifacts": artifacts,
+    }

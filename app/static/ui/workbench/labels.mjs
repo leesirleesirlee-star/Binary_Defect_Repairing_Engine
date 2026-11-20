@@ -1,4 +1,4 @@
-import {extraLabels} from './labels-extra.mjs?v=20261120as';
+import {extraLabels} from './labels-extra.mjs?v=20261120au';
 
 // Pair each display string with its Simplified Chinese translation.
 const labels = {

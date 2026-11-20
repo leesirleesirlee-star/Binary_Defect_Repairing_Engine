@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -58,9 +59,31 @@ def test_approval_binding_and_start_is_honest(client: TestClient) -> None:
     start = client.post(f"/api/tasks/{task_id}/start",
                         json={"expected_review_binding_digest": digest},
                         headers={"Idempotency-Key": "test-key"})
-    # No real runner is wired: fail honestly, never fabricate a successful run.
-    assert start.status_code == 503
-    assert start.json()["detail"]["code"] == "runner_unavailable"
+    assert start.status_code == 200
+    assert start.json()["run_id"].startswith("run_")
+    deadline = time.monotonic() + 60
+    records = []
+    while time.monotonic() < deadline:
+        records = read_records(task_id)
+        if records and records[-1]["type"] == "run_end":
+            break
+        time.sleep(0.1)
+    assert records and records[-1]["type"] == "run_end"
+    # The runner may stop at a not-yet-wired stage, but it must never fabricate success.
+    assert records[-1]["payload"]["execution"] in {"failed", "cancelled"}
+    terminal = client.get(f"/api/tasks/{task_id}").json()["execution"]
+    assert terminal["terminal"] is True
+    analysis = client.get(f"/api/tasks/{task_id}/analysis").json()
+    assert analysis["available"] is True
+    assert analysis["finding"]["status"] in {"hypothesis", "confirmed_by_analysis", "refuted"}
+    artifacts = client.get(f"/api/tasks/{task_id}/artifacts").json()["artifacts"]
+    assert {item["display_path"] for item in artifacts} >= {"disassembly.json", "finding.json"}
+    download = client.get(artifacts[0]["download_url"])
+    assert download.status_code == 200
+    assert download.content
+    bundle = client.get(f"/api/tasks/{task_id}/export").json()
+    assert bundle["task"]["id"] == task_id
+    assert bundle["verdict"] is None
 
 
 def test_preview_journal_has_no_success(client: TestClient) -> None:
@@ -110,3 +133,19 @@ def test_sse_last_event_id_replays_after_sequence(client: TestClient) -> None:
     assert data
     assert all(item["seq"] > 1 for item in data)
     assert data[0]["seq"] == 2
+
+def test_decision_is_allowed_after_approval(client: TestClient) -> None:
+    response = client.post("/api/tasks", json={})
+    task_id = response.json()["id"]
+    digest = client.get(f"/api/tasks/{task_id}").json()["review_binding_digest"]
+    assert client.post(f"/api/tasks/{task_id}/decision",
+                       json={"request_id": "r1", "decision": "proceed"}).status_code == 409
+    client.post(f"/api/tasks/{task_id}/approve",
+                json={"expected_review_binding_digest": digest, "reviewer_label": "test"})
+    decision = client.post(f"/api/tasks/{task_id}/decision",
+                           json={"request_id": "r1", "decision": "proceed"})
+    assert decision.status_code == 200
+    assert decision.json()["decision"] == "proceed"
+    bad = client.post(f"/api/tasks/{task_id}/decision",
+                      json={"request_id": "r2", "decision": "success"})
+    assert bad.status_code == 422

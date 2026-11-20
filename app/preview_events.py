@@ -133,8 +133,76 @@ def ensure_preview_journal(task_id: str) -> None:
     append_event(
         task_id,
         "audit_runs",
-        {"report_sha256": "0" * 64, "runs": []},
+        {
+            "report_sha256": "0" * 64,
+            "runs": [
+                {
+                    "run_index": 1,
+                    "schema_valid": False,
+                    "score": None,
+                    "critical_errors": ["invalid_json"],
+                    "usable": False,
+                    "notes": "synthetic preview row, never a real audit",
+                },
+                {
+                    "run_index": 2,
+                    "schema_valid": True,
+                    "score": None,
+                    "critical_errors": [],
+                    "usable": False,
+                    "notes": "synthetic preview row, no scores reported",
+                },
+                {
+                    "run_index": 3,
+                    "schema_valid": True,
+                    "score": None,
+                    "critical_errors": [],
+                    "usable": False,
+                    "notes": "synthetic preview row, no scores reported",
+                },
+            ],
+        },
         step_id="audit",
+        run_id="run_preview",
+        **base,
+    )
+    append_event(
+        task_id,
+        "awaiting_user",
+        {
+            "request_id": "preview-decision",
+            "kind": "audit_decision",
+            "allowed": ["proceed", "iterate", "change_scope"],
+            "binding": {
+                "contract_revision": 1,
+                "contract_sha256": "0" * 64,
+                "corpus_sha256": "0" * 64,
+                "binary_sha256": "0" * 64,
+            },
+        },
+        step_id="decision",
+        run_id="run_preview",
+        **base,
+    )
+    append_event(
+        task_id,
+        "file_change",
+        {
+            "change_id": "preview-repair",
+            "stage": "proposed",
+            "files": [
+                {
+                    "display_path": "candidate.elf",
+                    "added": 0,
+                    "removed": 0,
+                    "diff": {
+                        "text": "synthetic preview only; candidate_written: false\n",
+                        "truncated": False,
+                    },
+                }
+            ],
+        },
+        step_id="repair",
         run_id="run_preview",
         **base,
     )

@@ -16,16 +16,19 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8124
 - <http://127.0.0.1:8124/ui/chat/?preview=1>
 - <http://127.0.0.1:8124/ui/>
 
-S2 guided intake is included: `/api/fixture` exposes the frozen G1 fixture,
-contract and corpus; the chat hero opens a read-only intake/approval dialog. The
-S3-S6 API, SSE journal, audit/repair/verify payloads and Start action are not
-part of this slice; the GUI still never computes a verdict and Start stays
-disabled until the S3 runner exists.
+S2 guided intake is included: `/api/fixture` exposes the frozen G1 fixture for
+display; the chat hero creates a task, approves the task binding and enables
+Start. The frozen contract remains read-only.
 
-## S3 API and event journal
+## S3+ API and event journal
 
-`GET /api/session`, `/api/tasks`, `/api/tasks/{id}/events` and the labelled
-synthetic preview journal are implemented. Start currently returns an honest
-`503 runner_unavailable`; no fake run result is written. See
-[`docs/interfaces/gui-events-v1.md`](../docs/interfaces/gui-events-v1.md) and
-[`docs/gui/s3-api-events.md`](../docs/gui/s3-api-events.md).
+`GET /api/session`, `/api/tasks`, approval, decision, Start/cancel, SSE replay,
+analysis/artifact reads and export are implemented. Start spawns the M1 runner
+`scripts/run_task.py`; the runner executes the available `pipeline.analyze`
+stage and reports not-yet-wired audit/decision/repair/verify/export stages as
+`stage_not_wired`. It never fabricates a verdict or success. The GUI never
+imports pipeline modules.
+
+See [`docs/interfaces/gui-events-v1.md`](../docs/interfaces/gui-events-v1.md),
+[`docs/gui/s3-api-events.md`](../docs/gui/s3-api-events.md) and
+[`docs/gui/s2-guided-intake.md`](../docs/gui/s2-guided-intake.md).

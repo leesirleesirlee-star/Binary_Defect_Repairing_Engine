@@ -1,4 +1,4 @@
-import {motionReduced} from './motion.mjs?v=20261120as';
+import {motionReduced} from './motion.mjs?v=20261120au';
 
 /**
  * Fade-scale close motion for modal <dialog> elements.

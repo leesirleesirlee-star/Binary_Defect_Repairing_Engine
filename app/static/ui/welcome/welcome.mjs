@@ -1,9 +1,9 @@
-import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261120as';
-import '../shared/settings-preferences.mjs?v=20261120as';
-import {saveDraft, saveLanguage} from '../shared/handoff.mjs?v=20261120as';
-import {LANGUAGES, LANGUAGE_CODES, detectLanguage, isLanguage, languageName} from '../shared/languages.mjs?v=20261120as';
-import '../shared/theme.mjs?v=20261120as';
-import {welcomeCopy} from './welcome-copy.mjs?v=20261120as';
+import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261120au';
+import '../shared/settings-preferences.mjs?v=20261120au';
+import {saveDraft, saveLanguage} from '../shared/handoff.mjs?v=20261120au';
+import {LANGUAGES, LANGUAGE_CODES, detectLanguage, isLanguage, languageName} from '../shared/languages.mjs?v=20261120au';
+import '../shared/theme.mjs?v=20261120au';
+import {welcomeCopy} from './welcome-copy.mjs?v=20261120au';
 
 const form = document.querySelector('.composer-card');
 const draft = document.querySelector('#draft');

@@ -20,12 +20,15 @@ verdict, pass rate or success label.
 
 ## API slice
 
-- `GET /api/fixture` — read-only snapshot (server reads `fixtures/stack-overflow-01`)
-- `POST /api/fixture/approve` — binds the review digest; stale digest → 409
-- `PUT /api/fixture/contract` — always 409 `frozen_contract`
+- `GET /api/fixture` — read-only fixture display
+- `POST /api/tasks` — create the bound task
+- `POST /api/tasks/{id}/approve` — bind the review digest; stale digest → 409
+- `PUT /api/tasks/{id}/contract` — always 409 `frozen_contract`
+- `POST /api/tasks/{id}/start` — starts the real runner after approval
 
 ## Tests
 
 `tests/app/test_fixture_snapshot.py` checks 9 cases, persisted hashes, schema
 validity, deterministic binding, approval, stale rejection and the non-success
-initial state. `tests/app/test_ui_preview_assets.py` covers the new assets.
+initial state. `tests/app/test_api.py` covers the task-bound approval and real
+runner start. `tests/app/test_ui_preview_assets.py` covers the new assets.

@@ -1,4 +1,4 @@
-import {icon} from './icons.mjs?v=20261120as';
+import {icon} from './icons.mjs?v=20261120au';
 
 export function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);

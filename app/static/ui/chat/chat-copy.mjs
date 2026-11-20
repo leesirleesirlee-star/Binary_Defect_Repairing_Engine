@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261120as';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261120au';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
