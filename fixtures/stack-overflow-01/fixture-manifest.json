@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "fixture_id": "stack-overflow-01",
-  "built_at": "2026-11-20T13:36:36Z",
+  "built_at": "2026-11-20T13:52:11Z",
   "toolchain": {
     "gcc": "gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
     "ld": "GNU ld (GNU Binutils for Ubuntu) 2.46",
@@ -81,7 +81,7 @@
     "size": 3567,
     "zero_filled": true,
     "mechanism": "post-link",
-    "script_sha256": "913db398f26a3778a5c755173c7324d2a90470c2bfe078cb48b013895bc0e589"
+    "script_sha256": "8fcf1429b8e03d70f2767f2b4da8c5f8f9326c015677bd9c93803a506693043b"
   },
   "strcpy_call": {
     "address": "0x401194",

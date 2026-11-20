@@ -9,7 +9,7 @@
     "kernel": "7.0.0-1020-azure",
     "libc": "glibc 2.43"
   },
-  "started_at": "2026-11-20T13:36:37Z",
+  "started_at": "2026-11-20T13:52:12Z",
   "cases": [
     {
       "id": "valid-0",
@@ -64,11 +64,11 @@
     {
       "id": "invalid-32",
       "argv_sha256": "d8ed29bb3b508eea088a9edc8b4338d579fa69323e9bc67168fab4b1dc008dbd",
-      "exit_code": 0,
-      "signal": null,
-      "stdout_b64": "QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUEK",
+      "exit_code": -11,
+      "signal": "SIGSEGV",
+      "stdout_b64": "",
       "stderr_b64": "",
-      "duration_ms": 0,
+      "duration_ms": 67,
       "timed_out": false
     },
     {
@@ -78,7 +78,7 @@
       "signal": "SIGSEGV",
       "stdout_b64": "",
       "stderr_b64": "",
-      "duration_ms": 66,
+      "duration_ms": 68,
       "timed_out": false
     },
     {
@@ -88,7 +88,7 @@
       "signal": "SIGSEGV",
       "stdout_b64": "",
       "stderr_b64": "",
-      "duration_ms": 55,
+      "duration_ms": 59,
       "timed_out": false
     },
     {
@@ -98,7 +98,7 @@
       "signal": "SIGSEGV",
       "stdout_b64": "",
       "stderr_b64": "",
-      "duration_ms": 79,
+      "duration_ms": 60,
       "timed_out": false
     }
   ]
