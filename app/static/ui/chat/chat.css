@@ -501,3 +501,9 @@ details.disclosure > summary > svg { transition: transform 320ms var(--ios-ease,
 }
 .inline-actions .control { min-height: 1.9rem; }
 .inline-actions .muted { color: var(--muted); font-size: .74rem; }
+
+/* The binary attachment affordance stays available in the deterministic
+   assistant too: the empty-chat hero offers both the binary picker and the
+   sample-contract shortcut. */
+.hero-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .55rem; margin-top: 1.25rem; }
+.hero-actions .hero-attach, .hero-actions .sample { margin-top: 0; }

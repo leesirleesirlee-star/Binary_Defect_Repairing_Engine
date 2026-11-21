@@ -203,13 +203,13 @@ function mount() {
   const header = el('header', {class: 'chat-header'}, openNav, title,
     el('span', {class: 'preview-label'}, el('span', {'aria-hidden': 'true'}),
       t(engine.live ? 'liveLabel' : 'preview')), openExecution, language);
-  const heroAttach = engine.live
-    ? control(t('attachBinary'), () => file.click(), {glyph: 'file', tone: 'primary hero-attach'})
-    : null;
+  const heroAttach = control(t('attachBinary'), () => file.click(),
+    {glyph: 'file', tone: 'primary hero-attach'});
   const hero = el('section', {class: 'empty-chat'},
     appMark('hero-mark'), el('h2', {}, t('empty')),
     el('p', {}, t(engine.live ? 'helpLive' : 'help')),
-    heroAttach ?? control(t('sample'), () => send(t('samplePrompt')), {glyph: 'arrow', tone: 'sample'}));
+    el('div', {class: 'hero-actions'}, heroAttach,
+      control(t('sample'), () => send(t('samplePrompt')), {glyph: 'arrow', tone: 'sample'})));
   const log = el('div', {class: 'transcript', role: 'log', 'aria-live': 'off', 'aria-label': t('chats')});
   const scroll = el('div', {class: 'chat-scroll', tabindex: '0', onscroll: () => {
     if (nodes) nodes.latest.hidden = atEnd();
@@ -239,7 +239,7 @@ function mount() {
     if (picked) input.focus({preventScroll: true});
   }});
   const attached = el('div', {class: 'attached', hidden: true});
-  const attach = control(t(engine.live ? 'attachBinary' : 'attach'), () => file.click(), {glyph: 'plus'});
+  const attach = control(t('attachBinary'), () => file.click(), {glyph: 'plus'});
   const stop = control(t('stop'), () => engine.stop(selected), {glyph: 'stop', tone: 'stop'});
   const sendButton = control(t('send'), null, {type: 'submit', glyph: 'up', compact: true, tone: 'primary send-button'});
   const queue = control(t('queue'), null, {type: 'submit', tone: 'queue'});
@@ -295,9 +295,9 @@ function paintComposer() {
   sendButton.disabled = !input.value.trim() || (live && !selected.jobId && !file);
   queue.hidden = !active || live;
   queue.disabled = !input.value.trim();
-  const showHeroAttach = live && !hero.hidden && !file && !selected.jobId;
+  const showHeroAttach = !hero.hidden && !file && !selected.jobId;
   if (heroAttach) heroAttach.hidden = !showHeroAttach;
-  attach.hidden = live ? showHeroAttach || Boolean(selected.jobId) : selected.events.length > 0;
+  attach.hidden = showHeroAttach || (live && Boolean(selected.jobId));
   if (attached.dataset.filename !== attachment) {
     attached.dataset.filename = attachment;
     attached.replaceChildren(el('span', {}, icon('file', 15), attachment), control(t('remove'), () => {
