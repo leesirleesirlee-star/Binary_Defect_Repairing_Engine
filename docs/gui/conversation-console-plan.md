@@ -1,223 +1,158 @@
-# M2 GUI plan — conversation repair console (maximum reuse of the v1.2.2 chat UI)
+# M2 GUI plan — minimal chat-first repair console (Revision 2.2, AI-hosted chat + live run panels)
 
-- **Status:** Draft for M2, 2026-11-20 (Asia/Shanghai). Decision recorded here pending the mainline
-  decision record (ADR 0002 or G4 milestone note, see §10).
-- **Module:** `gui` (M2). Paths: `app/`, `tests/app/`, `docs/gui/`. Gate: G4, delivered in stages
-  aligned with the G1–G3 mainline (§7).
-- **Supersedes:** the four-screen scope of issue #12 and `docs/gui/schema-review.md`
-  (kept as a historical record).
-- **Reuse source:** archived `Binary_Repair` v1.2.2 (`b885d21`), conversation UI under
-  `app/static/ui/`; design authority:
-  `docs/handoff/2026-11-17-conversation-ui-design.md` (information architecture + SSE event
-  contract), `docs/handoff/2026-11-17-conversation-ui-wireframes.md`,
-  `docs/interfaces/frontend-backend-contract-v1.md`, `docs/architecture/agent-console.md`.
+- **Status:** Revision 2.2 for M2, 2026-11-21 (Asia/Shanghai). Revision 2 (minimal chat-first)
+  responded to the Lead review of Revision 1; Revision 2.1 made the chat AI-hosted (LLM assistant
+  with a deterministic fallback); Revision 2.2 records a Lead decision on the right-side panels:
+  the real-time **修复运行监视 + 事件日志** panels stay in the chat page — users get a live
+  progress and event display alongside the minimal chat. Revision 1 text stays in git history.
+- **Module:** `gui` (M2). Paths: `app/`, `tests/app/`, `docs/gui/`. Gate: G4, staged with G1–G3.
+- **Lead review of Revision 1:** (1) the cards added by Revision 1 make the UI cluttered;
+  (2) the process must be controlled through the AI conversation — the user must not see
+  corpus/contract review and event-stream details; (3) keep it minimal and AI-chat-first.
+- **Reuse source:** unchanged — archived `Binary_Repair` v1.2.2 (`b885d21`) conversation UI shell
+  (`app/static/ui/`). Mainline contracts (`ADR 0003`, `docs/interfaces/gui-events-v1.md`, the
+  runner `scripts/run_task.py`) are **not** changed by this revision.
 
-## 1. Decision: do not redesign the UI, change functionality and interfaces only
+## 1. Design principle (Lead decision)
 
-The v1.2.2 third-generation conversation UI (welcome → `/ui/chat/` → `/ui/` archive) becomes the
-MVP2 GUI. The user flows into a chat where the agent guides intake (binary + normal inputs + crash
-input), the backend walks the roadmap path (analyze → 3-run audit → G2 decision → patch → verify),
-and the chat ends with downloads (repaired ELF + accompanying files). The chat remains usable like
-a normal AI assistant between and around the gated actions.
+1. **The chat is the only surface.** One thread drives the whole task.
+2. **The chat is AI-hosted.** An LLM assistant runs the whole conversation: it asks for the
+   binary, the normal inputs and the crash input, narrates progress, answers follow-up questions
+   like a normal AI, proposes the next action and ends with the download. The user answers in
+   natural language, attaches files, and taps inline action chips. Without a provider key (or on
+   any provider failure) the assistant falls back to scripted deterministic lines with an honest
+   mode badge — the conversation still completes, it is just not model-generated.
+3. **Hidden by default:** corpus JSON, contract JSON, event journal, tool/command rows, the rubric
+   table, per-run scores and raw responses. They exist in the backend and in the evidence, and are
+   reachable only through one unobtrusive evidence entry and the final download bundle.
+4. **Keep the v1.2.2 shell** (layout, CSS, composer, streaming, i18n, a11y). Simplification is done
+   by **hiding components**, not by redesigning them.
+5. **Gates stay machine-enforced.** The AI hosts the dialogue, not the decisions: the backend
+   still refuses to start before approval, the G2 decision still requires the user's chip, and
+   only the deterministic verifier writes a verdict. The chat AI proposes; the system and the user
+   dispose.
+6. **Real-time transparency (Lead decision 2026-11-21).** The chat page keeps the right-side
+   panels — **修复运行监视** (phase checklist, status, artifact links) and **事件日志**
+   (chronological SSE journal). They do not conflict with the minimal chat: the chat is the
+   conversation surface, the panels are the live status surface. Corpus/contract/score cards stay
+   hidden; the journal panel is the user-facing real-time display.
 
-Two kinds of change, nothing else:
+## 2. The whole UI is this conversation (MVP2 demo script)
 
-1. **Functionality:** intake questions, card contents, labels, verdict vocabulary, and the mapping
-   of run activity to the MVP2 pipeline steps.
-2. **Interfaces:** the browser API and SSE payloads are rewritten against the MVP2 schemas; a local
-   event-journal seam replaces the legacy controller/worker backend.
+```text
+AI   你好。把有问题的程序发给我，并说明它出问题的现象。
+U    (附件 vuln.elf) 输入太长会崩溃
+AI   已收到 vuln.elf（SHA-256 前 8 位）。请粘贴几个正常输入，以及一个能让它崩溃的输入。
+U    正常: 空串 / A / hello / 31个A；崩溃: 64个A
+AI   已整理 9 个用例并冻结契约。开始 AI 分析吗？            [开始]
+U    (点击 开始)
+AI   正在生成反汇编视图… 审计 1/3… 2/3… 3/3
+     第 1 次方案得分 86、无严重错误；第 2 次 74；第 3 次 62。
+     建议采用第 1 个方案。继续吗？                          [继续] [重跑]
+U    (点击 继续)
+AI   补丁已生成并写入候选程序。正在验证…
+AI   验证完成：verified_against_stated_criteria。
+     下载修复后的程序与证据：                               [下载] [证据]
+```
 
-Stays byte-identical in behavior: component tree, layout, CSS (`chat.css` / `glass.css` /
-`steps.css`), welcome and archive surfaces, composer mechanics (Enter/Shift+Enter/IME composition,
-queue-while-running, Stop), streaming text, replay via `Last-Event-ID`, sidebar/settings,
-keyboard focus, reduced-motion behavior, and the EN/zh-CN locale switcher.
+That is the conversation surface. Next to it, the right-side panels give the **live** view while a
+run is active: 修复运行监视 (phases, status, artifact links) and 事件日志 (chronological journal).
+Other UI elements beyond chat text:
 
-## 2. Copy list from the archived repo
+- attachment affordance (binary), text paste for inputs, inline action chips, Stop while running,
+  the download button on the final message, and the minimal sidebar (new chat / recent / settings).
 
-| Source (archived `Binary_Repair` v1.2.2) | Destination (this repo) | Notes |
-|---|---|---|
-| `app/static/ui/chat/` (all `.mjs`, `index.html`, 3 CSS) | `app/static/ui/chat/` | as-is; payload rendering adapted in §3 |
-| `app/static/ui/workbench/` (all files) | `app/static/ui/workbench/` | archive surface: task list + evidence view |
-| `app/static/ui/welcome/` (all files) | `app/static/ui/welcome/` | entry surface |
-| `app/static/ui/shared/`, `app/static/ui/assets/`, `app/static/ui/index.html`, `app/static/ui/workbench.html`, `app/static/ui/README.md` | same paths | shared DOM/icon/theme helpers |
-| `tests/test_ui_preview_assets.py` (pattern) | `tests/app/test_ui_preview_assets.py` | asset/module resolution tests |
-| `app/api_v1.py` (pattern only) | `app/api.py` (rewritten) | session/CSRF/version-header pattern; no legacy routes |
+## 3. What Revision 1 rendered and Revision 2 hides
 
-Do **not** copy: `app/backend.py`, `app/controller_api.py`, `app/domain/**`, `app/db/**`,
-`app/services/**` (forbidden by `docs/MIGRATION.md`), the Jinja app (`templates/`, `static/js/`),
-connector/plugin pages, `routea/`, `routeb/`, `workers/`.
-
-## 3. Functional changes: the guided flow rewritten to the MVP2 path
-
-The chat walks the roadmap path; each step renders as an activity row in the transcript:
-
-| # | Step | Card / activity (data source) |
-|---|---|---|
-| 0 | intake | attach binary (client-side SHA-256, ELF-magic warning that does not block), defect description (ASCII), normal inputs (valid samples), crash input (PoC). For the frozen MVP2 fixture these render read-only from `fixtures/stack-overflow-01/cases.json`; arbitrary uploads that require capturing original behavior are L1 (`docs/plan/06-agent-roadmap.md` §5), out of MVP2 scope. |
-| 1 | corpus + contract | `CaseSetV1` summary (case counts, `cases_sha256`) and the `ContractV1` card: `stated_criteria`, `allowed_edits`, `diagnostic_hypothesis` flagged as a hypothesis (not a criterion), `binary_sha256`, `criteria_source: human_frozen`. MVP2 freezes both **before** the AI call (G1): the frozen fixture card is read-only; a changed contract is a new freeze (new task). |
-| 2 | review / approve | approval card binds `{revision, contract_sha256, corpus_sha256, binary_sha256}` (the v1.2.2 `review_binding_digest` pattern). Deny is a local decision. Start stays blocked until approved. |
-| 3 | run | explicit Start with an `Idempotency-Key`; Stop requests cancellation. `plan_update` checklist: collect → freeze → analyze → audit ×3 → decision → repair → verify → export. |
-| 4 | analyze (#7) | `DisassemblyViewV1` activity: ELF facts, function slice, `call strcpy@plt` site; `FindingV1` card with `status: hypothesis / confirmed_by_analysis / refuted`. |
-| 5 | audit (#8/#9) | three `FixPlanV1` run cards: per-run `schema_valid`, `score`, `critical_errors`, `usable`, `notes`; rubric table (§6.5 of the audit spec); per-run AI usage (model, tokens, cost). The **G2 decision card** offers `proceed` / `iterate` / `change_scope` and stays in the transcript. Invalid-JSON runs stay visible. Raw responses (key removed, hashed) live under Evidence. |
-| 6 | repair (#28) | `EditManifestV1` diff card: `patch_site`, `cave`, `trampoline` blob, `edits[]` with original/patch bytes. Dry-run stage shows `candidate_written: false`; after `proceed`, the applied stage shows the `file_change` with the candidate hash. **G2 hard stop:** no repair activity renders before the decision card is approved. |
-| 7 | verify (#11) | guest observation rows per case (original vs candidate: exit, signal, stdout, stderr) and the `VerdictV1` card: verdict in the six-word vocabulary, per-criterion `pass / fail / not_run`, coverage, limitations. `not_run` renders verbatim, never as a pass. |
-| 8 | summary + download | download links: **repaired ELF**, `EditManifestV1`, `VerdictV1`, `AuditReportV1`, raw responses, export bundle. The legacy manual-deliverable upload is removed. |
-
-Free chat: user messages that are not intake answers are answered like a normal assistant; they
-never enter `FixPlanV1`, the audit report or the verdict. The three audit runs are produced only by
-the fixed prompt, so chat cannot coach a run (§3 of `docs/plan/03-fixture-and-ai-audit-spec.md`).
-
-## 4. Label and vocabulary changes
-
-- `workbench/labels.mjs`: verdict six words (`verified_against_stated_criteria`, `rejected`,
-  `unverified`, `unsupported`, `error`, `not_run`); criterion status `pass / fail / not_run`;
-  decision `proceed / iterate / change_scope`; mode badge `deterministic / llm` (plus the honest
-  `llm (not wired)` state); fallback banner shows a localized `fallback_code`, never raw provider
-  text; missing metrics show "not provided", never invented zeros.
-- Remove the `route_a / route_b` axis everywhere; the single route is the trampoline guard. The
-  archive cards drop the route column.
-- Chinese labels, English data (roadmap §4): the shell's EN/zh-CN switcher is kept.
-
-## 5. Interface changes
-
-### 5.1 Browser API (rewrite of the v1 contract; fresh repo, no dual-wire legacy)
-
-| Method | Path | Request → success response |
-|---|---|---|
-| GET | `/api/session` | `200 {session: true, csrf_token}` |
-| GET | `/api/tasks?limit=50` | `200 {tasks: [{id, fixture_id, phase, created_at, verdict}]}` |
-| POST | `/api/tasks` | multipart: `binary` + `defect` + optional `cases` (normal/crash inputs as text or JSON) → `201 {id, phase}`; 20 MiB file / 16 KiB text limits, 413/422 as in the v1 contract |
-| GET | `/api/tasks/{id}` | task snapshot: `id`, `phase`, `demo`, `contract` (ContractV1 + revision/approved/sha256), `corpus` (CaseSetV1 summary), `execution {run_id, status, terminal, reason_code}` |
-| GET/PUT | `/api/tasks/{id}/contract` | read / update with `expected_revision` (frozen fixture: update rejected `409`); `200 {revision, sha256, review_binding_digest}` |
-| POST | `/api/tasks/{id}/approve` | `{expected_review_binding_digest, reviewer_label}` → `200 {approved, approved_at}`; content-hash-only approval is rejected `409 stale_approval` |
-| POST | `/api/tasks/{id}/start` | `{expected_review_binding_digest}` + `Idempotency-Key` → `200 {run_id, phase}`; same key replays the same acknowledgement |
-| POST | `/api/tasks/{id}/cancel` | `{run_id}` → `200 {run_id, phase, execution}` |
-| GET | `/api/tasks/{id}/events` | SSE event journal for the task; `Last-Event-ID` replay from zero or the last contiguous sequence (§5.3) |
-| GET | `/api/tasks/{id}/audit` | `200` AuditReportV1 (or `available: false` while unfinalized) |
-| GET | `/api/tasks/{id}/manifest` | `200` EditManifestV1 (dry-run) |
-| GET | `/api/tasks/{id}/verdict` | `200` VerdictV1 (finalized) or `{available: false, finalized: false}` — pending is never success |
-| GET | `/api/tasks/{id}/artifacts`, `/api/artifacts/{id}`, `/api/artifacts/{id}/download` | artifact metadata / download; only the owning task; `409 artifact_unavailable` on integrity failure |
-| GET | `/api/tasks/{id}/export` | JSON export bundle (verdict + manifest + audit + artifact list) |
-
-Every JSON/multipart write requires the session cookie and `x-csrf-token`. Provider secrets never
-reach the browser: a provider-status endpoint returns only `{configured, provider_id}`.
-
-### 5.2 SSE event contract (delta against the v1.2.2 design doc)
-
-Keep the 16 event types, the envelope (`version/conversation_id/seq/run_id/step_id/ts/source`),
-queueing, delivery status, replay and heartbeat semantics. Payload changes:
-
-| Event | Change |
+| Revision 1 element | Revision 2 treatment |
 |---|---|
-| `verification.check` | `level` ∈ V0–V4 (V5 optional); `status` ∈ `passed / failed / not_run` (VerdictV1 vocabulary); `obligation_id` = `VerdictV1.criteria[].id`; drop the route field |
-| `verification.evaluation` | `verdict.outcome` ∈ the six-word set; `null` until the verifier finalizes |
-| `awaiting_user` | `contract_review` binding becomes `{contract_revision, contract_sha256, corpus_sha256, binary_sha256}`; new request kind `audit_decision` with allowed decisions `proceed / iterate / change_scope` |
-| `run_end` | `ai.{calls, tokens, cost_usd}` comes from the audit harness (`AuditReportV1.model` + per-run usage) |
-| `plan_update` | step checklist = collect → freeze → analyze → audit ×3 → decision → repair → verify → export |
-| `file_change` | `proposed` = EditManifestV1 edits; `applied` = candidate bytes with its hash |
-| `command` | guest rows for `run_cases.py` invocations (started/output/finished, exit code); display paths only |
-| new `corpus_update` | CaseSetV1 summary after intake: case counts, `cases_sha256` |
-| new `audit_runs` | the three-run table from AuditReportV1: per-run `schema_valid / score / critical_errors / usable` |
+| corpus card, contract card (CaseSetV1 / ContractV1 fields) | one AI line: "已整理 N 个用例并冻结契约（hash 前 8 位）"; full JSON only via 证据 / 下载 |
+| `plan_update` checklist, step rows, activity rows | one progress phrase inside the AI message ("审计 2/3…") or the thinking indicator |
+| approval card with revision/digest lists | inline chips `[开始] [继续] [重跑]`; the backend still enforces `review_binding_digest` and blocks start until approved — the UI simply shows nothing |
+| three-run score table, rubric, `EditManifestV1` diff card | one summarizing sentence; tables/diffs only in 证据 / 下载 |
+| tool / command / `file_change` / event rows | never rendered in the chat; the journal stays for the archive and for honesty |
+| right execution pane: 修复运行监视 + 事件日志 | **kept and visible** (Lead decision 2026-11-21): live phase checklist, status, artifact links and the chronological SSE journal |
 
-### 5.3 Event-journal seam (new mainline item)
+## 4. Assistant: AI-hosted chat with a deterministic fallback (the new M2 component)
 
-The GUI app reads `var/events/{task_id}.jsonl` and `var/artifacts/` only, and never imports
-`pipeline/{analyze,ai,audit,repair,verify}` (`modules.json` forbidden paths). A **runner** executes
-the pipeline CLIs in roadmap order and appends events to the journal; the SSE endpoint tails the
-journal and serves replay. The runner is not M2 work — see §7. Until the runner exists, M2 develops
-against `?preview=1` synthetic events, exactly as the v1.2.2 shell did.
+- `app/assistant.py` implements the chat assistant: intake questions, progress narration from the
+  journal, free-form answers and action chips, emitted as a small validated envelope
+  (`{reply, actions[]}`); invalid model output falls back to the scripted reply.
+- **Two AIs, one wall between them.** The audit model (fixed prompt, temperature 0, three hashed
+  runs — the G2 evidence) and the chat assistant are separate. The chat assistant never writes
+  `FixPlanV1`, the audit report or the verdict, never sees source, the hidden corpus, keys or raw
+  provider diagnostics, and its text is never evidence.
+- **Provider seam (v1.2.2 `assistant_llm` pattern).** M2 implements a `client` seam
+  (`chat_json(messages, ...)`) plus a fake transport for tests; M1's infra injects the real
+  DeepSeek client, so the key stays in one host process and never reaches `app/` or the browser.
+  No client, no key or a failed call → deterministic fallback (`mode: deterministic`, honest
+  badge, localized fallback code, no raw provider text).
+- Rules (test-locked):
+  1. verdict words come verbatim from `VerdictV1.verdict` (six-word vocabulary), nothing else;
+  2. a failure is one line with the stable reason code + a 详情 link, never a guess;
+  3. no invented numbers: missing tokens/model are simply not mentioned;
+  4. mode badge tells the truth (`llm` / `deterministic` / `llm (not wired)`); fallback shows its
+     localized code, never raw provider text;
+  5. chat text is never evidence and never enters the audit inputs.
 
-## 6. Honesty rules (test-locked, mapped from `agent-console.md` §三)
+## 5. Interface deltas vs Revision 1
 
-1. Verdict renders only from the persisted `VerdictV1.verdict`; the GUI never infers or aggregates.
-   `app/loader.py` + `app/render.py` stay as the tested honesty core.
-2. `not_run`, `missing`, `timed_out` render verbatim; they are never success.
-3. The mode badge tells the truth (`deterministic / llm / llm (not wired)`); a fallback always shows
-   the banner with its localized code.
-4. Missing `model`/`tokens` show "not provided", never invented numbers.
-5. Unknown `reason_code` shows "unknown reason + report the status file", never a guess.
-6. Creation and Start are user-initiated only; the assistant never starts a run or writes a verdict.
-7. Model text is data: escaped, quoted, never executed; prompt-injection text in raw responses is
-   displayed as data.
-8. Demo/synthetic events are visibly labelled and can never satisfy acceptance.
+- SSE and the event journal are still consumed **internally** to drive the assistant and the
+  progress line; the 18 event types and `docs/interfaces/gui-events-v1.md` are unchanged.
+- The browser API (§5.1 of Revision 1) is unchanged; the UI simply stops rendering most returned
+  fields in the chat.
+- The honesty core (`app/loader.py`, `app/render.py`) and the no-`pipeline.*` import rule are
+  unchanged. The runner (#38) is unchanged.
 
-## 7. Mainline merge (this plan replaces the four screens in the mainline)
-
-| Mainline object | Action | Owner |
-|---|---|---|
-| issue #12 | rewrite scope to this plan (proposed body in Appendix A) | Lead / M1 |
-| `docs/plan/00-mvp2-roadmap.md` §3 (flow diagram), §4 (GUI row), §7 (G4 criteria) | replace four-screen wording with the conversation console; needs the decision record | M1 |
-| `START-HERE.md` §7 G4 checklist | rewrite to the console checklist | M1 |
-| `docs/interfaces/gui-events-v1.md` | new contract doc: §5.1 + §5.2 as the binding interface | M1 (M2 proposes) |
-| issues #7, #8, #9, #11 | add acceptance criterion: "emits events per `docs/interfaces/gui-events-v1.md`" | M4 / M3 |
-| `modules.json` + `CODEOWNERS` | decide runner ownership: minimal path is `scripts/run_task.py` under `infra` (M1); a new `runner` module is the alternative | M1 |
-| `docs/gui/README.md`, `schema-review.md` banner | mark the four-screen notes superseded | M2 (first PR) |
-
-M2 stage plan with mainline dependencies:
-
-| Stage | M2 work | Mainline dependency | Gate |
-|---|---|---|---|
-| S1 shell | copy static tree, asset tests, welcome/chat/archive open | none (PR #30 merged first for schemas) | G2 pre |
-| S2 intake + contract | wizard questions, corpus card, ContractV1 card, approval card | none — renders the frozen fixture | G2 pre |
-| S3 API + events | `app/api.py`, SSE journal reader, §5.2 rendering | `docs/interfaces/gui-events-v1.md` approved | G2 |
-| S4 audit UI | three-run cards, rubric, decision card, raw responses | #9 merged (and #7 for analyze rows) | G2 |
-| S5 repair + verify UI | manifest diff card, observation rows, verdict card, downloads | #28 + #11 merged | G3 |
-| S6 evidence + honesty | archive wiring, honesty tests, headless walkthrough, demo fixtures, screenshots | S5 | G4 |
-
-## 8. M2 task breakdown (PR-sized, ≤400 changed lines, one `module:gui` label each)
+## 6. M2 task breakdown (Revision 2, replaces Revision 1 §8)
 
 | Task | Content | Blocks on |
 |---|---|---|
-| T-GUI-1 | static UI copy + `test_ui_preview_assets` port + supersede banners | none |
-| T-GUI-2 | intake wizard: binary attach, defect, normal-inputs list, crash-input card | none |
-| T-GUI-3 | corpus card + ContractV1 card + approve/deny card with binding digest | none |
-| T-GUI-4 | `app/api.py` (session/CSRF/tasks/contract/approve/start/cancel) | §5.1 approved |
-| T-GUI-5 | SSE reader + event rendering for analyze/audit/repair/verify + labels | §5.2 approved |
-| T-GUI-6 | verdict card, evidence surface, artifact download, export | #11 merged |
-| T-GUI-7 | demo fixtures, headless Edge walkthrough, screenshots, G4 evidence | S6 |
+| T1 | static shell port; hide plan-checklist / tool-row / approval-card components by default | none |
+| T2 | intake Q&A flow: binary attach, normal inputs, crash input, action chips | none |
+| T3 | `app/assistant.py` (LLM chat + deterministic fallback + action chips) + progress line + final download message, against a synthetic journal | gui-events-v1 (#37, merged); real client injected by M1 infra |
+| T4 | `app/api.py` + SSE reader (Revision 1 T-GUI-4/5 minus the card renderers) | none beyond #37 |
+| T5 | evidence link to the archive + honesty tests | #11 merged |
+| T6 | demo fixtures, headless Edge walkthrough, screenshots, G4 evidence | T1–T5 |
 
-Each PR ships with `tests/app/*` additions; no PR imports `pipeline.verify/repair/ai` or touches
-another module's paths.
+Each PR stays ≤400 changed lines with one `module:gui` label; no PR imports
+`pipeline.verify/repair/ai`.
 
-## 9. Acceptance criteria
+## 7. Acceptance (Revision 2)
 
-- S1: `/welcome`, `/ui/chat/`, `/ui/` open from the repo root; all asset tests pass; no Jinja legacy.
-- S2: attach the frozen fixture → corpus card shows 9 cases → contract card shows the frozen
-  ContractV1 → approve binds the three digests; editing a frozen contract is rejected.
-- S3: `?preview=1` replays a synthetic journal covering all §3 steps with correct rendering.
-- S4: three audit runs render with scores/critical errors; decision card restricts the next step;
-  `iterate` re-runs are visible; invalid JSON stays in the table.
-- S5: manifest diff card shows dry-run `candidate_written: false`; verdict card shows the six-word
-  verdict; `not_run` verbatim; downloads resolve to the registered artifacts.
-- S6 (G4): end-to-end demo on the frozen fixture: attach → approve → three-run audit → proceed →
-  candidate → verdict → download bundle; headless Edge walkthrough captured; honesty tests green;
-  `v0.1.0` tagged.
+- The §2 conversation reproduces end-to-end on the frozen fixture: attach → inputs → freeze →
+  audit → decision → patch → verdict → download.
+- **No** corpus/contract/event/score cards are visible in the chat; details are reachable only via
+  the evidence entry or the download bundle.
+- The verdict renders only the six words from `VerdictV1`; `not_run` and failures stay honest;
+  no `pipeline.*` imports; honesty tests green; headless walkthrough captured.
+- The assistant completes the §2 conversation in `llm` mode with a key, and in `deterministic`
+  mode without one — the badge says which, and the fallback never fabricates model metadata.
+- The right-side panels render the run's phases and the event journal **in real time** while the
+  chat column stays free of corpus/contract/score cards.
 
-## 10. Open decisions for the Lead
+## 8. Mainline notes
 
-1. Record the decision replacing the four-screen G4 with the conversation console (ADR 0002 or a G4
-   milestone note), so M1 can edit the roadmap docs.
-2. Runner ownership: `scripts/run_task.py` under `infra` (M1, recommended) vs a new `runner` module
-   in `modules.json` + `CODEOWNERS`.
-3. Keep `/ui/` archive and `/welcome` as separate surfaces (recommended: yes — maximum reuse and a
-   read-only evidence library).
-4. Transport: SSE with a 2 s polling fallback, as the v1.2.2 baseline did.
+- ADR 0003, `docs/interfaces/gui-events-v1.md` and the runner (#37/#38, merged) are unchanged.
+- The chat assistant depends on the same DeepSeek key decision as G2 (roadmap §9.4); without it
+  the console runs in deterministic mode and still completes the flow.
+- PR #39 (roadmap/START-HERE wording) should say "minimal chat-first console" rather than the
+  Revision 1 card wording — M1 to adjust before merging #39.
+- Issue #12 acceptance items that mention corpus/contract cards are dropped (Appendix A).
 
-## Appendix A — proposed replacement body for issue #12
+## Appendix A — updated acceptance body for issue #12
 
-> **Title:** Conversation repair console (reuse the v1.2.2 chat UI)
+> **Title:** Minimal chat-first repair console (reuse the v1.2.2 chat UI)
 >
-> Replace the four-screen scope with the conversation console in
-> [`docs/gui/conversation-console-plan.md`](conversation-console-plan.md): copy the archived
-> `app/static/ui/` tree unchanged, rewrite functionality and interfaces to the MVP2 path
-> (binary + normal/crash inputs → contract freeze → three-run audit → decision → patch → verify →
-> download repaired ELF + accompanying files), keep `app/loader.py` + `app/render.py` as the honesty
-> core, and deliver in the six stages of §7.
+> One chat thread drives the roadmap path: the AI asks for the binary, normal inputs and the crash
+> input, narrates progress, asks for confirmations, and ends with the download of the repaired ELF
+> and its evidence. Corpus/contract/events/score details are hidden from the chat and live only in
+> the evidence entry and the download bundle. See
+> [`docs/gui/conversation-console-plan.md`](conversation-console-plan.md) Revision 2.
 >
 > **Acceptance**
-> - [ ] `/welcome` → `/ui/chat/` → `/ui/` run without the Jinja legacy
-> - [ ] intake collects binary, normal inputs and the crash input
-> - [ ] approval binds contract + corpus + binary digests; start is blocked until approved
-> - [ ] three audit runs, rubric and `proceed / iterate / change_scope` render from persisted JSON
-> - [ ] verdict renders only the six-word vocabulary; `not_run` verbatim; downloads work
+> - [ ] the §2 conversation reproduces end-to-end on the frozen fixture
+> - [ ] the chat is AI-hosted with an honest deterministic fallback (badge, no fake metadata)
+> - [ ] no corpus/contract/event/score cards in the chat
+> - [ ] verdict renders only the six-word vocabulary; `not_run` verbatim
 > - [ ] no `pipeline.*` imports; honesty tests green; headless walkthrough captured
