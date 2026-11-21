@@ -63,23 +63,23 @@ class PreviewAssetsTest(unittest.TestCase):
         for path in ("chat/guided.css", "chat/guided-intake.mjs"):
             self.assert_local_file(UI_ROOT, path)
         page = (UI_ROOT / "chat/index.html").read_text(encoding="utf-8")
-        self.assertNotIn("src=\"chat/guided-intake.mjs", page)
-        self.assertIn("inline-host.mjs", page)
+        self.assertNotIn('src="chat/guided-intake.mjs', page)
+
     def test_s3_event_console_assets_are_present(self):
         for path in ("chat/events.css", "chat/event-console.mjs"):
             self.assert_local_file(UI_ROOT, path)
         page = (UI_ROOT / "chat/index.html").read_text(encoding="utf-8")
         self.assertIn("events.css", page)
 
-    def test_inline_execution_host_assets_are_present(self):
-        for path in ("chat/inline-host.css", "chat/inline-host.mjs"):
+    def test_route_activity_assets_are_present(self):
+        for path in ("chat/route-activity.css", "chat/route-activity.mjs"):
             self.assert_local_file(UI_ROOT, path)
         page = (UI_ROOT / "chat/index.html").read_text(encoding="utf-8")
-        self.assertIn("inline-host.css", page)
-        self.assertIn("inline-host.mjs", page)
-        css = (UI_ROOT / "chat/inline-host.css").read_text(encoding="utf-8")
-        self.assertNotIn(".route-overview", css)
-        self.assertNotIn(".trace", css)
+        source = (UI_ROOT / "chat/route-activity.mjs").read_text(encoding="utf-8")
+        self.assertIn("route-activity.mjs", page)
+        self.assertIn("Route A", source)
+        self.assertNotIn("stack-overflow", source)
+        self.assertNotIn("ContractV1", source)
 
     def test_s6_archive_bridge_assets_are_present(self):
         for path in ("workbench/archive-bridge.css", "workbench/archive-bridge.mjs"):

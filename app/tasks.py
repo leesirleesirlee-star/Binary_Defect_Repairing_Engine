@@ -80,7 +80,7 @@ def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
             continue
         tasks.append(
             {key: task.get(key) for key in ("id", "fixture_id", "phase", "created_at")}
-            | {"verdict": task.get("verdict")}
+            | {"verdict": task.get("verdict"), "demo": bool(task.get("demo"))}
         )
         if len(tasks) >= min(max(1, limit), 200):
             break

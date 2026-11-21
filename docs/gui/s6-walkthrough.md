@@ -13,18 +13,18 @@ open mainline PRs (#36 audit, #28 repair, #11 verify).
    ```
 
 2. Open <http://127.0.0.1:8124/ui/chat/?preview=1>.
-3. The frozen fixture, five valid inputs, four invalid inputs, PoC and frozen
-   ContractV1 are immediately visible inline in the right-side execution
-   details; there is no modal and no main-page launch icon. The review and the
-   event journal use the existing execution header, run metrics and scroll area.
+3. The right-side execution details keeps Route A and Route B plus the trace
+   area. Inside the existing Route A lane there is a collapsible “修复运行监视”
+   panel. It shows task phases, the ordered collect→freeze→analyze→audit→decision
+   →repair→verify→export checklist, live events, raw event payloads, analysis and
+   artifact downloads. No sample-specific review card is rendered.
 4. Click **批准契约**. A task is created and approved against
    `{revision, contract_sha256, corpus_sha256, binary_sha256}`.
 5. Click **开始修复**. Start requires the CSRF token and an idempotency key and
    spawns `scripts/run_task.py`.
-6. The same execution pane now shows the real `plan_update`, `command` and
-   `file_change` events inline. Analysis artifacts `disassembly.json` and
-   `finding.json` are fetched from `/api/tasks/{id}/analysis` and are
-   downloadable.
+6. The Route A run monitor follows each real task's SSE journal. Analysis
+   artifacts `disassembly.json` and `finding.json` are exposed through the task
+   API when a runner has written them.
 7. The runner then reports `stage_not_wired` for audit/decision/repair/verify/
    export and terminates with `run_end.execution = failed`. No verdict or success
    is fabricated.
@@ -32,7 +32,7 @@ open mainline PRs (#36 audit, #28 repair, #11 verify).
 
 ## Captured evidence
 
-- `docs/gui/screenshots/inline-execution-details.png`
+- `docs/gui/screenshots/route-a-activity.png`
 - `docs/gui/screenshots/s6-archive.png`
 - `docs/gui/screenshots/s6-preview-cards.png`
 - `docs/gui/screenshots/s2-real-analysis.png`

@@ -4,23 +4,11 @@ Status: implemented on `m2/gui-console-s1` (S1+S2), 2026-11-20.
 
 ## Surface
 
-The S2 review is rendered inline in the existing right-side execution pane,
-not in a modal. `chat/inline-host.mjs` moves the existing guided dialog into
-`#execution-pane .execution-scroll`; the main chat hero no longer shows the two
-launch icons. The existing Route A and Route B parallel expandable panels stay
-intact, and the inline review is appended to the same execution scroll. The
-inline review contains:
-
-- frozen binary identity (`vuln.elf`, SHA-256, size, ELF facts, entry, reserved R-X tail)
-- defect description, five normal inputs, invalid inputs, and the crash/PoC input
-- `CaseSetV1` summary and `cases_sha256`
-- frozen `ContractV1`, including `stated_criteria`, the flagged diagnostic
-  hypothesis, and allowed-edit boundaries
-- approval binding `{revision, contract_sha256, corpus_sha256, binary_sha256}`
-- approve / deny, plus an explicit frozen-contract edit attempt that returns 409
-
-Start is disabled until approval, then starts the real runner. The review never
-shows a verdict, pass rate or success label.
+The chat page now uses the generic Route A run monitor (`chat/route-activity.mjs`).
+No sample-specific contract, fixture facts, defect text, input lists or hashes are
+rendered in the execution pane. The S2 guided-intake module remains in the tree for
+the task-bound approval API, but it is not loaded by the chat page and does not
+appear below Route A/B.
 
 ## API slice
 

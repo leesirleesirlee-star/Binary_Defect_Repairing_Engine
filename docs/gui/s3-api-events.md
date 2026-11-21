@@ -25,7 +25,11 @@ verdict or success. The GUI never imports pipeline modules.
 
 ## UI
 
-After Start, the existing S3 event dialog is moved inline into the execution
-pane as well; it renders the SSE timeline (plan steps, corpus, commands,
-changes, checks, audit table, error, run_end) plus real analysis, artifact
-downloads and persisted evidence. The existing Route A and Route B parallel expandable panels remain in place; the S2 review and S3 journal are appended below them in the same scroll area. The main chat hero has no S3 launch icon.
+The generic framework lives in `chat/route-activity.mjs` as a nested, collapsible
+panel inside the existing Route A lane. Route A and Route B, the scope area and
+the trace area remain intact. The panel reads `/api/tasks` and each task's SSE
+journal; it renders plan steps in roadmap order, every event with sequence and raw
+payload, analysis/artifacts, and live updates for up to twelve real (non-preview)
+tasks. No fixture-specific facts, contract criteria, defect text or input lists
+are hard-coded in the framework; each task is identified by its task id and phase.
+The main chat hero has no S2/S3 launch icon.
