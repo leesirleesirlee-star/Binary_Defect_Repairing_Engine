@@ -286,10 +286,24 @@ async function refreshTasks(list, count) {
     for (const task of visible) {
       const card = state.cards.get(task.id);
       if (!card) continue;
-      // A task may become live after it was first listed. Keep the live flag
-      // current; terminal streams close themselves after replay.
+      // A task may become live after it was first listed. Re-arm a stream that
+      // was closed during its draft/terminal replay, otherwise the card would
+      // stay frozen in its old phase until a full page reload.
       card.live = LIVE_PHASES.has(task.phase);
-      if (card.live && !card.source && !card.ended) connect(card);
+      if (card.live) {
+        if (!card.source || card.ended) {
+          card.source?.close();
+          card.source = null;
+          card.ended = false;
+          connect(card);
+        }
+      } else if (card.source) {
+        card.source.close();
+        card.source = null;
+        card.ended = true;
+        card.status.textContent = stateLabel(task.phase);
+        card.logStatus.textContent = stateLabel(task.phase);
+      }
     }
     const currentIds = new Set(all.map(task => task.id));
     for (const [id, card] of state.cards) {
