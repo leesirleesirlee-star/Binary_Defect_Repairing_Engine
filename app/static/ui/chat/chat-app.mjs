@@ -6,14 +6,14 @@ import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261121z';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261122c';
-import {chatPreview} from './chat-stream.mjs?v=20261122c';
+import {label} from './chat-copy.mjs?v=20261122f';
+import {chatPreview} from './chat-stream.mjs?v=20261122f';
 import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261121z';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261121z';
 import {bindSidebarSpring} from './chat-spring.mjs?v=20261120au';
 import {refreshStepCard} from './chat-steps.mjs?v=20261121j';
 import {control, displayTitle, renderItem, transcript} from './chat-view.mjs?v=20261122a';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261121m';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261122g';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -233,6 +233,11 @@ function mount() {
   const file = el('input', {type: 'file', hidden: true, onchange: () => {
     const picked = file.files[0] ?? null;
     setDraft({attachment: picked?.name ?? '', file: picked});
+    // Upload-only flow: choosing the binary starts the repair automatically.
+    if (picked && !engine.live && !selected.events.length &&
+        !['running', 'awaiting_user', 'cancel_requested'].includes(selected.phase)) {
+      queueMicrotask(() => send(t('autoRepairPrompt')));
+    }
     file.value = '';
     composerFeedback.textContent = '';
     paintComposer();

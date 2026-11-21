@@ -5,8 +5,10 @@ import {createProgress} from './chat-progress.mjs?v=20261120au';
 import {createStepGroups, disclosure} from './chat-steps.mjs?v=20261121j';
 import {motionReduced} from '../shared/motion.mjs?v=20261120au';
 
+// Revision 2.2: activity rows feed the right-side event log only; errors and
+// the final run summary stay in the conversation as inline text.
 export const activityTypes = new Set(['thinking', 'plan_update', 'tool_call', 'file_change',
-  'command', 'verification', 'error', 'run_end']);
+  'command', 'verification']);
 
 const fmtTime = seconds => Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
 const phases = {

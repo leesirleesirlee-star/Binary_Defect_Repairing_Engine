@@ -1,4 +1,4 @@
-import {label} from './chat-copy.mjs?v=20261122c';
+import {label} from './chat-copy.mjs?v=20261122f';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const stepNames = ['review', 'inspect', 'summarize'];
@@ -95,14 +95,50 @@ export function chatPreview({notify = () => {}, delay = sleep} = {}) {
     return true;
   }
 
+  const hex = seed => (seed.toString(16) + '0'.repeat(64)).slice(0, 64);
+
   function requestReview(chat) {
-    const binding = {contract_revision: chat.revision, contract_sha256: chat.revision.toString(16).padStart(64, '0')};
+    const binding = {contract_revision: chat.revision, contract_sha256: hex(chat.revision)};
+    chat.contract = {
+      review_binding_digest: hex(chat.revision + 7),
+      review_binding: {original_sha256: hex(chat.revision + 11),
+        test_manifest_sha256: hex(chat.revision + 13)},
+    };
     chat.request = {kind: 'contract_review', request_id: newId(), label_code: 'approval',
       binding, allowed: ['approve', 'deny', 'edit']};
     chat.reviewScopes.set(chat.request.request_id, chat.scope);
     chat.phase = 'awaiting_user';
     event(chat, 'awaiting_user', chat.request, 'review');
     state(chat, 'awaiting_user');
+  }
+
+  // The demo flow is upload-only: the synthetic contract is approved for the
+  // user and the repair run starts immediately, with the decision journaled.
+  async function autoApprove(chat, locale) {
+    if (chat.phase !== 'running') return;
+    const requestId = newId();
+    const binding = {contract_revision: chat.revision, contract_sha256: hex(chat.revision)};
+    chat.contract = {
+      review_binding_digest: hex(chat.revision + 7),
+      review_binding: {original_sha256: hex(chat.revision + 11),
+        test_manifest_sha256: hex(chat.revision + 13)},
+    };
+    chat.request = {kind: 'contract_review', request_id: requestId, label_code: 'approval',
+      binding, allowed: ['approve', 'deny', 'edit']};
+    event(chat, 'awaiting_user', chat.request, 'review');
+    event(chat, 'user_response',
+      {kind: 'decision', request_id: requestId, decision: 'approve', binding}, 'review');
+    chat.request = null;
+    chat.reviewed = true;
+    chat.startReady = true;
+    steps(chat, 0, ['completed', 'skipped', 'skipped']);
+    finish(chat, 'completed');
+    const message_id = newId();
+    event(chat, 'assistant_delta', {message_id, append: label(locale, 'autoApproved')});
+    event(chat, 'assistant_end', {message_id, status: 'complete'});
+    const epoch = chat.epoch;
+    await delay(320);
+    if (chat.epoch === epoch && chat.startReady) void start(chat, locale);
   }
 
   async function turn(chat, message, queued = false) {
@@ -127,12 +163,13 @@ export function chatPreview({notify = () => {}, delay = sleep} = {}) {
       output: {text: label(message.locale, 'toolOutput'), truncated: false}}, 'review');
     chat.scope = label(message.locale, 'scope');
     if (!await reply(chat, epoch, label(message.locale, 'response'))) return;
-    requestReview(chat);
+    await autoApprove(chat, message.locale);
   }
 
   function send(chat, text, locale, attachment = '') {
     const clean = text.trim();
     if (!clean) return;
+    chat.locale = locale;
     const active = ['running', 'awaiting_user', 'cancel_requested'].includes(chat.phase);
     const attachmentId = attachment ? newId() : null;
     if (attachmentId) chat.attachmentNames.set(attachmentId, attachment);
