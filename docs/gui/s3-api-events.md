@@ -30,9 +30,10 @@ collapsible bordered panels inside the existing route lanes:
 
 - **修复运行监视** (Route A): task discovery, phase, ordered roadmap steps,
   status and artifact links. It is an overview/control surface.
-- **事件日志** (Route A and Route B): the chronological SSE journal for the
-  runs belonging to that route, with event type, seq, step, summary and raw
-  payload. The log is a detail/audit surface, not the overview.
+- **事件日志** (Route A, and a Route B placeholder): the chronological SSE
+  journal for Route A runs, with event type, seq, step, summary and raw payload.
+  The journal envelope has no route field yet, so Route B cannot be attributed;
+  it shows an explicit empty state until route attribution is added.
 
 Route A and Route B, the scope area and folded state remain intact; the old
 borderless global trace is hidden. No fixture-specific facts, contract criteria,

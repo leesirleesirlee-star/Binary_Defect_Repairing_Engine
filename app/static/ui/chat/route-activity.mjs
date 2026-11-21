@@ -5,20 +5,26 @@
  * each task is followed through its own SSE journal. No fixture, contract,
  * input or verdict data is hard-coded here; this module only renders the run
  * framework and the persisted events returned by the browser API.
+ *
+ * All chrome copy comes from the shared chat catalogue (`chat-copy.mjs`), so the
+ * monitor reads in the same locale as the rest of the chat page. The locale is
+ * taken from the document (`lang`), then the stored chat preference, then `en`.
  */
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
+import {LANGUAGE_CODES} from '../shared/languages.mjs?v=20261120au';
+import {label as translate} from './chat-copy.mjs?v=20261121n';
 import {disclosure} from './chat-steps.mjs?v=20261121j';
 
 const STEPS = ['collect', 'freeze', 'analyze', 'audit', 'decision', 'repair', 'verify', 'export'];
-const LABELS = {
-  collect: '收集', freeze: '冻结', analyze: '分析', audit: '审计', decision: '决策',
-  repair: '修复', verify: '验收', export: '导出',
-  pending: '等待', in_progress: '进行中', completed: '完成', failed: '失败', skipped: '跳过',
-  running: '运行中', queued: '排队', cancelled: '已取消', blocked: '阻塞',
-  passed: '通过', not_run: 'not_run', proposed: '提案', applied: '已应用',
-  started: '开始', finished: '完成', output: '输出',
-  synthetic: '合成预览', runner: 'runner', verifier: 'verifier', gui: 'GUI',
+const PHASE_KEYS = {
+  draft: 'draft', not_started: 'notStarted', screening: 'screening', analyzing: 'analyzing',
+  repair: 'stepRepair', verification: 'stepVerify', done: 'completed', finished: 'completed',
+  started: 'started',
+};
+const STEP_KEYS = {
+  collect: 'stepCollect', freeze: 'stepFreeze', analyze: 'stepAnalyze', audit: 'stepAudit',
+  decision: 'stepDecision', repair: 'stepRepair', verify: 'stepVerify', export: 'stepExport',
 };
 const EVENT_TYPES = [
   'run_state', 'plan_update', 'corpus_update', 'command', 'file_change',
@@ -26,9 +32,26 @@ const EVENT_TYPES = [
   'user_message', 'message_dispatched', 'assistant_delta', 'assistant_end',
   'thinking', 'tool_call', 'tool_result', 'user_response',
 ];
-const state = {monitor: null, logA: null, logB: null, cards: new Map(), timer: null, mounted: false};
+const FALLBACK_LOCALE = 'en';
+const state = {monitor: null, logA: null, logB: null, cards: new Map(), timer: null, mounted: false,
+  generation: 0, locale: null};
 
-const label = value => LABELS[value] ?? value ?? '—';
+function storedLocale() {
+  try { return localStorage.getItem('binaryrepair.chat.language'); } catch { return null; }
+}
+
+function chatLocale() {
+  const candidates = [document.documentElement.lang, storedLocale(), FALLBACK_LOCALE];
+  return candidates.find(code => typeof code === 'string' && LANGUAGE_CODES.includes(code)) ?? FALLBACK_LOCALE;
+}
+
+const t = (key, count) => translate(chatLocale(), key, count);
+const fill = (template, values) => Object.entries(values)
+  .reduce((text, [name, value]) => text.split('{' + name + '}').join(String(value)), template);
+const runCount = count => t('runCount', count);
+const runLabel = ordinal => t('runLabel', ordinal);
+const stateLabel = value => (value === undefined || value === null || value === ''
+  ? '—' : t(PHASE_KEYS[value] || String(value)));
 const short = (value, head = 14, tail = 8) => {
   const text = String(value ?? '');
   return text.length > head + tail + 1 ? text.slice(0, head) + '…' + text.slice(-tail) : text;
@@ -48,37 +71,40 @@ async function tasks() {
   return Array.isArray(data.tasks) ? data.tasks : [];
 }
 
-function buildEventLog(route, empty = '等待运行事件…') {
-  const count = el('span', {class: 'ra-count'}, '0 个运行');
+function buildEventLog(route, empty = t('noRunEvents')) {
+  const count = el('span', {class: 'ra-count'}, runCount(0));
   const body = el('div', {class: 'ra-log-body'}, el('p', {class: 'ra-muted'}, empty));
   const heading = el('span', {class: 'ra-heading'},
-    el('span', {class: 'ra-title'}, icon('terminal', 15), route + ' · 事件日志'), count);
+    el('span', {class: 'ra-title'}, icon('terminal', 15), t(route) + ' · ' + t('activity')), count);
   const panel = disclosure({className: 'ra-monitor ra-event-log', heading, open: true}, body);
   return {panel, body, count, groups: 0};
 }
 
 function taskCard(task, index) {
   const id = task.id;
-  const labelText = '修复运行 #' + String(index + 1).padStart(2, '0');
+  const labelText = runLabel(index + 1);
   const steps = el('div', {class: 'ra-steps'});
-  const status = el('span', {class: 'ra-status'}, '连接中');
+  const status = el('span', {class: 'ra-status'}, t('connecting'));
   const artifacts = el('div', {class: 'ra-artifacts', hidden: true});
   const card = el('article', {class: 'ra-task'},
     el('header', {class: 'ra-task-head'},
       el('div', {}, el('strong', {}, labelText),
-        el('span', {class: 'ra-target'}, '阶段：' + label(task.phase || 'unknown'))),
+        el('span', {class: 'ra-target'},
+          fill(t('phaseValue'), {value: stateLabel(task.phase || 'unknown')}))),
       el('div', {class: 'ra-task-state'}, el('span', {class: 'ra-dot'}), status)),
     steps,
     artifacts);
-  const logRows = el('div', {class: 'ra-log-rows'}, el('p', {class: 'ra-muted'}, '等待运行事件…'));
-  const logStatus = el('span', {class: 'ra-log-status'}, '连接中');
+  const logRows = el('div', {class: 'ra-log-rows'}, el('p', {class: 'ra-muted'}, t('noRunEvents')));
+  const logStatus = el('span', {class: 'ra-log-status'}, t('connecting'));
   const logHeading = el('span', {class: 'ra-log-heading'}, el('strong', {}, labelText), logStatus);
   const logGroup = disclosure({className: 'ra-log-run', heading: logHeading, open: true}, logRows);
   if (state.logA) {
-    if (state.logA.body.querySelector('.ra-muted')) state.logA.body.replaceChildren();
+    // Only the single placeholder row belongs to the log itself; per-run rows
+    // also contain `.ra-muted` placeholders, so scope the reset to the log root.
+    if (state.logA.groups === 0) state.logA.body.replaceChildren();
     state.logA.body.append(logGroup);
     state.logA.groups += 1;
-    state.logA.count.textContent = state.logA.groups + ' 个运行';
+    state.logA.count.textContent = runCount(state.logA.groups);
   }
   const api = {task, card, logGroup, logRows, logStatus, steps, status, artifacts,
     labelText, lastSeq: 0, source: null, ended: false};
@@ -95,8 +121,8 @@ function eventSummary(record) {
   if (record.type === 'command') return `${p.phase || '—'} ${p.label_code || ''}${p.exit_code != null ? ' · exit ' + p.exit_code : ''}`;
   if (record.type === 'file_change') return `${p.stage || '—'} · ${(p.files || []).map(file => file.display_path).join(', ')}`;
   if (record.type === 'verification' && p.kind === 'check') return `${p.level || ''} ${p.status || 'not_run'} ${p.obligation_id || ''}`;
-  if (record.type === 'verification') return p.verdict ? p.verdict.outcome : '未最终确定 (verdict=null)';
-  if (record.type === 'audit_runs') return `${(p.runs || []).length} runs`;
+  if (record.type === 'verification') return p.verdict ? p.verdict.outcome : t('verdictNull');
+  if (record.type === 'audit_runs') return runCount((p.runs || []).length);
   if (record.type === 'awaiting_user') return `${p.kind || 'decision'} · ${(p.allowed || []).join(' / ')}`;
   if (record.type === 'error') return p.code || 'error';
   if (record.type === 'run_end') return p.execution || 'ended';
@@ -108,8 +134,8 @@ function applyPlan(api, steps) {
   api.steps.replaceChildren(...STEPS.map(id => {
     const status = byStep[id]?.status || 'pending';
     return el('span', {class: 'ra-step', 'data-status': status},
-      el('span', {class: 'ra-step-name'}, LABELS[id] || id),
-      el('span', {class: 'ra-step-state'}, label(status)));
+      el('span', {class: 'ra-step-name'}, t(STEP_KEYS[id] || id)),
+      el('span', {class: 'ra-step-state'}, stateLabel(status)));
   }));
 }
 
@@ -119,12 +145,12 @@ function appendEvent(api, record) {
   if (api.logRows.querySelector('.ra-muted')) api.logRows.replaceChildren();
   if (record.type === 'plan_update') applyPlan(api, record.payload?.steps);
   if (record.type === 'run_state') {
-    api.status.textContent = label(record.payload?.status);
-    api.logStatus.textContent = label(record.payload?.status);
+    api.status.textContent = stateLabel(record.payload?.status);
+    api.logStatus.textContent = stateLabel(record.payload?.status);
   }
   if (record.type === 'run_end') {
-    api.status.textContent = label(record.payload?.execution);
-    api.logStatus.textContent = label(record.payload?.execution);
+    api.status.textContent = stateLabel(record.payload?.execution);
+    api.logStatus.textContent = stateLabel(record.payload?.execution);
     api.ended = true;
     api.source?.close();
     loadArtifacts(api);
@@ -133,11 +159,11 @@ function appendEvent(api, record) {
     el('summary', {},
       el('span', {class: 'ra-seq'}, '#' + record.seq),
       el('strong', {}, record.type),
-      chip(record.source === 'synthetic' ? '合成预览' : record.source, record.source === 'synthetic' ? 'warn' : ''),
+      chip(record.source === 'synthetic' ? t('preview') : record.source, record.source === 'synthetic' ? 'warn' : ''),
       el('span', {class: 'ra-event-summary'}, eventSummary(record))),
     el('div', {class: 'ra-raw'},
       el('span', {class: 'ra-muted'}, `${record.step_id || '—'} · ${record.ts || ''}`),
-      el('pre', {}, JSON.stringify({...record, conversation_id: '运行标识已隐藏'}, null, 2))));
+      el('pre', {}, JSON.stringify({...record, conversation_id: t('hiddenRunId')}, null, 2))));
   api.logRows.append(row);
 }
 
@@ -153,14 +179,14 @@ function connect(api) {
     };
     EVENT_TYPES.forEach(type => source.addEventListener(type, handler));
     source.addEventListener('journal_gap', () => {
-      api.status.textContent = '日志缺口';
+      api.status.textContent = t('journalGap');
       source.close();
     });
     source.onerror = () => {
-      if (source.readyState === EventSource.CLOSED && !api.ended) api.status.textContent = '连接关闭';
+      if (source.readyState === EventSource.CLOSED && !api.ended) api.status.textContent = t('connectionClosed');
     };
   } catch {
-    api.status.textContent = '无法连接';
+    api.status.textContent = t('cannotConnect');
   }
 }
 
@@ -172,7 +198,7 @@ async function loadArtifacts(api) {
     const data = await response.json();
     if (!(data.artifacts || []).length) return;
     api.artifacts.hidden = false;
-    api.artifacts.replaceChildren(el('span', {class: 'ra-muted'}, '工件：'),
+    api.artifacts.replaceChildren(el('span', {class: 'ra-muted'}, t('artifactsPrefix')),
       ...data.artifacts.map(item => el('a', {
         class: 'ra-artifact', href: item.download_url, download: item.display_path,
       }, icon('download', 12), item.display_path)));
@@ -180,23 +206,23 @@ async function loadArtifacts(api) {
 }
 
 function buildMonitor() {
-  const count = el('span', {class: 'ra-count'}, '0 个任务');
-  const list = el('div', {class: 'ra-task-list'}, el('p', {class: 'ra-muted'}, '正在读取任务…'));
-  const refresh = el('button', {type: 'button', class: 'ra-refresh', title: '刷新任务'},
-    icon('refresh', 14), '刷新');
+  const count = el('span', {class: 'ra-count'}, runCount(0));
+  const list = el('div', {class: 'ra-task-list'}, el('p', {class: 'ra-muted'}, t('loadingRuns')));
+  const refresh = el('button', {type: 'button', class: 'ra-refresh', title: t('refresh')},
+    icon('refresh', 14), t('refresh'));
   refresh.addEventListener('click', event => {
     event.stopPropagation();
     refreshTasks(list, count);
   });
   const heading = el('span', {class: 'ra-heading'},
-    el('span', {class: 'ra-title'}, icon('terminal', 15), 'Route A · 修复运行监视'),
-    el('span', {class: 'ra-live'}, el('span', {class: 'ra-dot'}), '实时'),
+    el('span', {class: 'ra-title'}, icon('terminal', 15), t('route_a') + ' · ' + t('runMonitor')),
+    el('span', {class: 'ra-live'}, el('span', {class: 'ra-dot'}), t('live')),
     count,
     refresh);
   const monitor = disclosure({className: 'ra-monitor', heading, open: true},
     el('div', {class: 'ra-body'}, list));
   state.monitor = monitor;
-  if (!state.logA) state.logA = buildEventLog('Route A');
+  if (!state.logA) state.logA = buildEventLog('route_a');
   refreshTasks(list, count);
   return monitor;
 }
@@ -209,21 +235,23 @@ function clearCards() {
   }
   state.cards.clear();
   if (state.logA) {
-    state.logA.body.replaceChildren(el('p', {class: 'ra-muted'}, '等待运行事件…'));
+    state.logA.body.replaceChildren(el('p', {class: 'ra-muted'}, t('noRunEvents')));
     state.logA.groups = 0;
-    state.logA.count.textContent = '0 个运行';
+    state.logA.count.textContent = runCount(0);
   }
 }
 
 async function refreshTasks(list, count) {
+  const generation = state.generation;
   try {
     await session();
     const all = await tasks();
+    if (generation !== state.generation) return;
     const candidates = all.filter(task => !task.demo && task.phase !== 'preview');
     const visible = candidates.slice(0, 12);
-    count.textContent = visible.length + ' 个运行';
+    count.textContent = runCount(visible.length);
     if (!visible.length) {
-      list.replaceChildren(el('p', {class: 'ra-muted'}, '暂无运行任务。给定漏洞文件的任务会自动出现在这里。'));
+      list.replaceChildren(el('p', {class: 'ra-muted'}, t('noRuns')));
       return;
     }
     if (list.querySelector('.ra-error') ||
@@ -241,21 +269,44 @@ async function refreshTasks(list, count) {
       state.cards.delete(id);
       if (state.logA) {
         state.logA.groups = Math.max(0, state.logA.groups - 1);
-        state.logA.count.textContent = state.logA.groups + ' 个运行';
+        state.logA.count.textContent = runCount(state.logA.groups);
       }
     }
   } catch (error) {
+    if (generation !== state.generation) return;
     clearCards();
-    list.replaceChildren(el('p', {class: 'ra-error'}, '任务列表不可用：' + error.message));
+    list.replaceChildren(el('p', {class: 'ra-error'},
+      fill(t('taskListError'), {detail: error.message})));
   }
 }
 
 function routeBLog() {
-  if (!state.logB) state.logB = buildEventLog('Route B', '当前没有 Route B 运行。');
+  if (!state.logB) state.logB = buildEventLog('route_b', t('routeBNoRuns'));
   return state.logB.panel;
 }
 
+function resetForLocale() {
+  state.generation += 1;
+  for (const api of state.cards.values()) {
+    api.source?.close();
+    api.logGroup?.remove();
+    api.card.remove();
+  }
+  state.cards.clear();
+  state.monitor?.remove();
+  state.monitor = null;
+  state.logA?.panel.remove();
+  state.logA = null;
+  state.logB?.panel.remove();
+  state.logB = null;
+}
+
 function mount() {
+  const locale = chatLocale();
+  if (locale !== state.locale) {
+    state.locale = locale;
+    if (state.monitor || state.logA || state.logB || state.cards.size) resetForLocale();
+  }
   const lanes = document.querySelectorAll('.route-slot .route-lane');
   const lane = lanes[0];
   if (!lane) return;

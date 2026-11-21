@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261120au';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261121n';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -110,6 +110,9 @@ const copy = {
   details: ['Details', '详情'], checks: ['Checks', '检查项'], evidence: ['Evidence', '证据'],
   route_a: ['Route A', '路线 A'], route_b: ['Route B', '路线 B'],
   not_run: ['Not run', '未运行'], unknown: ['Unknown', '未知'],
+  draft: ['Draft', '草稿'], notStarted: ['Not started', '未开始'],
+  screening: ['Screening', '筛查'], analyzing: ['Analyzing', '分析中'],
+  started: ['Started', '已开始'],
   passed: ['Passed', '通过'], noVerdict: ['No verdict', '尚无结论'],
   summary: ['Run summary', '运行摘要'], noEvidence: ['No artifacts available.', '暂无产物。'],
   steps: ['steps', '步'], changes: ['Files changed', '更改的文件'],
@@ -154,6 +157,32 @@ const copy = {
   openArchive: ['Open archive', '打开档案库'],
   archiveHelp: ['The archive holds the task state, checks and downloadable evidence.', '档案库保存任务状态、检查结果与可下载证据。'],
   refresh: ['Refresh', '刷新'],
+  runMonitor: ['Repair run monitor', '修复运行监视'],
+  runLabel: [index => 'Repair run #' + String(index).padStart(2, '0'), index => '修复运行 #' + String(index).padStart(2, '0')],
+  runCount: [count => count === 1 ? '1 run' : count + ' runs', count => count === 1 ? '1 个运行' : count + ' 个运行'],
+  loadingRuns: ['Loading runs…', '正在读取任务…'],
+  noRuns: ['No runs yet. Tasks that receive a vulnerable file will appear here.', '暂无运行任务。给定漏洞文件的任务会自动出现在这里。'],
+  noRunEvents: ['Waiting for run events…', '等待运行事件…'],
+  routeBNoRuns: ['No Route B runs.', '当前没有路线 B 运行。'],
+  taskListError: ['Task list unavailable: {detail}', '任务列表不可用：{detail}'],
+  live: ['Live', '实时'],
+  connecting: ['Connecting', '连接中'],
+  connectionClosed: ['Connection closed', '连接关闭'],
+  cannotConnect: ['Cannot connect', '无法连接'],
+  journalGap: ['Journal gap', '日志缺口'],
+  blocked: ['Blocked', '阻塞'],
+  phaseValue: ['Phase: {value}', '阶段：{value}'],
+  artifactsPrefix: ['Artifacts:', '工件：'],
+  verdictNull: ['Not finalized (verdict=null)', '未最终确定 (verdict=null)'],
+  hiddenRunId: ['Run identifier hidden', '运行标识已隐藏'],
+  stepCollect: ['Collect', '收集'],
+  stepFreeze: ['Freeze', '冻结'],
+  stepAnalyze: ['Analyze', '分析'],
+  stepAudit: ['Audit', '审计'],
+  stepDecision: ['Decision', '决策'],
+  stepRepair: ['Repair', '修复'],
+  stepVerify: ['Verify', '验收'],
+  stepExport: ['Export', '导出'],
 };
 
 export function label(locale, key, count) {

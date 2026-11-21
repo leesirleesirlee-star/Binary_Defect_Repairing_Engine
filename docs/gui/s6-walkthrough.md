@@ -27,7 +27,9 @@ open mainline PRs (#36 audit, #28 repair, #11 verify).
 6. The runner reports `stage_not_wired` for audit/decision/repair/verify/export
    and terminates with `run_end.execution = failed`. No verdict or success is
    fabricated.
-8. `/ui/` is the original archive page again; the S6 task bridge is not mounted above it. Live task monitoring stays in the chat page’s Route A panel.
+7. `/ui/` renders the original archive shell immediately. It uses synthetic
+   archive fixtures by default; the S6 task bridge is not mounted above it.
+   Live task monitoring stays in the chat page’s Route A panel.
 
 ## Captured evidence
 
