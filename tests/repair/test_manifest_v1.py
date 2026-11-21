@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from pipeline.repair import patch_writer
 from pipeline.repair.manifest_schema import (
     EDIT_MANIFEST_V1_VERSION,
     PROVISIONAL_SCHEMA,
@@ -145,3 +146,24 @@ def test_v1_rejects_candidate_or_verdict(tmp_path: Path) -> None:
     bad_verdict["verdict"] = "verified_against_stated_criteria"
     with pytest.raises(ManifestShapeError, match="verdict"):
         validate_edit_manifest_v1(bad_verdict)
+
+
+def test_cli_v1_writes_schema_valid_manifest(tmp_path: Path) -> None:
+    path = write_synthetic_elf(tmp_path / "synthetic.elf")
+    out = tmp_path / "edit-manifest.json"
+    rc = patch_writer.main([
+        "--elf", str(path),
+        "--patch-site", hex(PATCH_SITE_VADDR),
+        "--cave", hex(CAVE_VADDR),
+        "--strcpy-plt", hex(STRCPY_PLT_VADDR),
+        "--cave-limit", hex(RESERVED_END),
+        "--fixture-id", "synthetic-tail",
+        "--plan-id", "plan-cli-1",
+        "--manifest-version", "v1",
+        "--out", str(out),
+    ])
+    assert rc == 0
+    manifest = json.loads(out.read_text())
+    assert manifest["schema_version"] == 1
+    assert manifest["manifest_kind"] == "EditManifestV1"
+    validate_edit_manifest_v1(manifest)
