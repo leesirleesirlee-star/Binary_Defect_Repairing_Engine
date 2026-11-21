@@ -191,6 +191,7 @@ function connect(api) {
     EVENT_TYPES.forEach(type => source.addEventListener(type, handler));
     source.addEventListener('journal_gap', () => {
       api.status.textContent = t('journalGap');
+      api.ended = true;
       source.close();
     });
     source.onerror = () => {
@@ -201,8 +202,8 @@ function connect(api) {
         // per-origin connection budget.
         api.ended = true;
         source.close();
-        api.status.textContent = stateLabel(api.task.phase);
-        api.logStatus.textContent = stateLabel(api.task.phase);
+        api.status.textContent = stateLabel(api.phase);
+        api.logStatus.textContent = stateLabel(api.phase);
       } else if (source.readyState === EventSource.CLOSED) {
         api.status.textContent = t('connectionClosed');
       }
