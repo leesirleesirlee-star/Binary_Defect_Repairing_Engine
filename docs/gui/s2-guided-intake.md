@@ -7,7 +7,9 @@ Status: implemented on `m2/gui-console-s1` (S1+S2), 2026-11-20.
 The S2 review is rendered inline in the existing right-side execution pane,
 not in a modal. `chat/inline-host.mjs` moves the existing guided dialog into
 `#execution-pane .execution-scroll`; the main chat hero no longer shows the two
-launch icons. The inline review contains:
+launch icons. The existing Route A and Route B parallel expandable panels stay
+intact, and the inline review is appended to the same execution scroll. The
+inline review contains:
 
 - frozen binary identity (`vuln.elf`, SHA-256, size, ELF facts, entry, reserved R-X tail)
 - defect description, five normal inputs, invalid inputs, and the crash/PoC input

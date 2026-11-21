@@ -77,6 +77,10 @@ class PreviewAssetsTest(unittest.TestCase):
         page = (UI_ROOT / "chat/index.html").read_text(encoding="utf-8")
         self.assertIn("inline-host.css", page)
         self.assertIn("inline-host.mjs", page)
+        css = (UI_ROOT / "chat/inline-host.css").read_text(encoding="utf-8")
+        self.assertNotIn(".route-overview", css)
+        self.assertNotIn(".trace", css)
+
     def test_s6_archive_bridge_assets_are_present(self):
         for path in ("workbench/archive-bridge.css", "workbench/archive-bridge.mjs"):
             self.assert_local_file(UI_ROOT, path)

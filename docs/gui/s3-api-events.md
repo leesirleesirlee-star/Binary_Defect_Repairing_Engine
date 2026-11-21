@@ -28,4 +28,4 @@ verdict or success. The GUI never imports pipeline modules.
 After Start, the existing S3 event dialog is moved inline into the execution
 pane as well; it renders the SSE timeline (plan steps, corpus, commands,
 changes, checks, audit table, error, run_end) plus real analysis, artifact
-downloads and persisted evidence. The main chat hero has no S3 launch icon.
+downloads and persisted evidence. The existing Route A and Route B parallel expandable panels remain in place; the S2 review and S3 journal are appended below them in the same scroll area. The main chat hero has no S3 launch icon.
