@@ -88,3 +88,15 @@
 @media (min-width: 1081px) {
   .workspace.inspect-before-run { grid-template-columns: minmax(17rem, .72fr) minmax(0, 1.28fr); }
 }
+
+/* Dedicated per-route event log, separate from the run overview. */
+.ra-event-log { margin-top: .45rem; }
+.ra-log-body { display: grid; gap: .3rem; max-height: 22rem; overflow: auto; }
+.ra-log-run { border: 1px solid var(--line); border-radius: .42rem; padding: .3rem .38rem; background: color-mix(in srgb, var(--surface) 78%, transparent); }
+.ra-log-run > summary { display: flex; align-items: center; gap: .35rem; cursor: pointer; list-style: none; font-size: .67rem; }
+.ra-log-run > summary::-webkit-details-marker { display: none; }
+.ra-log-run > summary strong { font-family: ui-monospace, monospace; font-size: .66rem; }
+.ra-log-run > summary::after { content: '›'; margin-inline-start: auto; color: var(--muted); transform: rotate(90deg); }
+.ra-log-run[open] > summary::after { transform: rotate(270deg); }
+.ra-log-status { color: var(--muted); font-size: .62rem; }
+.ra-log-rows { display: grid; gap: .12rem; margin-top: .22rem; max-height: 17rem; overflow: auto; }

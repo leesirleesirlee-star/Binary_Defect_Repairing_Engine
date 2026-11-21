@@ -25,7 +25,7 @@ const EVENT_TYPES = [
   'user_message', 'message_dispatched', 'assistant_delta', 'assistant_end',
   'thinking', 'tool_call', 'tool_result', 'user_response',
 ];
-const state = {monitor: null, cards: new Map(), timer: null, mounted: false};
+const state = {monitor: null, logA: null, logB: null, cards: new Map(), timer: null, mounted: false};
 
 const label = value => LABELS[value] ?? value ?? '—';
 const short = (value, head = 14, tail = 8) => {
@@ -47,21 +47,42 @@ async function tasks() {
   return Array.isArray(data.tasks) ? data.tasks : [];
 }
 
+function buildEventLog(route) {
+  const count = el('span', {class: 'ra-count'}, '0 个运行');
+  const body = el('div', {class: 'ra-log-body'}, el('p', {class: 'ra-muted'}, '等待运行事件…'));
+  const panel = el('details', {class: 'ra-monitor ra-event-log', open: true},
+    el('summary', {class: 'ra-summary'},
+      el('span', {class: 'ra-title'}, icon('terminal', 15), route + ' · 事件日志'),
+      count),
+    body);
+  return {panel, body, count, groups: 0};
+}
+
 function taskCard(task, index) {
   const id = task.id;
-  const events = el('div', {class: 'ra-events'}, el('p', {class: 'ra-muted'}, '等待运行事件…'));
+  const labelText = '修复运行 #' + String(index + 1).padStart(2, '0');
   const steps = el('div', {class: 'ra-steps'});
   const status = el('span', {class: 'ra-status'}, '连接中');
   const artifacts = el('div', {class: 'ra-artifacts', hidden: true});
   const card = el('article', {class: 'ra-task'},
     el('header', {class: 'ra-task-head'},
-      el('div', {}, el('strong', {}, '修复运行 #' + String(index + 1).padStart(2, '0')),
+      el('div', {}, el('strong', {}, labelText),
         el('span', {class: 'ra-target'}, '阶段：' + label(task.phase || 'unknown'))),
       el('div', {class: 'ra-task-state'}, el('span', {class: 'ra-dot'}), status)),
     steps,
-    events,
     artifacts);
-  const api = {task, card, events, steps, status, artifacts, lastSeq: 0, source: null, ended: false};
+  const logRows = el('div', {class: 'ra-log-rows'}, el('p', {class: 'ra-muted'}, '等待运行事件…'));
+  const logStatus = el('span', {class: 'ra-log-status'}, '连接中');
+  const logGroup = el('details', {class: 'ra-log-run', open: true},
+    el('summary', {}, el('strong', {}, labelText), logStatus),
+    logRows);
+  if (state.logA) {
+    state.logA.body.append(logGroup);
+    state.logA.groups += 1;
+    state.logA.count.textContent = state.logA.groups + ' 个运行';
+  }
+  const api = {task, card, logGroup, logRows, logStatus, steps, status, artifacts,
+    labelText, lastSeq: 0, source: null, ended: false};
   state.cards.set(id, api);
   connect(api);
   return card;
@@ -96,11 +117,15 @@ function applyPlan(api, steps) {
 function appendEvent(api, record) {
   if (record.seq <= api.lastSeq) return;
   api.lastSeq = record.seq;
-  if (api.events.querySelector('.ra-muted')) api.events.replaceChildren();
+  if (api.logRows.querySelector('.ra-muted')) api.logRows.replaceChildren();
   if (record.type === 'plan_update') applyPlan(api, record.payload?.steps);
-  if (record.type === 'run_state') api.status.textContent = label(record.payload?.status);
+  if (record.type === 'run_state') {
+    api.status.textContent = label(record.payload?.status);
+    api.logStatus.textContent = label(record.payload?.status);
+  }
   if (record.type === 'run_end') {
     api.status.textContent = label(record.payload?.execution);
+    api.logStatus.textContent = label(record.payload?.execution);
     api.ended = true;
     api.source?.close();
     loadArtifacts(api);
@@ -114,7 +139,7 @@ function appendEvent(api, record) {
     el('div', {class: 'ra-raw'},
       el('span', {class: 'ra-muted'}, `${record.step_id || '—'} · ${record.ts || ''}`),
       el('pre', {}, JSON.stringify({...record, conversation_id: '运行标识已隐藏'}, null, 2))));
-  api.events.append(row);
+  api.logRows.append(row);
 }
 
 function connect(api) {
@@ -167,10 +192,9 @@ function buildMonitor() {
       el('span', {class: 'ra-live'}, el('span', {class: 'ra-dot'}), '实时'),
       count,
       refresh),
-    el('div', {class: 'ra-body'},
-      el('div', {class: 'ra-log-head'}, icon('terminal', 13), '事件日志'),
-      list));
+    el('div', {class: 'ra-body'}, list));
   state.monitor = monitor;
+  if (!state.logA) state.logA = buildEventLog('Route A');
   refreshTasks(list, count);
   return monitor;
 }
@@ -201,12 +225,8 @@ async function refreshTasks(list, count) {
 }
 
 function routeBLog() {
-  return el('details', {class: 'ra-monitor ra-route-b-log'},
-    el('summary', {class: 'ra-summary'},
-      el('span', {class: 'ra-title'}, icon('terminal', 15), 'Route B · 事件日志'),
-      el('span', {class: 'ra-count'}, '等待路线 B 活动')),
-    el('div', {class: 'ra-body'},
-      el('p', {class: 'ra-muted'}, '路线 B 的运行事件将在此显示。')));
+  if (!state.logB) state.logB = buildEventLog('Route B');
+  return state.logB.panel;
 }
 
 function mount() {
@@ -215,8 +235,9 @@ function mount() {
   if (!lane) return;
   if (!state.monitor) state.monitor = buildMonitor();
   if (state.monitor.parentElement !== lane) lane.append(state.monitor);
+  if (state.logA && state.logA.panel.parentElement !== lane) lane.append(state.logA.panel);
   const laneB = lanes[1];
-  if (laneB && !laneB.querySelector('.ra-route-b-log')) laneB.append(routeBLog());
+  if (laneB && state.logB?.panel.parentElement !== laneB) laneB.append(routeBLog());
   if (!state.mounted) {
     state.mounted = true;
     state.timer = setInterval(() => {

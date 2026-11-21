@@ -25,11 +25,16 @@ verdict or success. The GUI never imports pipeline modules.
 
 ## UI
 
-The generic framework lives in `chat/route-activity.mjs` as a nested, collapsible
-panel inside the existing Route A lane. Route A and Route B, the scope area and
-the trace area remain intact. The panel reads `/api/tasks` and each task's SSE
-journal; it renders plan steps in roadmap order, every event with sequence and raw
-payload, analysis/artifacts, and live updates for up to twelve real (non-preview)
-tasks. No fixture-specific facts, contract criteria, defect text or input lists
-are hard-coded in the framework; each task is identified by its task id and phase.
-The main chat hero has no S2/S3 launch icon.
+The generic framework lives in `chat/route-activity.mjs` as two separately
+collapsible bordered panels inside the existing route lanes:
+
+- **修复运行监视** (Route A): task discovery, phase, ordered roadmap steps,
+  status and artifact links. It is an overview/control surface.
+- **事件日志** (Route A and Route B): the chronological SSE journal for the
+  runs belonging to that route, with event type, seq, step, summary and raw
+  payload. The log is a detail/audit surface, not the overview.
+
+Route A and Route B, the scope area and folded state remain intact; the old
+borderless global trace is hidden. No fixture-specific facts, contract criteria,
+defect text or input lists are hard-coded; tasks are labelled “修复运行 #N” and
+never expose `tsk_...` ids in the UI. The main chat hero has no S2/S3 launch icon.
