@@ -75,6 +75,7 @@ function taskCard(task, index) {
   const logHeading = el('span', {class: 'ra-log-heading'}, el('strong', {}, labelText), logStatus);
   const logGroup = disclosure({className: 'ra-log-run', heading: logHeading, open: true}, logRows);
   if (state.logA) {
+    if (state.logA.body.querySelector('.ra-muted')) state.logA.body.replaceChildren();
     state.logA.body.append(logGroup);
     state.logA.groups += 1;
     state.logA.count.textContent = state.logA.groups + ' 个运行';
@@ -259,10 +260,12 @@ function mount() {
   const lane = lanes[0];
   if (!lane) return;
   if (!state.monitor) state.monitor = buildMonitor();
-  if (state.monitor.parentElement !== lane) lane.append(state.monitor);
-  if (state.logA && state.logA.panel.parentElement !== lane) lane.append(state.logA.panel);
+  const contentA = lane.querySelector('.step-panel > .step-content') || lane;
+  if (state.monitor.parentElement !== contentA) contentA.append(state.monitor);
+  if (state.logA && state.logA.panel.parentElement !== contentA) contentA.append(state.logA.panel);
   const laneB = lanes[1];
-  if (laneB && state.logB?.panel.parentElement !== laneB) laneB.append(routeBLog());
+  const contentB = laneB?.querySelector('.step-panel > .step-content') || laneB;
+  if (contentB && state.logB?.panel.parentElement !== contentB) contentB.append(routeBLog());
   if (!state.mounted) {
     state.mounted = true;
     state.timer = setInterval(() => {
