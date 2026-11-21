@@ -12,7 +12,11 @@ import {bindSidebarSpring} from '../chat/chat-spring.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261120au';
 import {createDialog, languageDialog, searchDialog, settingsDialog, shell, tasksView} from './views.mjs?v=20261120au';
 
-const previewMode = new URLSearchParams(location.search).get('preview') === '1';
+// The archive opens on its synthetic fixture immediately. The legacy live API
+// remains available explicitly with ?live=1, but the archive must never present
+// an empty "task service unavailable" dead end before showing its content.
+const archiveQuery = new URLSearchParams(location.search);
+const previewMode = archiveQuery.get('preview') === '1' || archiveQuery.get('live') !== '1';
 const api = previewMode ? (await import('./preview.mjs?v=20261120au')).preview : {...live, lifecycle: false};
 const app = document.querySelector('#app');
 const preferences = {language: 'en', density: 'comfortable'};

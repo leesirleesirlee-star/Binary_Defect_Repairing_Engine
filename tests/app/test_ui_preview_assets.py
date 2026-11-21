@@ -83,7 +83,7 @@ class PreviewAssetsTest(unittest.TestCase):
 
     def test_archive_page_does_not_mount_task_bridge(self):
         for path in ("workbench/archive-bridge.css", "workbench/archive-bridge.mjs"):
-            self.assert_local_file(UI_ROOT, path)
+            self.assertFalse((UI_ROOT / path).exists())
         page = (UI_ROOT / "index.html").read_text(encoding="utf-8")
         self.assertNotIn("archive-bridge.css", page)
         self.assertNotIn("archive-bridge.mjs", page)
