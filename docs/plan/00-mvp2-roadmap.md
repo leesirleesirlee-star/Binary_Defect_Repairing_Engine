@@ -88,7 +88,7 @@ fix. The model never writes the contract and never produces the verdict.
 | AI audit | DeepSeek, disassembly-only prompt, `FixPlanV1` JSON, 3 independent runs, fixed rubric, human review |
 | Repair | One route: 5-byte `call` redirect to a guard stub in an executable cave; stub checks length, tail-calls `strcpy`, otherwise `write(2)` + `exit_group(1)` |
 | Verification | V0 identity, V1 structure, V2 valid behavior, V3 invalid/PoC behavior, V4 boundary, optional V5 re-apply reproducibility |
-| GUI | Minimal chat-first conversation console (reuse of the v1.2.2 chat UI): one AI-hosted chat thread collects binary + normal/crash inputs, freezes the contract, narrates the three-run audit, asks for the decision and ends with the download; corpus/contract/event/score details stay hidden and live only in the evidence entry and the download bundle. `app/loader.py` + `app/render.py` stay the honesty core; verdict and `not_run` render verbatim; no `pipeline.*` import |
+| GUI | Minimal chat-first conversation console (reuse of the v1.2.2 chat UI): one AI-hosted chat thread collects binary + normal/crash inputs, freezes the contract, narrates the three-run audit, asks for the decision and ends with the download; corpus/contract/score cards stay hidden and live only in the evidence entry and the download bundle, while the right-side 修复运行监视 + 事件日志 panels stay visible as the live run surface. `app/loader.py` + `app/render.py` stay the honesty core; verdict and `not_run` render verbatim; no `pipeline.*` import |
 | Delivery | README, demo script, evidence bundle, report section with limitations |
 
 ### Out of scope for MVP2

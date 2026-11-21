@@ -214,7 +214,7 @@ Do not start the AI audit before G1. Do not start the repair before G2.
 - [ ] the conversation is AI-hosted (LLM assistant with a deterministic fallback and an honest mode badge).
 - [ ] the chat collects the binary, normal inputs and the crash input, then freezes the contract.
 - [ ] approval binds contract + corpus + binary digests; Start stays blocked until approved, and Start runs `scripts/run_task.py`.
-- [ ] the three-run audit, the decision and the patch/verdict are narrated in the chat; corpus/contract/event/score details stay hidden and are reachable only through the evidence entry and the download bundle.
+- [ ] the three-run audit, the decision and the patch/verdict are narrated in the chat; corpus/contract/score cards stay hidden, while the right-side 修复运行监视 + 事件日志 panels show the phases and the chronological journal in real time.
 - [ ] the verdict renders only the six-word vocabulary; `not_run` verbatim; downloads resolve.
 - [ ] no `pipeline.*` import in `app/`; honesty tests green; headless walkthrough captured; `v0.1.0` tagged.
 
