@@ -18,23 +18,20 @@ open mainline PRs (#36 audit, #28 repair, #11 verify).
    panel. It shows task phases, the ordered collect→freeze→analyze→audit→decision
    →repair→verify→export checklist, live events, raw event payloads, analysis and
    artifact downloads. No sample-specific review card is rendered.
-4. Click **批准契约**. A task is created and approved against
-   `{revision, contract_sha256, corpus_sha256, binary_sha256}`.
-5. Click **开始修复**. Start requires the CSRF token and an idempotency key and
-   spawns `scripts/run_task.py`.
-6. The Route A run monitor follows each real task's SSE journal. Analysis
-   artifacts `disassembly.json` and `finding.json` are exposed through the task
+4. The S2 review/S3 event dialogs are not mounted in this release; tasks and
+   runs are created through the task API or a separate client. The Route A
+   monitor discovers real, non-preview tasks from `/api/tasks`.
+5. The Route A run monitor follows each task's SSE journal. Analysis artifacts
+   such as `disassembly.json` and `finding.json` are exposed through the task
    API when a runner has written them.
-7. The runner then reports `stage_not_wired` for audit/decision/repair/verify/
-   export and terminates with `run_end.execution = failed`. No verdict or success
-   is fabricated.
+6. The runner reports `stage_not_wired` for audit/decision/repair/verify/export
+   and terminates with `run_end.execution = failed`. No verdict or success is
+   fabricated.
 8. `/ui/` is the original archive page again; the S6 task bridge is not mounted above it. Live task monitoring stays in the chat page’s Route A panel.
 
 ## Captured evidence
 
 - `docs/gui/screenshots/route-a-activity.png`
-- `docs/gui/screenshots/s6-archive.png`
-- `docs/gui/screenshots/s6-preview-cards.png`
 - `docs/gui/screenshots/s2-real-analysis.png`
 
 ## Honest limitations

@@ -13,8 +13,8 @@ import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261120au';
 import {bindSidebarSpring} from './chat-spring.mjs?v=20261120au';
 import {refreshStepCard} from './chat-steps.mjs?v=20261121j';
-import {control, displayTitle, renderItem, transcript} from './chat-view.mjs?v=20261120au';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261120au';
+import {control, displayTitle, renderItem, transcript} from './chat-view.mjs?v=20261121m';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261121m';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
