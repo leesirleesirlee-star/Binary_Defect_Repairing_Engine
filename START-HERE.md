@@ -54,7 +54,7 @@ defect text  ──┘             │
                              │
                     [7] deterministic verdict
                              │
-                    [8] conversation console: event timeline + export
+                    [8] minimal chat-first conversation console: evidence + export
 ```
 
 The **verdict vocabulary** is fixed:
@@ -150,7 +150,7 @@ cite its accepted verdict as MVP2's verdict.
 | Seat | Modules | First deliverable |
 |---|---|---|
 | **M1** Lead / contracts / integration | `contract`, `infra` | protected repo, CI green, contract v0, module registry |
-| **M2** GUI / thin API | `gui` | conversation console (v1.2.2 chat UI), S1–S6 against example JSON |
+| **M2** GUI / thin API | `gui` | minimal chat-first conversation console (v1.2.2 chat UI), T1–T6 against the frozen fixture |
 | **M3** Fixture / guest / verification | `fixture`, `guest`, `verify` | 32-byte C fixture, PoC, corpus, original observations |
 | **M4** Analysis / AI audit | `analysis`, `ai`, `audit` | disassembly view, prompt, 3 audit runs |
 | **M5** Repair | `repair` | cave finder and patch writer dry-run (no fixture fix before G2) |
@@ -208,14 +208,14 @@ Do not start the AI audit before G1. Do not start the repair before G2.
 - [ ] M3's deterministic verifier writes `verdict.json` with the six-word vocabulary.
 - [ ] V0-V4 pass on matching hashes; an independent re-run reproduces the candidate.
 
-### G4 — conversation console (delivery)
+### G4 — minimal chat-first conversation console (delivery)
 
 - [ ] `/welcome` → `/ui/chat/` → `/ui/` open without the Jinja legacy.
-- [ ] intake attaches the binary, normal inputs and the crash input; the corpus card matches the frozen `cases.json`.
-- [ ] approval binds contract + corpus + binary digests; Start is blocked until approved.
-- [ ] Start spawns `python -m scripts.run_task --task <id>`; the SSE timeline renders real journal events.
-- [ ] three audit runs, rubric and `proceed / iterate / change_scope` render from the persisted audit JSON.
-- [ ] verdict card renders only the six-word vocabulary; `not_run` verbatim; downloads resolve.
+- [ ] the conversation is AI-hosted (LLM assistant with a deterministic fallback and an honest mode badge).
+- [ ] the chat collects the binary, normal inputs and the crash input, then freezes the contract.
+- [ ] approval binds contract + corpus + binary digests; Start stays blocked until approved, and Start runs `scripts/run_task.py`.
+- [ ] the three-run audit, the decision and the patch/verdict are narrated in the chat; corpus/contract/event/score details stay hidden and are reachable only through the evidence entry and the download bundle.
+- [ ] the verdict renders only the six-word vocabulary; `not_run` verbatim; downloads resolve.
 - [ ] no `pipeline.*` import in `app/`; honesty tests green; headless walkthrough captured; `v0.1.0` tagged.
 
 ---

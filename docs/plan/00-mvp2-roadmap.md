@@ -66,7 +66,7 @@ defect text  ──┘        (human reviewed)             (deterministic)      
                                                 │
                               [7] deterministic verdict: verified / rejected / unverified / unsupported
                                                 │
-                              [8] conversation console: event timeline, artifacts and export
+                              [8] minimal chat-first conversation console: evidence and export
 ```
 
 The order matters. The contract and corpus are frozen **before** the AI audit.
@@ -88,7 +88,7 @@ fix. The model never writes the contract and never produces the verdict.
 | AI audit | DeepSeek, disassembly-only prompt, `FixPlanV1` JSON, 3 independent runs, fixed rubric, human review |
 | Repair | One route: 5-byte `call` redirect to a guard stub in an executable cave; stub checks length, tail-calls `strcpy`, otherwise `write(2)` + `exit_group(1)` |
 | Verification | V0 identity, V1 structure, V2 valid behavior, V3 invalid/PoC behavior, V4 boundary, optional V5 re-apply reproducibility |
-| GUI | Conversation console (reuse of the v1.2.2 chat UI): attach binary + normal/crash inputs → contract freeze → three-run audit → decision → patch → verify → download. `app/loader.py` + `app/render.py` stay the honesty core; verdict and `not_run` render verbatim; no `pipeline.*` import |
+| GUI | Minimal chat-first conversation console (reuse of the v1.2.2 chat UI): one AI-hosted chat thread collects binary + normal/crash inputs, freezes the contract, narrates the three-run audit, asks for the decision and ends with the download; corpus/contract/event/score details stay hidden and live only in the evidence entry and the download bundle. `app/loader.py` + `app/render.py` stay the honesty core; verdict and `not_run` render verbatim; no `pipeline.*` import |
 | Delivery | README, demo script, evidence bundle, report section with limitations |
 
 ### Out of scope for MVP2
@@ -158,7 +158,7 @@ v1.2.2 tree.
 │  ├─ audit/                  # audit runner + rubric + report generator
 │  ├─ repair/                 # cave finder, patch writer, edit manifest
 │  └─ verify/                 # deterministic V0-V4 checks + verdict writer
-├─ app/                       # conversation console: FastAPI API + chat UI (read-only data, no verdict logic)
+├─ app/                       # minimal chat-first console: FastAPI API + AI-hosted chat UI (read-only data, no verdict logic)
 │  ├─ main.py                 # surfaces: /welcome, /ui/chat/, read-only /ui/
 │  ├─ api.py                  # session/CSRF, tasks, approve/start/cancel, SSE replay
 │  ├─ journal.py              # append-only event-journal reader/validator
@@ -204,7 +204,7 @@ decision; do not silently re-baseline a gate.
 | **P1 Fixture + PoC** | Nov 25-Dec 1 | one overflow, one PoC, frozen corpus | M3 | **G1**: fixture tagged `fixture-v1`; original crashes on PoC; valid cases pass; contract frozen |
 | **P2 AI audit** | Dec 2-Dec 8 | disassembly -> 3 AI plans -> human review | M4 | **G2**: audit report signed; one plan approved; decision `proceed` / `iterate` / `change_scope` |
 | **P3 Repair + verify** | Dec 9-Dec 17 | approved plan -> candidate -> evidence | M5 / M3 | **G3**: candidate passes V0-V4; verifier returns `verified_against_stated_criteria`; independent re-run |
-| **P4 GUI + delivery** | Dec 18-Dec 24 | conversation console flow, demo, report | M2 | **G4**: end-to-end demo through the console on the real fixture; honesty tests; headless walkthrough; `v0.1.0` |
+| **P4 GUI + delivery** | Dec 18-Dec 24 | minimal chat-first console flow (AI-hosted chat), demo, report | M2 | **G4**: end-to-end demo through the console on the real fixture; honesty tests; headless walkthrough; `v0.1.0` |
 | Buffer | Dec 25-31 | fixes, report, presentation | M1 | final submission |
 
 ### Gate G2 is a hard stop
