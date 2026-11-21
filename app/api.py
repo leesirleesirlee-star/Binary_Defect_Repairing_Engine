@@ -335,6 +335,21 @@ def _sse(record: dict[str, Any]) -> str:
     return f"id: {record['seq']}\nevent: {event_type}\ndata: {data}\n\n"
 
 
+_LIVE_STATUSES = {"queued", "waiting_for_executor", "running", "cancelling"}
+
+
+def _task_can_stream(task: dict[str, Any]) -> bool:
+    """A task that is no longer running cannot append more journal records.
+
+    The stream must close instead of holding a browser connection open forever:
+    browsers cap concurrent connections per origin, so a handful of idle SSE
+    streams starve every other tab on the same host.
+    """
+    execution = task.get("execution") or {}
+    status = str(execution.get("status") or task.get("phase") or "")
+    return not execution.get("terminal") and status in _LIVE_STATUSES
+
+
 @router.get("/tasks/{task_id}/events", dependencies=[Depends(require_session)])
 async def task_events(
     task_id: str,
@@ -364,6 +379,12 @@ async def task_events(
                 yield _sse(record)
                 if record["type"] == "run_end":
                     return
+            try:
+                current = await asyncio.to_thread(_task, task_id)
+            except HTTPException:
+                return
+            if not _task_can_stream(current):
+                return
             if await request.is_disconnected():
                 return
             wait_started = asyncio.get_running_loop().time()

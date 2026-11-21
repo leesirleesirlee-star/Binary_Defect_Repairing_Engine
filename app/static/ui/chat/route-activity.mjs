@@ -33,6 +33,11 @@ const EVENT_TYPES = [
   'thinking', 'tool_call', 'tool_result', 'user_response',
 ];
 const FALLBACK_LOCALE = 'en';
+// Follow live event streams only for tasks that can still emit events. A task
+// that is draft/finished/failed keeps no stream open; otherwise a dozen idle
+// SSE connections exhaust the browser's per-origin connection budget and every
+// other page on this host (the archive) stalls while loading.
+const LIVE_PHASES = new Set(['queued', 'waiting_for_executor', 'running', 'cancelling']);
 const state = {monitor: null, logA: null, logB: null, cards: new Map(), timer: null, mounted: false,
   generation: 0, locale: null};
 
@@ -109,6 +114,7 @@ function taskCard(task, index) {
   const api = {task, card, logGroup, logRows, logStatus, steps, status, artifacts,
     labelText, lastSeq: 0, source: null, ended: false};
   state.cards.set(id, api);
+  api.live = LIVE_PHASES.has(task.phase);
   connect(api);
   return card;
 }
@@ -142,7 +148,9 @@ function applyPlan(api, steps) {
 function appendEvent(api, record) {
   if (record.seq <= api.lastSeq) return;
   api.lastSeq = record.seq;
-  if (api.logRows.querySelector('.ra-muted')) api.logRows.replaceChildren();
+  // Each rendered event row nests its own `.ra-muted` raw-time span, so scope
+  // the placeholder reset to the log root or every event wipes the previous rows.
+  if (api.logRows.querySelector(':scope > .ra-muted')) api.logRows.replaceChildren();
   if (record.type === 'plan_update') applyPlan(api, record.payload?.steps);
   if (record.type === 'run_state') {
     api.status.textContent = stateLabel(record.payload?.status);
@@ -169,6 +177,10 @@ function appendEvent(api, record) {
 
 function connect(api) {
   const id = api.task.id;
+  if (api.source) return;
+  api.ended = false;
+  api.status.textContent = t('connecting');
+  api.logStatus.textContent = t('connecting');
   try {
     const source = new EventSource('/api/tasks/' + encodeURIComponent(id) + '/events');
     api.source = source;
@@ -183,7 +195,18 @@ function connect(api) {
       source.close();
     });
     source.onerror = () => {
-      if (source.readyState === EventSource.CLOSED && !api.ended) api.status.textContent = t('connectionClosed');
+      if (api.ended) return;
+      if (!api.live) {
+        // Terminal/draft journals replay once and then end. Close instead of
+        // letting EventSource reconnect forever and exhaust the browser's
+        // per-origin connection budget.
+        api.ended = true;
+        source.close();
+        api.status.textContent = stateLabel(api.task.phase);
+        api.logStatus.textContent = stateLabel(api.task.phase);
+      } else if (source.readyState === EventSource.CLOSED) {
+        api.status.textContent = t('connectionClosed');
+      }
     };
   } catch {
     api.status.textContent = t('cannotConnect');
@@ -260,6 +283,14 @@ async function refreshTasks(list, count) {
       if (state.cards.has(task.id)) return;
       list.append(taskCard(task, index));
     });
+    for (const task of visible) {
+      const card = state.cards.get(task.id);
+      if (!card) continue;
+      // A task may become live after it was first listed. Keep the live flag
+      // current; terminal streams close themselves after replay.
+      card.live = LIVE_PHASES.has(task.phase);
+      if (card.live && !card.source && !card.ended) connect(card);
+    }
     const currentIds = new Set(all.map(task => task.id));
     for (const [id, card] of state.cards) {
       if (currentIds.has(id)) continue;

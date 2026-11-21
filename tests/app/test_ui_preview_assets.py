@@ -82,6 +82,7 @@ class PreviewAssetsTest(unittest.TestCase):
         self.assertNotIn("ContractV1", source)
         self.assertNotRegex(source, r"[\u4e00-\u9fff]")
         self.assertIn("state.logA.groups === 0", source)
+        self.assertIn(":scope > .ra-muted", source)
 
     def test_archive_page_does_not_mount_task_bridge(self):
         for path in ("workbench/archive-bridge.css", "workbench/archive-bridge.mjs"):
