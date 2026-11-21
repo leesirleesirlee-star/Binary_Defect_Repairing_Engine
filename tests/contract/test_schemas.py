@@ -28,6 +28,7 @@ PAIRS = {
     "ObservationV1": "ObservationV1.example.json",
     "VerdictV1": "VerdictV1.example.json",
     "EditManifestV1": "EditManifestV1.example.json",
+    "CandidateV1": "CandidateV1.example.json",
 }
 
 # FixtureManifestV1 legitimately records the build source path; the other
@@ -111,6 +112,36 @@ def test_edit_manifest_refuses_a_written_candidate() -> None:
     payload = example_for("EditManifestV1.example.json")
     payload["preview"]["candidate_written"] = True
     assert validate("EditManifestV1", payload)
+
+
+def test_candidate_record_requires_a_written_candidate() -> None:
+    # ADR 0004: CandidateV1 is only produced after a candidate is actually written.
+    payload = example_for("CandidateV1.example.json")
+    payload["candidate_written"] = False
+    assert validate("CandidateV1", payload)
+
+
+def test_candidate_record_requires_applied_edits_and_reversibility() -> None:
+    payload = example_for("CandidateV1.example.json")
+    payload["edits_applied"] = []
+    assert validate("CandidateV1", payload)
+
+    payload = example_for("CandidateV1.example.json")
+    payload["reversibility"]["matches_original"] = False
+    assert validate("CandidateV1", payload)
+
+
+def test_candidate_record_rejects_unknown_edit_kind() -> None:
+    payload = example_for("CandidateV1.example.json")
+    payload["edits_applied"][0]["kind"] = "segment_extension"
+    assert validate("CandidateV1", payload)
+
+
+def test_candidate_record_has_no_dry_run_escape_hatch() -> None:
+    # The dry-run claim lives in EditManifestV1; CandidateV1 must not carry it.
+    payload = example_for("CandidateV1.example.json")
+    payload["dry_run"] = False
+    assert validate("CandidateV1", payload)
 
 
 @pytest.mark.parametrize("name", PROMPT_FACING)
