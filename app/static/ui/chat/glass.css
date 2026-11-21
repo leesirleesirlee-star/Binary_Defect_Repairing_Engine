@@ -315,11 +315,3 @@
   border-color: var(--line);
   background: color-mix(in srgb, var(--surface) 86%, transparent);
 }
-
-
-/* Revision 2.2 (Lead decision): the live run panels stay visible on the chat
-   page - the chat is the conversation surface, the panels the status surface. */
-.workspace.before-run:not(.inspect-before-run) .execution-scroll { display: block; }
-.workspace.before-run:not(.inspect-before-run) {
-  grid-template-columns: minmax(0, 1fr) minmax(17rem, 30%);
-}

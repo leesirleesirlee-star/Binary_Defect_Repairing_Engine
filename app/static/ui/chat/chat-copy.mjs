@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261122f';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261122h';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -7,12 +7,12 @@ const copy = {
   openNav: ['Open conversations', '打开对话列表'], close: ['Close', '关闭'],
   pinSidebar: ['Pin sidebar open', '固定展开侧栏'],
   conversation: ['Conversation', '对话'],
-  execution: ['Run monitor', '运行监视'],
+  execution: ['Execution', '执行详情'],
   activity: ['Event log', '事件日志'],
   noActivity: ['Run activity will appear here.', '运行活动将在此显示。'],
   phase: ['Phase', '阶段'], stepCount: ['Steps', '步骤'], elapsed: ['Elapsed', '耗时'],
   eventCount: [count => count === 1 ? '1 event' : count + ' events', count => count + ' 个事件'],
-  executionOverview: ['Repair run monitor', '修复运行监视'], verifyActivity: ['Verification', '验证'],
+  executionOverview: ['Run overview', '运行概览'], verifyActivity: ['Verification', '验证'],
   scopePending: ['Approve a contract to define the repair scope.', '批准契约后确定修复范围。'],
   staleReview: ['The saved contract changed. Review the latest version and your unsaved edit before saving again.', '已保存的契约发生变化。请核对最新版本和未保存的编辑，再决定是否保存。'],
   routeNoReason: ['No route note recorded.', '暂无路线说明。'],

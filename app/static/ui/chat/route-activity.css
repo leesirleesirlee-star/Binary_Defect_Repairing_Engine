@@ -89,9 +89,3 @@
 .ra-log-heading { display: flex; align-items: center; gap: .3rem; flex: 1; min-width: 0; }
 .ra-log-status { color: var(--muted); font-size: .62rem; }
 .ra-log-rows { display: grid; gap: .12rem; margin-top: .22rem; max-height: 17rem; overflow: auto; }
-
-
-/* Revision 2.2: the right-side panel hosts the live run monitor, so the two
-   route cards stack vertically and the monitor/event-log text stays legible. */
-.execution-scroll .route-overview { grid-template-columns: minmax(0, 1fr); }
-.execution-scroll .route-connectors { display: none; }
