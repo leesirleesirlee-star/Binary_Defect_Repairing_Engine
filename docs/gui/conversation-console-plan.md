@@ -1,9 +1,10 @@
-# M2 GUI plan — minimal chat-first repair console (Revision 2.1, AI-hosted chat)
+# M2 GUI plan — minimal chat-first repair console (Revision 2.2, AI-hosted chat + live run panels)
 
-- **Status:** Revision 2.1 for M2, 2026-11-21 (Asia/Shanghai). Revision 2 (minimal chat-first)
-  responded to the Lead review of Revision 1; Revision 2.1 goes one step further per the Lead
-  decision: **the chat itself is AI-hosted** — an LLM assistant drives the conversation, with a
-  deterministic fallback when the provider is unavailable. Revision 1 text stays in git history.
+- **Status:** Revision 2.2 for M2, 2026-11-21 (Asia/Shanghai). Revision 2 (minimal chat-first)
+  responded to the Lead review of Revision 1; Revision 2.1 made the chat AI-hosted (LLM assistant
+  with a deterministic fallback); Revision 2.2 records a Lead decision on the right-side panels:
+  the real-time **修复运行监视 + 事件日志** panels stay in the chat page — users get a live
+  progress and event display alongside the minimal chat. Revision 1 text stays in git history.
 - **Module:** `gui` (M2). Paths: `app/`, `tests/app/`, `docs/gui/`. Gate: G4, staged with G1–G3.
 - **Lead review of Revision 1:** (1) the cards added by Revision 1 make the UI cluttered;
   (2) the process must be controlled through the AI conversation — the user must not see
@@ -30,6 +31,11 @@
    still refuses to start before approval, the G2 decision still requires the user's chip, and
    only the deterministic verifier writes a verdict. The chat AI proposes; the system and the user
    dispose.
+6. **Real-time transparency (Lead decision 2026-11-21).** The chat page keeps the right-side
+   panels — **修复运行监视** (phase checklist, status, artifact links) and **事件日志**
+   (chronological SSE journal). They do not conflict with the minimal chat: the chat is the
+   conversation surface, the panels are the live status surface. Corpus/contract/score cards stay
+   hidden; the journal panel is the user-facing real-time display.
 
 ## 2. The whole UI is this conversation (MVP2 demo script)
 
@@ -49,7 +55,9 @@ AI   验证完成：verified_against_stated_criteria。
      下载修复后的程序与证据：                               [下载] [证据]
 ```
 
-That is the entire product surface. The only UI elements beyond chat text:
+That is the conversation surface. Next to it, the right-side panels give the **live** view while a
+run is active: 修复运行监视 (phases, status, artifact links) and 事件日志 (chronological journal).
+Other UI elements beyond chat text:
 
 - attachment affordance (binary), text paste for inputs, inline action chips, Stop while running,
   the download button on the final message, and the minimal sidebar (new chat / recent / settings).
@@ -63,7 +71,7 @@ That is the entire product surface. The only UI elements beyond chat text:
 | approval card with revision/digest lists | inline chips `[开始] [继续] [重跑]`; the backend still enforces `review_binding_digest` and blocks start until approved — the UI simply shows nothing |
 | three-run score table, rubric, `EditManifestV1` diff card | one summarizing sentence; tables/diffs only in 证据 / 下载 |
 | tool / command / `file_change` / event rows | never rendered in the chat; the journal stays for the archive and for honesty |
-| right execution pane (workbench preview) | hidden by default (focus mode is the default) |
+| right execution pane: 修复运行监视 + 事件日志 | **kept and visible** (Lead decision 2026-11-21): live phase checklist, status, artifact links and the chronological SSE journal |
 
 ## 4. Assistant: AI-hosted chat with a deterministic fallback (the new M2 component)
 
@@ -120,6 +128,8 @@ Each PR stays ≤400 changed lines with one `module:gui` label; no PR imports
   no `pipeline.*` imports; honesty tests green; headless walkthrough captured.
 - The assistant completes the §2 conversation in `llm` mode with a key, and in `deterministic`
   mode without one — the badge says which, and the fallback never fabricates model metadata.
+- The right-side panels render the run's phases and the event journal **in real time** while the
+  chat column stays free of corpus/contract/score cards.
 
 ## 8. Mainline notes
 
