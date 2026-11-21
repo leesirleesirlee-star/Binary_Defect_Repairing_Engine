@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from pipeline.repair import patch_writer
 from pipeline.repair.manifest_schema import (
     EDIT_MANIFEST_V1_VERSION,
     PROVISIONAL_SCHEMA,
@@ -16,7 +17,6 @@ from pipeline.repair.manifest_schema import (
     to_edit_manifest_v1,
     validate_edit_manifest_v1,
 )
-from pipeline.repair import patch_writer
 from pipeline.repair.patch_writer import build_manifest, build_manifest_v1
 from tests.repair.elf_builder import (
     CAVE_VADDR,
