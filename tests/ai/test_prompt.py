@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from unittest import mock
@@ -18,6 +19,9 @@ CONTRACT = json.loads(
     (ROOT / "fixtures" / "stack-overflow-01" / "contract.json").read_text(encoding="utf-8")
 )
 POC = {"input": "A" * 64, "observed_output": {"signal": "SIGSEGV"}}
+CONTRACT_SHA = hashlib.sha256(
+    (ROOT / "fixtures" / "stack-overflow-01" / "contract.json").read_bytes()
+).hexdigest()
 
 
 @pytest.fixture(scope="module")
@@ -67,9 +71,17 @@ def test_run_plan_rejects_invalid_fixplan() -> None:
         }
     )
     with mock.patch("pipeline.ai.provider.call_chat", return_value=json.loads(raw)):
-        record = run_plan(CONTRACT, view, POC, api_key="x", model="deepseek-chat")
+        record = run_plan(
+            CONTRACT,
+            view,
+            POC,
+            api_key="x",
+            model="deepseek-chat",
+            contract_sha256=CONTRACT_SHA,
+        )
     assert record["schema_valid"] is False
-    assert record["plan"] == fake_plan
+    assert record["plan"] is not None
+    assert record["plan"]["contract_sha256"] == CONTRACT_SHA
     assert len(record["response_sha256"]) == 64
 
 
@@ -91,9 +103,69 @@ def test_run_plan_records_a_malformed_provider_response() -> None:
     )
     for body in bodies:
         with mock.patch("pipeline.ai.provider.call_chat", return_value=body):
-            record = run_plan(CONTRACT, view, POC, api_key="x", model="deepseek-chat")
+            record = run_plan(
+                CONTRACT,
+                view,
+                POC,
+                api_key="x",
+                model="deepseek-chat",
+                contract_sha256=CONTRACT_SHA,
+            )
         assert record["schema_valid"] is False
         assert record["plan"] is None
         assert record["response_sha256"] is None
         assert record["raw"] is None
         assert record["error"] == "malformed provider response"
+
+
+def test_run_plan_binds_trusted_identity() -> None:
+    view = build_disassembly_view(FIXTURE)
+    model_plan = {
+        "schema_version": 1,
+        "plan_id": "model-invented",
+        "fixture_id": "wrong-fixture",
+        "contract_sha256": "0" * 64,
+        "model": {"provider": "unknown", "name": "unknown", "prompt_sha256": "0" * 64},
+        "diagnosis": {
+            "function": "handle",
+            "address": "0x401194",
+            "instruction": "call strcpy@plt",
+            "cwe": "CWE-121",
+            "confidence": 0.9,
+            "evidence": ["call site"],
+        },
+        "root_cause": "unbounded copy",
+        "strategy": "trampoline_guard",
+        "edits": [
+            {
+                "kind": "redirect_call",
+                "address": "0x401194",
+                "original_bytes": "e8 c7 fe ff ff",
+                "new_bytes": "e8 87 00 00 00",
+            }
+        ],
+        "stub": {"language": "asm", "source": "length check", "estimated_size_bytes": 69},
+        "valid_path": "unchanged",
+        "invalid_path": "rejected",
+        "stated_criteria_coverage": [{"criterion": "c", "how": "h"}],
+        "assumptions": [],
+        "uncertainties": [],
+        "verification_proposal": ["PoC"],
+    }
+    body = {"choices": [{"message": {"content": json.dumps(model_plan)}}], "model": "deepseek-chat"}
+    with mock.patch("pipeline.ai.provider.call_chat", return_value=body):
+        record = run_plan(
+            CONTRACT,
+            view,
+            POC,
+            api_key="x",
+            model="deepseek-chat",
+            contract_sha256=CONTRACT_SHA,
+            fixture_id="stack-overflow-01",
+        )
+    plan = record["plan"]
+    assert record["schema_valid"] is True
+    assert plan["fixture_id"] == "stack-overflow-01"
+    assert plan["contract_sha256"] == CONTRACT_SHA
+    assert plan["model"]["prompt_sha256"] == record["prompt_sha256"]
+    assert plan["model"]["name"] == "deepseek-chat"
