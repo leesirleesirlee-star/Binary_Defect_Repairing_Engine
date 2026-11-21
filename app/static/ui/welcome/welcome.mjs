@@ -3,6 +3,7 @@ import '../shared/settings-preferences.mjs?v=20261120au';
 import {saveDraft, saveLanguage} from '../shared/handoff.mjs?v=20261120au';
 import {LANGUAGES, LANGUAGE_CODES, detectLanguage, isLanguage, languageName} from '../shared/languages.mjs?v=20261120au';
 import '../shared/theme.mjs?v=20261120au';
+import {playExit} from '../shared/warp.mjs?v=20261121y';
 import {welcomeCopy} from './welcome-copy.mjs?v=20261120au';
 
 const form = document.querySelector('.composer-card');
@@ -75,8 +76,11 @@ let language = read();
 apply(language);
 button.addEventListener('click', openLanguageMenu);
 
+let leaving = false;
+
 form.addEventListener('submit', event => {
   event.preventDefault();
+  if (leaving) return;
   try {
     saveDraft(draft.value);
   } catch {
@@ -88,11 +92,28 @@ form.addEventListener('submit', event => {
       return;
     }
   }
-  location.assign(form.action);
+  leaving = true;
+  const submit = form.querySelector('button[type="submit"]');
+  if (submit) submit.disabled = true;
+  const enter = () => location.assign(form.action);
+  playExit().then(enter, enter);
 });
 draft.addEventListener('keydown', event => {
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
     event.preventDefault();
     form.requestSubmit();
   }
+});
+
+// The footer "conversation" shortcut leaves from the same page: keep the
+// transition consistent instead of hard-cutting for that one link.
+document.addEventListener('click', event => {
+  if (leaving) return;
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+  const link = event.target.closest?.('a[href="/ui/chat/"]');
+  if (!link) return;
+  event.preventDefault();
+  leaving = true;
+  const enter = () => location.assign(link.getAttribute('href'));
+  playExit().then(enter, enter);
 });

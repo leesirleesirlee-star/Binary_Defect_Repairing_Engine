@@ -6,11 +6,12 @@
   <meta name="color-scheme" content="light dark">
   <title>BinaryRepair · 可验证的二进制修复</title>
   <link rel="icon" type="image/svg+xml" href="/ui/assets/mark-dark.svg">
-  <link rel="stylesheet" href="/ui/welcome/welcome.css?v=20261120au">
+  <link rel="stylesheet" href="/ui/welcome/welcome.css?v=20261121w">
+  <link rel="stylesheet" href="/ui/shared/warp.css?v=20261121y">
   <link rel="stylesheet" href="/ui/shared/settings.css?v=20261120au">
   <link rel="stylesheet" href="/ui/shared/perf.css?v=20261120au">
   <script type="module" src="/ui/shared/perf.mjs?v=20261120au"></script>
-  <script type="module" src="/ui/welcome/welcome.mjs?v=20261120au"></script>
+  <script type="module" src="/ui/welcome/welcome.mjs?v=20261121y"></script>
 </head>
 <body>
   <a class="skip" href="#main">跳转到主内容</a>
@@ -23,11 +24,10 @@
 
   <header class="topbar">
     <a class="brand" href="/welcome">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M12 2.8 20 6v5.6c0 4.5-3.2 7.2-8 9.6-4.8-2.4-8-5.1-8-9.6V6l8-3.2Z"/>
-        <path d="m9 12 2 2 4-4"/>
-      </svg>
+      <span class="brand-icon" aria-hidden="true">
+        <img class="mark-light" src="/ui/assets/mark-light.svg" alt="">
+        <img class="mark-dark" src="/ui/assets/mark-dark.svg" alt="">
+      </span>
       <strong>BinaryRepair</strong>
     </a>
     <nav class="top-actions" aria-label="Primary">
@@ -45,7 +45,7 @@
     </p>
 
     <h1>
-      <span data-i18n="welcome.3" data-zh="修复，直到证据成立" data-en="Repair, until the evidence holds">修复，直到证据成立</span>
+      <span data-i18n="welcome.3" data-zh="二进制漏洞的自动修复" data-en="Automatic repair of binary vulnerabilities">二进制漏洞的自动修复</span>
     </h1>
     <p class="lede" data-i18n="welcome.4"
       data-zh="描述一个已知漏洞，上传二进制，和修复助手一起审阅契约、运行两条路线；最终结论与证据归档在档案库。"
