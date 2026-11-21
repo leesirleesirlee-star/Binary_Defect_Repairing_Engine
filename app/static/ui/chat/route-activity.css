@@ -66,3 +66,25 @@
 .ra-artifact:hover { text-decoration: underline; }
 .ra-muted { color: var(--muted); font-size: .67rem; }
 .ra-error { color: var(--error); font-size: .68rem; }
+
+/* The old borderless log below the two route lanes is superseded by the
+   per-route nested logs. Keep the node in the component tree but do not show a
+   second, unscoped activity area. */
+.trace { display: none !important; }
+.ra-log-head { display: flex; align-items: center; gap: .28rem; margin: 0 0 .35rem; color: var(--muted); font-size: .66rem; font-weight: 650; }
+.ra-log-head svg { color: var(--accent); }
+.ra-route-b-log { border-color: var(--line); }
+.ra-monitor { position: relative; }
+.ra-monitor::before {
+  content: '';
+  position: absolute;
+  left: -.42rem;
+  top: 1.05rem;
+  width: .3rem;
+  height: .3rem;
+  border-inline-start: 1px solid var(--line);
+  border-block-end: 1px solid var(--line);
+}
+@media (min-width: 1081px) {
+  .workspace.inspect-before-run { grid-template-columns: minmax(17rem, .72fr) minmax(0, 1.28fr); }
+}

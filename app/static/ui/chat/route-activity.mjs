@@ -47,15 +47,16 @@ async function tasks() {
   return Array.isArray(data.tasks) ? data.tasks : [];
 }
 
-function taskCard(task) {
+function taskCard(task, index) {
   const id = task.id;
   const events = el('div', {class: 'ra-events'}, el('p', {class: 'ra-muted'}, '等待运行事件…'));
   const steps = el('div', {class: 'ra-steps'});
   const status = el('span', {class: 'ra-status'}, '连接中');
   const artifacts = el('div', {class: 'ra-artifacts', hidden: true});
-  const card = el('article', {class: 'ra-task', 'data-id': id},
+  const card = el('article', {class: 'ra-task'},
     el('header', {class: 'ra-task-head'},
-      el('div', {}, el('strong', {}, id), el('span', {class: 'ra-target'}, '运行 ' + (task.phase || 'unknown'))),
+      el('div', {}, el('strong', {}, '修复运行 #' + String(index + 1).padStart(2, '0')),
+        el('span', {class: 'ra-target'}, '阶段：' + label(task.phase || 'unknown'))),
       el('div', {class: 'ra-task-state'}, el('span', {class: 'ra-dot'}), status)),
     steps,
     events,
@@ -112,7 +113,7 @@ function appendEvent(api, record) {
       el('span', {class: 'ra-event-summary'}, eventSummary(record))),
     el('div', {class: 'ra-raw'},
       el('span', {class: 'ra-muted'}, `${record.step_id || '—'} · ${record.ts || ''}`),
-      el('pre', {}, JSON.stringify(record, null, 2))));
+      el('pre', {}, JSON.stringify({...record, conversation_id: '运行标识已隐藏'}, null, 2))));
   api.events.append(row);
 }
 
@@ -166,7 +167,9 @@ function buildMonitor() {
       el('span', {class: 'ra-live'}, el('span', {class: 'ra-dot'}), '实时'),
       count,
       refresh),
-    el('div', {class: 'ra-body'}, list));
+    el('div', {class: 'ra-body'},
+      el('div', {class: 'ra-log-head'}, icon('terminal', 13), '事件日志'),
+      list));
   state.monitor = monitor;
   refreshTasks(list, count);
   return monitor;
@@ -184,10 +187,10 @@ async function refreshTasks(list, count) {
       return;
     }
     if (list.querySelector('.ra-muted') && !list.querySelector('.ra-task')) list.replaceChildren();
-    for (const task of visible) {
-      if (state.cards.has(task.id)) continue;
-      list.append(taskCard(task));
-    }
+    visible.forEach((task, index) => {
+      if (state.cards.has(task.id)) return;
+      list.append(taskCard(task, index));
+    });
     const currentIds = new Set(all.map(task => task.id));
     for (const [id, card] of state.cards) {
       if (!currentIds.has(id) && card.card.parentElement) card.card.remove();
@@ -197,13 +200,23 @@ async function refreshTasks(list, count) {
   }
 }
 
+function routeBLog() {
+  return el('details', {class: 'ra-monitor ra-route-b-log'},
+    el('summary', {class: 'ra-summary'},
+      el('span', {class: 'ra-title'}, icon('terminal', 15), 'Route B · 事件日志'),
+      el('span', {class: 'ra-count'}, '等待路线 B 活动')),
+    el('div', {class: 'ra-body'},
+      el('p', {class: 'ra-muted'}, '路线 B 的运行事件将在此显示。')));
+}
+
 function mount() {
-  const lane = document.querySelector('.route-slot .route-lane');
+  const lanes = document.querySelectorAll('.route-slot .route-lane');
+  const lane = lanes[0];
   if (!lane) return;
-  lane.closest('.workspace')?.classList.add('inspect-before-run');
-  lane.open = true;
   if (!state.monitor) state.monitor = buildMonitor();
   if (state.monitor.parentElement !== lane) lane.append(state.monitor);
+  const laneB = lanes[1];
+  if (laneB && !laneB.querySelector('.ra-route-b-log')) laneB.append(routeBLog());
   if (!state.mounted) {
     state.mounted = true;
     state.timer = setInterval(() => {
