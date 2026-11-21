@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "report_id": "audit-2026-11-21-01",
+  "date": "2026-11-21",
+  "fixture_sha256": "705ab9290094218af7164fb6415cde14bd800b040d52f3fc1e9d1b766b3d9c26",
+  "contract_sha256": "856b6ad2dabf69b705836f3a7c6466b534034cb1a4770a43f3fb596a11ce578c",
+  "corpus_sha256": "fae5efd054358d16610987f5645eadc582ce53ac12debeb356941d6617ceec3d",
+  "model": {
+    "provider": "deepseek",
+    "name": "deepseek-v4-pro",
+    "temperature": 0
+  },
+  "prompt_sha256": "fb85f91c5b66f048820b3e6cc0eb2ad536c5fea1643ca155e8e0a5c9708fe407",
+  "runs": [
+    {
+      "run_index": 1,
+      "schema_valid": true,
+      "plan_sha256": "9b117f09cdf1a1df8c37a751060c025b5cd1fc79e61729360f300373bbbd3fd9",
+      "score": 98,
+      "critical_errors": [],
+      "usable": true,
+      "notes": "M1 98; tail edits leave original_bytes empty (tail is zero-filled); verification lacks boundary/segment audit"
+    },
+    {
+      "run_index": 2,
+      "schema_valid": true,
+      "plan_sha256": "c16d97ba9bc09a99211e1c73dd7039a2dd68fba39d7c5c5a692116e43030efb9",
+      "score": 99,
+      "critical_errors": [],
+      "usable": true,
+      "notes": "selected; M1 99 / M5 100; strongest verification (endbr64, boundary runs, segment/PLT audit)"
+    },
+    {
+      "run_index": 3,
+      "schema_valid": true,
+      "plan_sha256": "c5f2f1b361dd75f00622640903ec56e1c9a197665f2ef58353e0ee6c65895a7e",
+      "score": 96,
+      "critical_errors": [],
+      "usable": true,
+      "notes": "M1 96; verification lacks static audit; uncertainties mention pre-binding placeholders"
+    }
+  ],
+  "selected_plan": {
+    "run_index": 2,
+    "plan_sha256": "c16d97ba9bc09a99211e1c73dd7039a2dd68fba39d7c5c5a692116e43030efb9",
+    "summary": "redirect the 5-byte call at 0x401194 to a guard at 0x401220; bound source to 31 printable bytes, else exact 42-byte stderr + exit 1, else tail-jmp strcpy@plt"
+  },
+  "reviewer_scores": {
+    "m1": 99,
+    "m5": 100,
+    "resolved": 100
+  },
+  "correctness_established": true,
+  "decision": "proceed",
+  "rationale": "All three runs are schema-valid, bound to the frozen contract, cover every stated criterion and carry no critical error; run 2 is selected for the strongest verification proposal and an explicit printable-ASCII check. M1 99, M5 100 (implementability 15/15).",
+  "limitations": [
+    "one fixture, one model, three runs, same-team review",
+    "verified_against_stated_criteria is scoped to the stated criteria; not a proof of general correctness"
+  ]
+}
