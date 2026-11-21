@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "record_kind": "CandidateV1",
+  "candidate_written": true,
+  "fixture_id": "stack-overflow-01",
+  "original": {
+    "path": "fixtures/stack-overflow-01/vuln.elf",
+    "sha256": "705ab9290094218af7164fb6415cde14bd800b040d52f3fc1e9d1b766b3d9c26",
+    "size": 16016
+  },
+  "candidate": {
+    "path": "var/artifacts/task-2026-11-21-01/candidate.elf",
+    "sha256": "c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+    "size": 16016
+  },
+  "plan": {
+    "path": "docs/audit/fix-plan-v1.json",
+    "sha256": "f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6",
+    "plan_id": "plan-c16d97ba9bc0"
+  },
+  "manifest": {
+    "path": "var/artifacts/task-2026-11-21-01/edit-manifest.json",
+    "sha256": "e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5"
+  },
+  "edits_applied": [
+    {
+      "kind": "redirect_call",
+      "address": "0x401194",
+      "file_offset": 4500,
+      "size": 5,
+      "new_sha256": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+    },
+    {
+      "kind": "code",
+      "address": "0x401220",
+      "file_offset": 4640,
+      "size": 90,
+      "new_sha256": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+    },
+    {
+      "kind": "data",
+      "address": "0x401280",
+      "file_offset": 4736,
+      "size": 42,
+      "new_sha256": "d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"
+    }
+  ],
+  "reversibility": {
+    "matches_original": true,
+    "restored_sha256": "705ab9290094218af7164fb6415cde14bd800b040d52f3fc1e9d1b766b3d9c26",
+    "method": "apply the manifest edits in reverse on the candidate bytes"
+  },
+  "produced_by": "pipeline.repair.apply_plan",
+  "produced_at": "2026-11-21T19:30:00+08:00",
+  "notes": [
+    "candidate produced on the producer host; never executed there",
+    "guest execution is M3's ObservationV1 run; the verifier alone writes the verdict"
+  ]
+}
