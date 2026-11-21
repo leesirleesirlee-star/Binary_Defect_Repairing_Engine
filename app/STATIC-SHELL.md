@@ -20,6 +20,16 @@ S2 guided intake is included: `/api/fixture` exposes the frozen G1 fixture for
 display; the chat hero creates a task, approves the task binding and enables
 Start. The frozen contract remains read-only.
 
+## Conversation console mode
+
+The shipped conversation console runs the **deterministic assistant** (Revision
+2.1 fallback): the chat asks for the binary and the inputs, narrates progress,
+offers inline action chips and ends with the honest verdict vocabulary, while
+the badge states `deterministic`. The v1.2.2 live bridge in
+`app/static/ui/chat/chat-live.mjs` still targets the legacy `/api/jobs` and
+`/api/assistant/key` endpoints, which this console does not implement (its API is
+`/api/tasks`), so it is not selected; wiring it to the task API is separate work.
+
 ## S3+ API and event journal
 
 `GET /api/session`, `/api/tasks`, approval, decision, Start/cancel, SSE replay,

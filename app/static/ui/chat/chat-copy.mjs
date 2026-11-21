@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261122b';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261122c';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -101,7 +101,7 @@ const copy = {
   denied: ['Approval denied', '已拒绝审批'], saveReview: ['Review updated contract', '审阅更新后的契约'],
   reviewAgain: ['Review again', '重新审阅'],
   start: ['Start run', '开始运行'],
-  response: ['The saved contract is ready for review. Review the scope and revision below before starting a run.', '已准备好保存的契约。开始运行前，请审阅下方的范围和修订。'],
+  response: ['The saved contract is ready. Approve it below to start the run.', '已准备好保存的契约。在下方批准契约即可开始运行。'],
   followupResponse: ['I reviewed the available evidence. There is no verification bundle for this run.', '我已审阅现有证据。本次运行暂无验证证据包。'],
   archivedResponse: ['The evidence record is available. Verification checks were not run.', '证据记录可用，验证检查尚未运行。'],
   error: ['Evidence could not be loaded', '无法加载证据'],

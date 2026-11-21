@@ -6,9 +6,8 @@ import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261121z';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261122b';
-import {chatLive} from './chat-live.mjs?v=20261122b';
-import {chatPreview} from './chat-stream.mjs?v=20261122b';
+import {label} from './chat-copy.mjs?v=20261122c';
+import {chatPreview} from './chat-stream.mjs?v=20261122c';
 import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261121z';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261121z';
 import {bindSidebarSpring} from './chat-spring.mjs?v=20261120au';
@@ -43,7 +42,6 @@ let selectionChanged = false;
 let navStamp;
 
 const params = new URLSearchParams(location.search);
-const previewMode = params.get('preview') === '1';
 
 function announce(chat, event) {
   if (chat === selected && event && ['run_state', 'run_end', 'assistant_end'].includes(event.type)) {
@@ -59,7 +57,11 @@ function announce(chat, event) {
   if (nodes) requestPaint();
 }
 
-const engine = previewMode ? chatPreview({notify: announce}) : chatLive({notify: announce});
+// Revision 2.2: the shipped console is the deterministic assistant. The live
+// task bridge still targets the legacy v1.2.2 job endpoints and is not wired in
+// this build, so defaulting to it dead-ends every action; the honest fallback
+// keeps the conversation complete and the badge tells the truth.
+const engine = chatPreview({notify: announce});
 const requestedJob = params.get('job');
 Promise.resolve(engine.seed(locale)).then(() => {
   if (!requestedJob) return;
@@ -67,7 +69,7 @@ Promise.resolve(engine.seed(locale)).then(() => {
   if (target) select(target);
 });
 selected = engine.create();
-if (!requestedJob && !previewMode) {
+if (!requestedJob) {
   const text = takeDraft();
   if (text) drafts.set(selected.id, {text, attachment: '', file: null});
 }
