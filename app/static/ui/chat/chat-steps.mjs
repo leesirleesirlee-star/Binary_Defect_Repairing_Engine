@@ -52,7 +52,11 @@ export function disclosure({className, heading, open = false}, ...children) {
   }
 
   summary.addEventListener('click', event => {
-    if (event.defaultPrevented || motion() || typeof requestAnimationFrame !== 'function') return;
+    if (event.defaultPrevented) return;
+    if (motion() || typeof requestAnimationFrame !== 'function') {
+      details.dataset.expanded = String(!details.open);
+      return;
+    }
     event.preventDefault();
     wanted = frame ? !wanted : !details.open;
     details.dataset.expanded = String(wanted);

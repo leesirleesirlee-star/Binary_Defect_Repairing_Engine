@@ -12,7 +12,7 @@ import {chatPreview} from './chat-stream.mjs?v=20261120au';
 import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261120au';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261120au';
 import {bindSidebarSpring} from './chat-spring.mjs?v=20261120au';
-import {refreshStepCard} from './chat-steps.mjs?v=20261121i';
+import {refreshStepCard} from './chat-steps.mjs?v=20261121j';
 import {control, displayTitle, renderItem, transcript} from './chat-view.mjs?v=20261120au';
 import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261120au';
 

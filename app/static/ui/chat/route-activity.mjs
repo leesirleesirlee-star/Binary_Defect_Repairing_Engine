@@ -8,7 +8,7 @@
  */
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
-import {disclosure} from './chat-steps.mjs?v=20261121i';
+import {disclosure} from './chat-steps.mjs?v=20261121j';
 
 const STEPS = ['collect', 'freeze', 'analyze', 'audit', 'decision', 'repair', 'verify', 'export'];
 const LABELS = {
@@ -48,9 +48,9 @@ async function tasks() {
   return Array.isArray(data.tasks) ? data.tasks : [];
 }
 
-function buildEventLog(route) {
+function buildEventLog(route, empty = '等待运行事件…') {
   const count = el('span', {class: 'ra-count'}, '0 个运行');
-  const body = el('div', {class: 'ra-log-body'}, el('p', {class: 'ra-muted'}, '等待运行事件…'));
+  const body = el('div', {class: 'ra-log-body'}, el('p', {class: 'ra-muted'}, empty));
   const heading = el('span', {class: 'ra-heading'},
     el('span', {class: 'ra-title'}, icon('terminal', 15), route + ' · 事件日志'), count);
   const panel = disclosure({className: 'ra-monitor ra-event-log', heading, open: true}, body);
@@ -200,6 +200,20 @@ function buildMonitor() {
   return monitor;
 }
 
+function clearCards() {
+  for (const api of state.cards.values()) {
+    api.source?.close();
+    api.logGroup?.remove();
+    api.card.remove();
+  }
+  state.cards.clear();
+  if (state.logA) {
+    state.logA.body.replaceChildren(el('p', {class: 'ra-muted'}, '等待运行事件…'));
+    state.logA.groups = 0;
+    state.logA.count.textContent = '0 个运行';
+  }
+}
+
 async function refreshTasks(list, count) {
   try {
     await session();
@@ -211,22 +225,32 @@ async function refreshTasks(list, count) {
       list.replaceChildren(el('p', {class: 'ra-muted'}, '暂无运行任务。给定漏洞文件的任务会自动出现在这里。'));
       return;
     }
-    if (list.querySelector('.ra-muted') && !list.querySelector('.ra-task')) list.replaceChildren();
+    if (list.querySelector('.ra-error') ||
+        (list.querySelector('.ra-muted') && !list.querySelector('.ra-task'))) list.replaceChildren();
     visible.forEach((task, index) => {
       if (state.cards.has(task.id)) return;
       list.append(taskCard(task, index));
     });
     const currentIds = new Set(all.map(task => task.id));
     for (const [id, card] of state.cards) {
-      if (!currentIds.has(id) && card.card.parentElement) card.card.remove();
+      if (currentIds.has(id)) continue;
+      card.source?.close();
+      card.logGroup?.remove();
+      card.card.remove();
+      state.cards.delete(id);
+      if (state.logA) {
+        state.logA.groups = Math.max(0, state.logA.groups - 1);
+        state.logA.count.textContent = state.logA.groups + ' 个运行';
+      }
     }
   } catch (error) {
+    clearCards();
     list.replaceChildren(el('p', {class: 'ra-error'}, '任务列表不可用：' + error.message));
   }
 }
 
 function routeBLog() {
-  if (!state.logB) state.logB = buildEventLog('Route B');
+  if (!state.logB) state.logB = buildEventLog('Route B', '当前没有 Route B 运行。');
   return state.logB.panel;
 }
 
