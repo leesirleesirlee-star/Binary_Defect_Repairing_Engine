@@ -91,11 +91,11 @@ function taskCard(task, index) {
   const steps = el('div', {class: 'ra-steps'});
   const status = el('span', {class: 'ra-status'}, t('connecting'));
   const artifacts = el('div', {class: 'ra-artifacts', hidden: true});
+  const target = el('span', {class: 'ra-target'},
+    fill(t('phaseValue'), {value: stateLabel(task.phase || 'unknown')}));
   const card = el('article', {class: 'ra-task'},
     el('header', {class: 'ra-task-head'},
-      el('div', {}, el('strong', {}, labelText),
-        el('span', {class: 'ra-target'},
-          fill(t('phaseValue'), {value: stateLabel(task.phase || 'unknown')}))),
+      el('div', {}, el('strong', {}, labelText), target),
       el('div', {class: 'ra-task-state'}, el('span', {class: 'ra-dot'}), status)),
     steps,
     artifacts);
@@ -111,10 +111,9 @@ function taskCard(task, index) {
     state.logA.groups += 1;
     state.logA.count.textContent = runCount(state.logA.groups);
   }
-  const api = {task, card, logGroup, logRows, logStatus, steps, status, artifacts,
-    labelText, lastSeq: 0, source: null, ended: false};
+  const api = {task, card, logGroup, logRows, logStatus, steps, status, artifacts, target,
+    labelText, phase: task.phase, live: LIVE_PHASES.has(task.phase), lastSeq: 0, source: null, ended: false};
   state.cards.set(id, api);
-  api.live = LIVE_PHASES.has(task.phase);
   connect(api);
   return card;
 }
@@ -286,21 +285,28 @@ async function refreshTasks(list, count) {
     for (const task of visible) {
       const card = state.cards.get(task.id);
       if (!card) continue;
-      // A task may become live after it was first listed. Re-arm a stream that
-      // was closed during its draft/terminal replay, otherwise the card would
-      // stay frozen in its old phase until a full page reload.
+      const phaseChanged = task.phase !== card.phase;
+      if (card.source?.readyState === EventSource.CLOSED) card.source = null;
+      card.phase = task.phase;
       card.live = LIVE_PHASES.has(task.phase);
-      if (card.live) {
-        if (!card.source || card.ended) {
-          card.source?.close();
-          card.source = null;
-          card.ended = false;
-          connect(card);
-        }
-      } else if (card.source) {
+      if (card.target) {
+        card.target.textContent = fill(t('phaseValue'), {value: stateLabel(task.phase || 'unknown')});
+      }
+      // Re-arm a stream that was closed during a draft/terminal replay. Also
+      // replay once when a task changes phase, so a fast draft→start→failed
+      // transition cannot leave the card without its journal rows.
+      if (!card.source && (card.live || phaseChanged)) {
+        card.ended = false;
+        connect(card);
+      } else if (!card.live && card.source) {
         card.source.close();
         card.source = null;
         card.ended = true;
+        card.status.textContent = stateLabel(task.phase);
+        card.logStatus.textContent = stateLabel(task.phase);
+      } else if (!card.source) {
+        // No stream (terminal/draft): keep the overview phase current without
+        // reconnecting a task that already completed its replay.
         card.status.textContent = stateLabel(task.phase);
         card.logStatus.textContent = stateLabel(task.phase);
       }
