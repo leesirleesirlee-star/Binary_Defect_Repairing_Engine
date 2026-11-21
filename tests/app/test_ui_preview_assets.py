@@ -63,12 +63,20 @@ class PreviewAssetsTest(unittest.TestCase):
         for path in ("chat/guided.css", "chat/guided-intake.mjs"):
             self.assert_local_file(UI_ROOT, path)
         page = (UI_ROOT / "chat/index.html").read_text(encoding="utf-8")
-        self.assertIn("guided-intake.mjs", page)
+        self.assertNotIn("src=\"chat/guided-intake.mjs", page)
+        self.assertIn("inline-host.mjs", page)
     def test_s3_event_console_assets_are_present(self):
         for path in ("chat/events.css", "chat/event-console.mjs"):
             self.assert_local_file(UI_ROOT, path)
         page = (UI_ROOT / "chat/index.html").read_text(encoding="utf-8")
         self.assertIn("events.css", page)
+
+    def test_inline_execution_host_assets_are_present(self):
+        for path in ("chat/inline-host.css", "chat/inline-host.mjs"):
+            self.assert_local_file(UI_ROOT, path)
+        page = (UI_ROOT / "chat/index.html").read_text(encoding="utf-8")
+        self.assertIn("inline-host.css", page)
+        self.assertIn("inline-host.mjs", page)
     def test_s6_archive_bridge_assets_are_present(self):
         for path in ("workbench/archive-bridge.css", "workbench/archive-bridge.mjs"):
             self.assert_local_file(UI_ROOT, path)

@@ -25,6 +25,7 @@ verdict or success. The GUI never imports pipeline modules.
 
 ## UI
 
-The chat hero card has `S3 事件流`; it creates a preview task and renders the SSE
-timeline (plan steps, corpus, commands, changes, checks, audit table, error,
-run_end) with raw records available under each row.
+After Start, the existing S3 event dialog is moved inline into the execution
+pane as well; it renders the SSE timeline (plan steps, corpus, commands,
+changes, checks, audit table, error, run_end) plus real analysis, artifact
+downloads and persisted evidence. The main chat hero has no S3 launch icon.

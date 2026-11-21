@@ -4,8 +4,10 @@ Status: implemented on `m2/gui-console-s1` (S1+S2), 2026-11-20.
 
 ## Surface
 
-The chat hero gains a small `S2 · 冻结样例已就绪` card. It opens a read-only
-review dialog with:
+The S2 review is rendered inline in the existing right-side execution pane,
+not in a modal. `chat/inline-host.mjs` moves the existing guided dialog into
+`#execution-pane .execution-scroll`; the main chat hero no longer shows the two
+launch icons. The inline review contains:
 
 - frozen binary identity (`vuln.elf`, SHA-256, size, ELF facts, entry, reserved R-X tail)
 - defect description, five normal inputs, invalid inputs, and the crash/PoC input
@@ -15,8 +17,8 @@ review dialog with:
 - approval binding `{revision, contract_sha256, corpus_sha256, binary_sha256}`
 - approve / deny, plus an explicit frozen-contract edit attempt that returns 409
 
-Start remains disabled: the S3 runner does not exist yet. The dialog never shows a
-verdict, pass rate or success label.
+Start is disabled until approval, then starts the real runner. The review never
+shows a verdict, pass rate or success label.
 
 ## API slice
 

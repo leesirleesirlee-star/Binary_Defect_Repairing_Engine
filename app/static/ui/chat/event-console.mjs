@@ -179,7 +179,7 @@ export async function openEventConsole({taskId = null} = {}) {
   const dialog = el('dialog', {class: 'ev-dialog', 'aria-label': 'S3 事件流'},
     el('header', {class: 'ev-head'},
       el('div', {}, el('h2', {}, 'S3 · 事件流'),
-        el('p', {}, '只渲染事件日志；合成预览不产生成功结论。')),
+        el('p', {}, '只渲染事件日志；不推断成功或结论。')),
       el('button', {type: 'button', class: 'button icon-only subtle', 'aria-label': '关闭'}, icon('x', 17))));
   const close = dialog.querySelector('header button');
   const body = el('div', {class: 'ev-body'});
