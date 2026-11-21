@@ -1,31 +1,31 @@
 {
   "run_index": 3,
   "schema_valid": true,
-  "plan_sha256": "1396883ae2be678070a5bc5756a5a8b559307a84f1d594e418ee52aa3e6f419c",
+  "plan_sha256": "c5f2f1b361dd75f00622640903ec56e1c9a197665f2ef58353e0ee6c65895a7e",
   "plan": {
     "schema_version": 1,
-    "plan_id": "guard-stub-bounded-strcpy-1",
-    "fixture_id": "handle-strcpy-cwe121",
-    "contract_sha256": "705ab9290094218af7164fb6415cde14bd800b040d52f3fc1e9d1b766b3d9c26",
+    "plan_id": "plan-c5f2f1b361dd",
+    "fixture_id": "stack-overflow-01",
+    "contract_sha256": "856b6ad2dabf69b705836f3a7c6466b534034cb1a4770a43f3fb596a11ce578c",
     "model": {
-      "provider": "unknown",
-      "name": "assistant",
-      "prompt_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "provider": "deepseek",
+      "name": "deepseek-v4-pro",
+      "prompt_sha256": "fb85f91c5b66f048820b3e6cc0eb2ad536c5fea1643ca155e8e0a5c9708fe407"
     },
     "diagnosis": {
       "function": "handle",
       "address": "0x401194",
       "instruction": "call 0x401060",
       "cwe": "CWE-121",
-      "confidence": 0.98,
+      "confidence": 0.99,
       "evidence": [
-        "At 0x401182 handle stores argv[1] at [rbp-0x28].",
-        "At 0x40118a-0x401191 handle sets rdi to rbp-0x20, a 32-byte stack buffer, and rsi to argv[1].",
-        "At 0x401194 handle calls strcpy@plt with no length check.",
-        "Provide 64 'A' bytes overwrites the saved frame and the observed proof-of-concept terminates with SIGSEGV."
+        "At 0x40118a, rax = rbp-0x20, a 32-byte stack buffer.",
+        "At 0x401194, call 0x401060 invokes strcpy with rdi = rbp-0x20 and rsi = source argument.",
+        "The disassembly shows no length check before the strcpy call.",
+        "The proof-of-concept input of 64 bytes causes SIGSEGV, consistent with saved frame overwrite."
       ]
     },
-    "root_cause": "handle copies argv[1] into a 32-byte stack buffer with an unbounded strcpy, allowing an attacker-controlled write past buf[31].",
+    "root_cause": "The unbounded strcpy at 0x401194 copies attacker-controlled source bytes into the 32-byte stack buffer at rbp-0x20. Strings of 32 or more non-NUL bytes overflow the buffer and corrupt the saved frame.",
     "strategy": "trampoline_guard",
     "edits": [
       {
@@ -34,89 +34,90 @@
         "original_bytes": "e8 c7 fe ff ff",
         "new_bytes": "e8 87 00 00 00",
         "target": "0x401220",
-        "reason": "Replace the direct call to strcpy@plt with a 5-byte relative call to a guard stub in the existing R-X unused tail."
+        "reason": "Replace the unbounded strcpy call with a direct call to a new guard stub in the R-X tail."
       },
       {
-        "kind": "guard_stub",
+        "kind": "code",
         "address": "0x401220",
         "original_bytes": "",
-        "new_bytes": "48 89 f2 31 c9 83 f9 20 73 1a 8a 04 0a 84 c0 74 0c 3c 20 72 0f 3c 7e 77 0b ff c1 eb e8 fc f3 a4 c6 07 00 c3 b8 01 00 00 00 bf 02 00 00 00 48 8d 35 1b 00 00 00 ba 2a 00 00 00 0f 05 b8 3c 00 00 00 bf 01 00 00 00 0f 05",
-        "target": "0x401220",
-        "reason": "Guard stub scans argv[1] for printable ASCII length 0..31, copies it with rep movsb, NUL-terminates within buf[31], or writes invalid_stderr and exits if the input is invalid."
+        "new_bytes": "31 c9 80 3c 0e 00 74 2d 48 ff c1 48 83 f9 20 72 f1 b8 01 00 00 00 bf 02 00 00 00 48 8d 35 1e 00 00 00 ba 2a 00 00 00 0f 05 b8 3c 00 00 00 bf 01 00 00 00 0f 05 fc f3 a4 31 c0 aa c3",
+        "reason": "Guard stub: count source bytes up to 32; if 32 non-NUL bytes are seen, write invalid_stderr to fd 2 and exit(1); otherwise copy the counted bytes, NUL-terminate, and return."
       },
       {
         "kind": "data",
-        "address": "0x401270",
+        "address": "0x401260",
         "original_bytes": "",
         "new_bytes": "45 52 52 4f 52 3a 20 69 6e 70 75 74 20 65 78 63 65 65 64 73 20 64 65 73 74 69 6e 61 74 69 6f 6e 20 63 61 70 61 63 69 74 79 0a",
-        "target": "0x401270",
-        "reason": "Invalid_stderr message bytes used by the guard stub's write(2, ...) path."
+        "reason": "Exact invalid_stderr bytes, referenced RIP-relative by the guard stub."
       }
     ],
     "stub": {
       "language": "asm",
-      "source": "mov rdx, rsi\nxor ecx, ecx\nscan:\ncmp ecx, 0x20\njae invalid\nmov al, [rdx+rcx]\ntest al, al\nje valid\ncmp al, 0x20\njb invalid\ncmp al, 0x7e\nja invalid\ninc ecx\njmp scan\nvalid:\ncld\nrep movsb\nmov byte [rdi], 0\nret\ninvalid:\nmov eax, 1\nmov edi, 2\nlea rsi, [rip + invalid_stderr]\nmov edx, 42\nsyscall\nmov eax, 60\nmov edi, 1\nsyscall\ninvalid_stderr: .byte \"ERROR: input exceeds destination capacity\\n\"",
-      "estimated_size_bytes": 72
+      "source": "guard_stub:\n  xor ecx, ecx\n.loop:\n  cmp byte ptr [rsi+rcx], 0\n  je .copy\n  inc rcx\n  cmp rcx, 32\n  jb .loop\n.invalid:\n  mov eax, 1          ; syscall write\n  mov edi, 2          ; fd = stderr\n  lea rsi, [rip+error_msg]\n  mov edx, 42         ; length of invalid_stderr\n  syscall\n  mov eax, 60         ; syscall exit\n  mov edi, 1          ; status = 1\n  syscall\n.copy:\n  cld\n  rep movsb\n  xor eax, eax\n  stosb\n  ret\nerror_msg:\n  .byte \"ERROR: input exceeds destination capacity\\n\"",
+      "estimated_size_bytes": 60
     },
-    "valid_path": "The redirected call enters the guard stub with rdi=buf and rsi=argv[1]. The stub scans the string, validates that every byte before the NUL is printable ASCII and that the length is <=31, copies the bytes with rep movsb, stores a terminating NUL at buf[len] where len<=31, and returns to 0x401199. The existing puts call then writes the buffer followed by a single LF; main returns 0.",
-    "invalid_path": "If the input length exceeds 31 or any byte before the NUL is outside printable ASCII, the guard stub jumps to invalid, writes exactly the 42 bytes of invalid_stderr to fd 2 with a write syscall, then exits with status 1 via an exit syscall. It does not return to handle, does not write to stdout, and does not overflow the buffer.",
+    "valid_path": "When the source string length is 0..31, the guard stub copies exactly that many bytes plus a terminating NUL into the 32-byte buffer and returns. The original handle code then reloads rbp-0x20 and calls puts, producing the input followed by a single LF on stdout and exiting 0 from main.",
+    "invalid_path": "When the source has 32 or more non-NUL bytes before a NUL, the guard stub performs syscall write(2, error_msg, 42) and syscall exit(1) directly, writing only the exact invalid_stderr bytes to fd 2 and never returning to handle or writing to stdout.",
     "stated_criteria_coverage": [
       {
-        "criterion": "capacity_bytes 32 / capacity_includes_terminator true",
-        "how": "The guard copies at most 31 data bytes and writes the NUL terminator at buf[len], so the maximum end is buf[31]."
+        "criterion": "capacity_bytes = 32, capacity_includes_terminator = true",
+        "how": "The guard stub permits at most 31 source bytes plus the NUL terminator, so the last written byte is buf[31]."
       },
       {
-        "criterion": "max_valid_input_bytes 31",
-        "how": "The scan checks ecx >= 32 before reading/copying; length 32 or more jumps to invalid."
+        "criterion": "max_valid_input_bytes = 31",
+        "how": "The guard loop treats 32 consecutive non-NUL source bytes as invalid, so only lengths 0..31 reach the copy path."
       },
       {
-        "criterion": "valid_domain printable ASCII, length 0..31, no NUL",
-        "how": "The scan rejects bytes <0x20 or >0x7e, stops at the NUL terminator, and enforces length <=31."
+        "criterion": "valid_domain = printable ASCII, length 0..31, no NUL",
+        "how": "The length guard ensures the copy path is used for NUL-terminated source strings of length at most 31; the exact ASCII content is preserved by rep movsb."
       },
       {
-        "criterion": "valid_behavior write input followed by single LF to stdout, exit 0",
-        "how": "After bounded copy and return, the original puts call writes the copied string plus LF; main sets exit code 0."
+        "criterion": "valid_behavior = write input followed by a single LF to stdout; exit 0",
+        "how": "After the stub returns, the existing handle code calls puts on the copied buffer, and main returns 0."
       },
       {
-        "criterion": "forbidden_behavior no write past buf[31], including NUL",
-        "how": "All writes are bounded: rep movsb writes exactly len<=31 bytes, and mov byte [rdi],0 writes at buf[len]."
+        "criterion": "forbidden_behavior = any write past buf[31], including the terminating NUL",
+        "how": "The maximum copied length is 31 bytes plus NUL at buf[31]; no write beyond buf[31] occurs on the valid path."
       },
       {
-        "criterion": "invalid_response write invalid_stderr to fd 2, exit 1, no stdout, no crash",
-        "how": "The invalid path uses write(2, invalid_stderr, 42) and exit(1); it never returns to puts and performs no stdout write."
+        "criterion": "invalid_response = write exactly invalid_stderr to fd 2; exit 1; write nothing to stdout; do not crash",
+        "how": "The invalid path uses write(2, error_msg, 42) and exit(1) directly, never calls puts or returns to the corrupted frame."
       }
     ],
     "assumptions": [
-      "The bytes at 0x401220..0x401267 and 0x401270..0x401299 are in the existing R-X PT_LOAD segment's verified-unused tail.",
-      "argv[1] is a NUL-terminated C string accessible via rsi at handle entry.",
-      "Linux x86-64 system call numbers 1 (write) and 60 (exit) are valid, and syscall is permitted in the R-X segment.",
-      "The original call instruction at 0x401194 is exactly 5 bytes, so the redirect does not change following instruction addresses."
+      "The R-X segment tail beginning at 0x401220 is unused and can receive the requested code and data.",
+      "The target is x86-64 Linux with system call numbers write=1 and exit=60.",
+      "The original bytes of the tail are not shown in the disassembly, so their exact previous values are treated as unconstrained and represented by empty original_bytes.",
+      "The patching tool will apply the redirect and insert code/data without changing segment permissions."
     ],
     "uncertainties": [
-      "This is a static repair proposal; no dynamic test has been executed.",
-      "The diagnostic hypothesis was confirmed by disassembly only, not by running the binary.",
-      "The unused tail bytes were assumed to be truly unused based on the provided section table and segment layout."
+      "A separate contract SHA-256 was not supplied; the provided binary SHA-256 is used in contract_sha256 as a placeholder.",
+      "The prompt SHA-256 is not known, so a zero hash is used in model.prompt_sha256.",
+      "The disassembly does not show the verified-unused tail bytes, so the exact original bytes at 0x401220 and 0x401260 could not be read from the view.",
+      "If CET/IBT is enforced, direct control transfer to the new stub without an endbr64 instruction may be rejected; the provided view and contract do not state CET requirements."
     ],
     "verification_proposal": [
-      "Run with 31 ASCII 'A' bytes; expect stdout exactly 31 bytes plus LF and exit code 0.",
-      "Run with 32 ASCII 'A' bytes; expect stdout empty, fd 2 exactly 'ERROR: input exceeds destination capacity\\n', and exit code 1.",
-      "Run with an input containing byte 0x01 or 0x7f; expect stderr and exit 1 with no SIGSEGV.",
-      "Trace the guard stub writes and confirm that no write occurs past rbp-1 for any tested length."
+      "Run the patched binary with a 31-byte printable ASCII argv[1] and assert stdout equals exactly that input plus LF, stderr is empty, and exit code is 0.",
+      "Run with 32-byte and 64-byte 'A' inputs and assert stdout is empty, stderr is exactly the invalid_stderr bytes, exit code is 1, and no SIGSEGV occurs.",
+      "Disassemble the redirected call and the new stub to confirm the call target is 0x401220 and the stub code size is within the 256-byte allowance.",
+      "Exercise boundary lengths 0, 1, 30, 31, 32, 33, 64 to confirm the valid/invalid cutoff and absence of overwrites."
     ]
   },
   "model": "deepseek-v4-pro",
   "usage": {
     "prompt_tokens": 6009,
-    "completion_tokens": 21487,
-    "total_tokens": 27496,
+    "completion_tokens": 14827,
+    "total_tokens": 20836,
     "prompt_tokens_details": {
       "cached_tokens": 5888
     },
     "completion_tokens_details": {
-      "reasoning_tokens": 19535
+      "reasoning_tokens": 12831
     },
     "prompt_cache_hit_tokens": 5888,
     "prompt_cache_miss_tokens": 121
   },
-  "prompt_sha256": "fb85f91c5b66f048820b3e6cc0eb2ad536c5fea1643ca155e8e0a5c9708fe407"
+  "prompt_sha256": "fb85f91c5b66f048820b3e6cc0eb2ad536c5fea1643ca155e8e0a5c9708fe407",
+  "raw": "{\n  \"schema_version\": 1,\n  \"plan_id\": \"plan-cwe121-handle-guard-v1\",\n  \"fixture_id\": \"cwe121-handle\",\n  \"contract_sha256\": \"705ab9290094218af7164fb6415cde14bd800b040d52f3fc1e9d1b766b3d9c26\",\n  \"model\": {\n    \"provider\": \"unknown\",\n    \"name\": \"binary-security-assistant\",\n    \"prompt_sha256\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n  },\n  \"diagnosis\": {\n    \"function\": \"handle\",\n    \"address\": \"0x401194\",\n    \"instruction\": \"call 0x401060\",\n    \"cwe\": \"CWE-121\",\n    \"confidence\": 0.99,\n    \"evidence\": [\n      \"At 0x40118a, rax = rbp-0x20, a 32-byte stack buffer.\",\n      \"At 0x401194, call 0x401060 invokes strcpy with rdi = rbp-0x20 and rsi = source argument.\",\n      \"The disassembly shows no length check before the strcpy call.\",\n      \"The proof-of-concept input of 64 bytes causes SIGSEGV, consistent with saved frame overwrite.\"\n    ]\n  },\n  \"root_cause\": \"The unbounded strcpy at 0x401194 copies attacker-controlled source bytes into the 32-byte stack buffer at rbp-0x20. Strings of 32 or more non-NUL bytes overflow the buffer and corrupt the saved frame.\",\n  \"strategy\": \"trampoline_guard\",\n  \"edits\": [\n    {\n      \"kind\": \"redirect_call\",\n      \"address\": \"0x401194\",\n      \"original_bytes\": \"e8 c7 fe ff ff\",\n      \"new_bytes\": \"e8 87 00 00 00\",\n      \"target\": \"0x401220\",\n      \"reason\": \"Replace the unbounded strcpy call with a direct call to a new guard stub in the R-X tail.\"\n    },\n    {\n      \"kind\": \"code\",\n      \"address\": \"0x401220\",\n      \"original_bytes\": \"\",\n      \"new_bytes\": \"31 c9 80 3c 0e 00 74 2d 48 ff c1 48 83 f9 20 72 f1 b8 01 00 00 00 bf 02 00 00 00 48 8d 35 1e 00 00 00 ba 2a 00 00 00 0f 05 b8 3c 00 00 00 bf 01 00 00 00 0f 05 fc f3 a4 31 c0 aa c3\",\n      \"reason\": \"Guard stub: count source bytes up to 32; if 32 non-NUL bytes are seen, write invalid_stderr to fd 2 and exit(1); otherwise copy the counted bytes, NUL-terminate, and return.\"\n    },\n    {\n      \"kind\": \"data\",\n      \"address\": \"0x401260\",\n      \"original_bytes\": \"\",\n      \"new_bytes\": \"45 52 52 4f 52 3a 20 69 6e 70 75 74 20 65 78 63 65 65 64 73 20 64 65 73 74 69 6e 61 74 69 6f 6e 20 63 61 70 61 63 69 74 79 0a\",\n      \"reason\": \"Exact invalid_stderr bytes, referenced RIP-relative by the guard stub.\"\n    }\n  ],\n  \"stub\": {\n    \"language\": \"asm\",\n    \"source\": \"guard_stub:\\n  xor ecx, ecx\\n.loop:\\n  cmp byte ptr [rsi+rcx], 0\\n  je .copy\\n  inc rcx\\n  cmp rcx, 32\\n  jb .loop\\n.invalid:\\n  mov eax, 1          ; syscall write\\n  mov edi, 2          ; fd = stderr\\n  lea rsi, [rip+error_msg]\\n  mov edx, 42         ; length of invalid_stderr\\n  syscall\\n  mov eax, 60         ; syscall exit\\n  mov edi, 1          ; status = 1\\n  syscall\\n.copy:\\n  cld\\n  rep movsb\\n  xor eax, eax\\n  stosb\\n  ret\\nerror_msg:\\n  .byte \\\"ERROR: input exceeds destination capacity\\\\n\\\"\",\n    \"estimated_size_bytes\": 60\n  },\n  \"valid_path\": \"When the source string length is 0..31, the guard stub copies exactly that many bytes plus a terminating NUL into the 32-byte buffer and returns. The original handle code then reloads rbp-0x20 and calls puts, producing the input followed by a single LF on stdout and exiting 0 from main.\",\n  \"invalid_path\": \"When the source has 32 or more non-NUL bytes before a NUL, the guard stub performs syscall write(2, error_msg, 42) and syscall exit(1) directly, writing only the exact invalid_stderr bytes to fd 2 and never returning to handle or writing to stdout.\",\n  \"stated_criteria_coverage\": [\n    {\n      \"criterion\": \"capacity_bytes = 32, capacity_includes_terminator = true\",\n      \"how\": \"The guard stub permits at most 31 source bytes plus the NUL terminator, so the last written byte is buf[31].\"\n    },\n    {\n      \"criterion\": \"max_valid_input_bytes = 31\",\n      \"how\": \"The guard loop treats 32 consecutive non-NUL source bytes as invalid, so only lengths 0..31 reach the copy path.\"\n    },\n    {\n      \"criterion\": \"valid_domain = printable ASCII, length 0..31, no NUL\",\n      \"how\": \"The length guard ensures the copy path is used for NUL-terminated source strings of length at most 31; the exact ASCII content is preserved by rep movsb.\"\n    },\n    {\n      \"criterion\": \"valid_behavior = write input followed by a single LF to stdout; exit 0\",\n      \"how\": \"After the stub returns, the existing handle code calls puts on the copied buffer, and main returns 0.\"\n    },\n    {\n      \"criterion\": \"forbidden_behavior = any write past buf[31], including the terminating NUL\",\n      \"how\": \"The maximum copied length is 31 bytes plus NUL at buf[31]; no write beyond buf[31] occurs on the valid path.\"\n    },\n    {\n      \"criterion\": \"invalid_response = write exactly invalid_stderr to fd 2; exit 1; write nothing to stdout; do not crash\",\n      \"how\": \"The invalid path uses write(2, error_msg, 42) and exit(1) directly, never calls puts or returns to the corrupted frame.\"\n    }\n  ],\n  \"assumptions\": [\n    \"The R-X segment tail beginning at 0x401220 is unused and can receive the requested code and data.\",\n    \"The target is x86-64 Linux with system call numbers write=1 and exit=60.\",\n    \"The original bytes of the tail are not shown in the disassembly, so their exact previous values are treated as unconstrained and represented by empty original_bytes.\",\n    \"The patching tool will apply the redirect and insert code/data without changing segment permissions.\"\n  ],\n  \"uncertainties\": [\n    \"A separate contract SHA-256 was not supplied; the provided binary SHA-256 is used in contract_sha256 as a placeholder.\",\n    \"The prompt SHA-256 is not known, so a zero hash is used in model.prompt_sha256.\",\n    \"The disassembly does not show the verified-unused tail bytes, so the exact original bytes at 0x401220 and 0x401260 could not be read from the view.\",\n    \"If CET/IBT is enforced, direct control transfer to the new stub without an endbr64 instruction may be rejected; the provided view and contract do not state CET requirements.\"\n  ],\n  \"verification_proposal\": [\n    \"Run the patched binary with a 31-byte printable ASCII argv[1] and assert stdout equals exactly that input plus LF, stderr is empty, and exit code is 0.\",\n    \"Run with 32-byte and 64-byte 'A' inputs and assert stdout is empty, stderr is exactly the invalid_stderr bytes, exit code is 1, and no SIGSEGV occurs.\",\n    \"Disassemble the redirected call and the new stub to confirm the call target is 0x401220 and the stub code size is within the 256-byte allowance.\",\n    \"Exercise boundary lengths 0, 1, 30, 31, 32, 33, 64 to confirm the valid/invalid cutoff and absence of overwrites.\"\n  ]\n}",
+  "error": null
 }
