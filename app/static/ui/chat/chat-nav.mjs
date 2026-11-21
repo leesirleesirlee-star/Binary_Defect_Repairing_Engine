@@ -1,6 +1,15 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
+import {settingsCopy} from '../shared/settings-copy.mjs?v=20261121z';
 import {control, displayTitle} from './chat-view.mjs?v=20261121m';
+
+function settingsLabel(key) {
+  let stored = null;
+  try { stored = localStorage.getItem('binaryrepair.chat.language'); } catch { /* storage may be unavailable */ }
+  const candidates = [document.documentElement.lang, stored, 'en'];
+  const locale = candidates.find(code => typeof code === 'string' && settingsCopy[code]) || 'en';
+  return settingsCopy[locale]?.[key] ?? settingsCopy.en?.[key] ?? key;
+}
 
 export function appMark(className) {
   return el('span', {class: className, 'aria-hidden': 'true'},
@@ -25,11 +34,15 @@ export function sidebar({t, list, mobile, conversation, newChat, search, setting
       navButton('new', 'plus', newChat, 'new-chat'),
       navButton('search', 'search', search, 'search-button')),
     el('nav', {'aria-label': t('chats')}, el('div', {class: 'source-label'}, t('recent')), list),
-    el('footer', {}, (() => {
-      const entry = navButton('settings', 'settings', settings, 'settings-entry');
-      entry.dataset.settingsTrigger = 'true';
-      return entry;
-    })()));
+    el('footer', {},
+      el('a', {class: 'control nav-control legacy-entry', href: '/legacy',
+        title: settingsLabel('aboutLegacy'), 'aria-label': settingsLabel('aboutLegacy')},
+      icon('layers', 17), el('span', {}, settingsLabel('aboutLegacy'))),
+      (() => {
+        const entry = navButton('settings', 'settings', settings, 'settings-entry');
+        entry.dataset.settingsTrigger = 'true';
+        return entry;
+      })()));
   return {body, toggle};
 }
 

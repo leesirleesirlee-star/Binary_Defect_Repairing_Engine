@@ -4,7 +4,7 @@ import {el} from './dom.mjs?v=20261120au';
 import {icon} from './icons.mjs?v=20261120au';
 import {LANGUAGES} from './languages.mjs?v=20261120au';
 import {modelPicker} from './model-picker.mjs?v=20261120au';
-import {settingsCopy} from './settings-copy.mjs?v=20261120au';
+import {settingsCopy} from './settings-copy.mjs?v=20261121z';
 import {
   getSetting, getSettings, importSettings, resetSettings, setSetting,
 } from './settings-preferences.mjs?v=20261120au';
@@ -324,7 +324,7 @@ export function openSettingsDialog(adapter = {}) {
       row(t('aboutModel'), null, model),
       el('div', {class: 'settings-links'},
         el('a', {class: 'settings-button', href: '/welcome'}, t('aboutWelcome')),
-        el('a', {class: 'settings-button', href: '/guide'}, t('aboutGuide')),
+        el('a', {class: 'settings-button', href: '/legacy'}, t('aboutLegacy')),
         el('a', {class: 'settings-button', href: '/ui/chat/'}, t('aboutConversation')),
         el('a', {class: 'settings-button', href: '/ui/'}, t('aboutArchive'))),
       el('div', {class: 'settings-actions'}, copy),

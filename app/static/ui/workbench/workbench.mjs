@@ -9,8 +9,8 @@ import {pageSlideActive} from '../shared/page-slide.mjs?v=20261120au';
 import {motionReduced} from '../shared/motion.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSidebarSpring} from '../chat/chat-spring.mjs?v=20261120au';
-import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261120au';
-import {createDialog, languageDialog, searchDialog, settingsDialog, shell, tasksView} from './views.mjs?v=20261120au';
+import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261121z';
+import {createDialog, languageDialog, searchDialog, settingsDialog, shell, tasksView} from './views.mjs?v=20261121z';
 
 // The archive opens on its synthetic fixture immediately. The legacy live API
 // remains available explicitly with ?live=1, but the archive must never present

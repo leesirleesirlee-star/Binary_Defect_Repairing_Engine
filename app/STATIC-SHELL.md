@@ -32,3 +32,21 @@ imports pipeline modules.
 See [`docs/interfaces/gui-events-v1.md`](../docs/interfaces/gui-events-v1.md),
 [`docs/gui/s3-api-events.md`](../docs/gui/s3-api-events.md) and
 [`docs/gui/s2-guided-intake.md`](../docs/gui/s2-guided-intake.md).
+
+## Reference v1.2.2 GUI (switchable)
+
+The reference GUI can run beside this console and is reachable at any time from
+`/legacy` (welcome header, welcome shortcuts, chat rail footer and Settings →
+About). Start it once in another terminal:
+
+```bash
+./scripts/start-legacy-gui.sh    # http://127.0.0.1:8125, shares this console's session token
+```
+
+- `BINARYREPAIR_LEGACY_DIR` points at the reference checkout (default: the
+  Desktop copy), `BINARYREPAIR_LEGACY_PORT` changes the port.
+- `BINARYREPAIR_LEGACY_URL` tells the console where the reference GUI listens;
+  both apps share the same `br_session` token so the session survives the switch.
+- The reference app links back to `/welcome` from its top nav, sidebar and a
+  floating button. If it is not running, `/legacy` renders a short page with the
+  start command instead of a dead redirect.
