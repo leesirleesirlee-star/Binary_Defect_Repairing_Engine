@@ -11,12 +11,12 @@
 #   BINARYREPAIR_LEGACY_PORT=8125 ./scripts/start-legacy-gui.sh
 #
 # Environment:
-#   BINARYREPAIR_LEGACY_DIR   reference GUI checkout (default: Desktop/…/binary-repair-gui)
+#   BINARYREPAIR_LEGACY_DIR   reference GUI checkout (default: ../binary-repair-gui)
 #   BINARYREPAIR_LEGACY_PORT  port for the reference GUI (default: 8125)
 set -eu
 
 NEW_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-LEGACY_DIR="${BINARYREPAIR_LEGACY_DIR:-$HOME/Desktop/AI驱动的二进制漏洞自动修复与正确性验证/binary-repair-gui}"
+LEGACY_DIR="${BINARYREPAIR_LEGACY_DIR:-$(cd "$NEW_ROOT/.." && pwd -P)/binary-repair-gui}"
 PORT="${BINARYREPAIR_LEGACY_PORT:-8125}"
 TOKEN_FILE="${BINARYREPAIR_SESSION_TOKEN_FILE:-$NEW_ROOT/var/session.token}"
 

@@ -25,6 +25,17 @@ separation is the point of the redesign.
 - [`docs/MIGRATION.md`](docs/MIGRATION.md) - what to import from the archive and what not to.
 - [`docs/plan/04-module-matching.md`](docs/plan/04-module-matching.md) - module registry and CI scope check.
 
+## GUI entry point (fixed URL)
+
+The browser console always opens at **<http://127.0.0.1:8124/welcome>** (archive
+at `/ui/`, conversation at `/ui/chat/`). The reference v1.2.2 GUI runs beside it
+on <http://127.0.0.1:8125/> and is reachable from the console's「旧版界面」entry
+(`/legacy`); the reference GUI links back to the new console.
+
+Double-click `打开GUI.command` (or run `./scripts/open-gui.sh`). The launcher
+checks both servers, starts whichever is missing, and opens the fixed URL in the
+default browser. Set `BINARYREPAIR_NO_BROWSER=1` to skip opening the page.
+
 ## The flow
 
 ```text
