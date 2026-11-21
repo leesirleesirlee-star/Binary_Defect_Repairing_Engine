@@ -133,77 +133,49 @@ function output(text, t, {diff = false, reveal = false, lines = null, terminal =
 }
 
 function approval(item, ctx) {
+  // Revision 2.2: the contract/case details stay hidden. The user confirms
+  // through inline chat chips; the backend still enforces the binding digest.
   const {t, chat, engine, locale} = ctx;
   const p = item.payload;
   const status = item.decision;
-  const scope = chat.reviewScopes.get(p.request_id) ?? '';
+  const complete = Boolean(chat.contract?.review_binding_digest &&
+    chat.contract?.review_binding?.original_sha256 && chat.contract?.review_binding?.test_manifest_sha256);
   if (status === 'approve') {
     const activeRun = chat.execution?.run_id && chat.execution?.terminal !== true;
     const canStart = chat.startReady && !activeRun && !chat.execution?.run_id && item === ctx.latestApproval;
-    return el('div', {class: 'approval-complete'}, icon('check', 17),
-      t('approved') + (chat.reviewer ? ' · ' + chat.reviewer : ''),
+    return el('div', {class: 'inline-actions'}, icon('check', 15),
+      el('span', {}, t('approved') + (chat.reviewer ? ' · ' + chat.reviewer : '')),
       canStart ? control(t('start'), () => engine.start(chat, locale), {tone: 'primary'}) : null);
   }
   if (status) {
     const label = status === 'deny' ? t('denied') : status === 'edit' ? t('saveReview') : t(status);
-    return el('div', {class: 'activity'}, label,
+    return el('div', {class: 'inline-actions'}, el('span', {}, label),
       status === 'deny' && engine.reopen
         ? control(t('reviewAgain'), () => engine.reopen(chat)) : null);
   }
-
-  const form = el('form', {class: 'approval-edit', hidden: chat.reviewDraft == null, onsubmit: event => {
-    event.preventDefault();
-    engine.decide(chat, p.request_id, 'edit', event.currentTarget.elements.scope.value);
-  }},
-  el('label', {}, t('field'), el('textarea', {name: 'scope', value: chat.reviewDraft ?? scope, required: true, maxlength: '1000',
-    oninput: event => { chat.reviewDraft = event.currentTarget.value; }})),
-  control(t('saveReview'), null, {type: 'submit', tone: 'primary'}));
-  const reviewer = el('input', {name: 'reviewer', class: 'reviewer-input', placeholder: t('reviewer'),
-    autocomplete: 'off', value: chat.reviewer ?? ''});
-  const complete = Boolean(chat.contract?.review_binding_digest &&
-    chat.contract?.review_binding?.original_sha256 && chat.contract?.review_binding?.test_manifest_sha256);
-  return el('section', {class: 'approval', 'aria-label': t('approval')},
-    el('div', {class: 'approval-title'}, el('span', {class: 'approval-icon'}, icon('mark', 17)),
-      el('h2', {}, t('approval')), chips(t('revision') + ' ' + p.binding.contract_revision)),
-    el('p', {class: 'scope'}, scope),
-    detail(t('reviewFields'), el('p', {}, scope), el('code', {}, p.binding.contract_sha256),
-      complete ? null : el('p', {class: 'muted'}, t('bindingMissing'))),
-    form,
-    el('label', {class: 'reviewer-field'}, t('reviewer'), reviewer),
-    complete ? null : el('p', {class: 'muted'}, t('bindingMissing')),
-    controlRow(control(t('edit'), () => {
-      form.hidden = !form.hidden;
-      if (!form.hidden) form.elements.scope.focus();
-    }),
-    control(t('deny'), () => engine.decide(chat, p.request_id, 'deny')),
+  return el('div', {class: 'inline-actions', role: 'group', 'aria-label': t('approval')},
     control(t('approve'), () => {
-      const name = reviewer.value.trim();
-      if (!name) {
-        reviewer.focus();
-        return;
-      }
-      chat.reviewer = name;
-      engine.decide(chat, p.request_id, 'approve', null, name);
-    }, {tone: 'primary', disabled: !complete})));
+      chat.reviewer = chat.reviewer || 'M2';
+      engine.decide(chat, p.request_id, 'approve', null, chat.reviewer);
+    }, {tone: 'primary', disabled: !complete}),
+    control(t('deny'), () => engine.decide(chat, p.request_id, 'deny')),
+    complete ? null : el('span', {class: 'muted'}, t('bindingMissing')));
 }
 
 function summary(item, t, chat, engine) {
-  const {payload: p, evaluation, checks} = item;
+  // One final assistant message with the verdict and the download/evidence
+  // entries; the score tables stay in the evidence bundle.
+  const {payload: p, evaluation} = item;
   const result = evaluation?.verdict?.outcome;
   const archive = chat.jobId ? el('a', {class: 'control', href: '/ui/#task/' + encodeURIComponent(chat.jobId)},
     icon('tasks', 16), t('openArchive')) : null;
   const refresh = !evaluation && chat.jobId && engine.refresh
     ? control(t('refresh'), () => engine.refresh(chat)) : null;
-  return el('section', {class: 'summary-card'},
-    el('header', {}, el('h2', {}, t('summary')), meta(seconds(p.duration_ms),
-      p.steps_taken == null ? null : ' · ' + p.steps_taken + ' ' + t('steps'))),
-    el('strong', {}, result ? t(result) : (p.execution === 'cancelled' ? t('cancelled') : t('noVerdict'))),
-    p.execution === 'failed' && !result ? el('p', {class: 'muted'}, t('reason')) : null,
-    checks.length ? detail(t('checks'), checkRows(checks, t)) : null,
-    detail(t('evidence'), el('p', {}, t('archiveHelp'))),
-    evaluation?.limitations?.length ? detail(t('details'), evaluation.limitations.map(row =>
-      el('p', {class: 'muted'}, row.code + ' — ' + row.detail))) : null,
-    el('div', {class: 'controls-row'}, archive, refresh));
+  const line = result ? t(result) : (p.execution === 'cancelled' ? t('cancelled') : t('noVerdict'));
+  return el('article', {class: 'message assistant'}, el('div', {class: 'reply-body'},
+    el('strong', {}, line),
+    p.execution === 'failed' && !result ? el('p', {}, t('reason')) : null,
+    el('div', {class: 'inline-actions'}, archive, refresh)));
 }
 
 export function renderItem(item, ctx) {
@@ -222,51 +194,28 @@ export function renderItem(item, ctx) {
     case 'assistant_delta':
       return el('article', {class: 'message assistant', 'aria-label': t('assistant')},
         el('div', {class: 'reply-body'}, item.text, !item.finished ? el('span', {class: 'caret', 'aria-hidden': 'true'}) : null));
-    case 'thinking': {
-      const thinking = p.phase === 'started' && !item.ended;
-      return card('thinking', t(thinking || item.ended ? 'think' : p.summary_code),
-        item.ended ?? (thinking ? 'in_progress' : 'completed'),
-        thinking ? el('span', {'data-elapsed': ts}, '0 s') : p.duration_ms,
-        el('p', {}, t(item.ended ?? (thinking ? 'thoughtDetail' : p.summary_code))));
+    case 'thinking':
+      // Revision 2.2: progress lives in the right-side panels; the chat column
+      // keeps conversation text only.
+      return null;
+    case 'plan_update': {
+      const steps = p.steps || [];
+      const done = steps.filter(step => step.status === 'completed').length;
+      return el('p', {class: 'inline-note'}, t('stepCount') + ' ' + done + ' / ' + steps.length);
     }
-    case 'plan_update':
-      return card('layers', t('plan'), null, p.steps.filter(step => step.status === 'completed').length + ' / ' + p.steps.length,
-      el('ol', {class: 'plan'}, p.steps.map(step =>
-        el('li', {}, icon(step.status === 'completed' ? 'check' : step.status === 'failed' ? 'x' :
-          step.status === 'skipped' ? 'slash' : step.status === 'in_progress' ? 'clock' : 'circle', 16),
-        t(step.label_code), chips(t(step.status), step.status)))));
     case 'tool_call':
-      return card(p.tool_code === 'read_contract_metadata' ? 'file' : 'tool', t(p.label_code),
-        item.result?.status ?? item.ended ?? 'in_progress', item.result?.duration_ms,
-        el('p', {class: 'muted'}, p.input_summary), el('code', {}, p.tool_code),
-      item.result ? output(item.result.output.text, t) : null);
     case 'file_change':
-      return card('edit', t(p.stage) + (p.files.length === 1 ? ' · ' + p.files[0].display_path : ''),
-        p.stage, null, p.files.map(file =>
-        el('div', {class: 'file-diff'}, el('div', {class: 'diff-heading'}, el('code', {}, file.display_path),
-          el('span', {class: 'addition'}, '+' + file.added), el('span', {class: 'removal'}, '−' + file.removed)),
-        output(file.diff.text, t, {diff: true}))));
-    case 'command': {
-      const command = item.command;
-      const state = command.phase !== 'finished' ? item.ended ?? 'in_progress' :
-        command.exit_code == null ? 'unknown' : command.exit_code === 0 ? 'completed' : 'failed';
-      return card('terminal', t(command.label_code), state, command.duration_ms,
-      el('p', {class: 'muted'}, t('cwd') + ' ', el('code', {}, command.display_cwd),
-        command.exit_code == null ? null : ' · ' + t('exit') + ' ' + command.exit_code),
-      command.output ? output(command.output, t, {terminal: true, lines: command.lines,
-        reveal: command.output.length > 310}) : null);
-    }
-    case 'awaiting_user': return approval(item, ctx);
+    case 'command':
     case 'verification':
-      return card('checkCircle', t('verifyActivity'),
-        item.checks.length && item.checks.every(check => check.status === 'not_run') ? 'not_run' : null,
-        null, checkRows(item.checks, t),
-        item.evaluation ? el('p', {}, item.evaluation.verdict?.outcome ?? t('noVerdict')) : null);
+      // Tool, command, file-change and verification rows stay in the event log
+      // and the evidence bundle; they never render as chat cards.
+      return null;
+    case 'awaiting_user': return approval(item, ctx);
     case 'error':
-      return card('info', t('error'), 'failed', null,
-        el('div', {class: 'error-action'}, t('reason'), p.retry.kind === 'manual' && chat.phase === 'failed' && chat.run === item.run_id ?
-          control(t('retry'), () => engine.start(chat, locale, true)) : null),
-        detail(t('details'), el('code', {}, p.code + ' · ' + p.correlation_id)));
+      return el('p', {class: 'inline-error'}, icon('info', 14), t('error') + ' · ',
+        el('code', {}, p.code),
+        p.retry.kind === 'manual' && chat.phase === 'failed' && chat.run === item.run_id
+          ? control(t('retry'), () => engine.start(chat, locale, true)) : null);
     case 'run_end': return summary(item, t, chat, engine);
   }
 }

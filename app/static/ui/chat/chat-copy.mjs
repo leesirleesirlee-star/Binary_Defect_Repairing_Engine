@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261121n';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261122b';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -7,12 +7,12 @@ const copy = {
   openNav: ['Open conversations', '打开对话列表'], close: ['Close', '关闭'],
   pinSidebar: ['Pin sidebar open', '固定展开侧栏'],
   conversation: ['Conversation', '对话'],
-  execution: ['Execution', '执行详情'],
+  execution: ['Run monitor', '运行监视'],
   activity: ['Event log', '事件日志'],
   noActivity: ['Run activity will appear here.', '运行活动将在此显示。'],
   phase: ['Phase', '阶段'], stepCount: ['Steps', '步骤'], elapsed: ['Elapsed', '耗时'],
   eventCount: [count => count === 1 ? '1 event' : count + ' events', count => count + ' 个事件'],
-  executionOverview: ['Run overview', '运行概览'], verifyActivity: ['Verification', '验证'],
+  executionOverview: ['Repair run monitor', '修复运行监视'], verifyActivity: ['Verification', '验证'],
   scopePending: ['Approve a contract to define the repair scope.', '批准契约后确定修复范围。'],
   staleReview: ['The saved contract changed. Review the latest version and your unsaved edit before saving again.', '已保存的契约发生变化。请核对最新版本和未保存的编辑，再决定是否保存。'],
   routeNoReason: ['No route note recorded.', '暂无路线说明。'],
@@ -44,7 +44,7 @@ const copy = {
   keyReadFailed: ["Could not read the key status.", "无法读取密钥状态。"],
   previewModel: ["Used when testing the provider connection.", "用于测试服务提供者连接。"],
   managedModel: ['Provider default', '服务默认模型'],
-  preview: ['Synthetic preview', '合成演示'],
+  preview: ['Deterministic assistant', '确定性助手'],
   empty: ['Start a repair', '开始修复'],
   help: ['Describe the defect or try a sample.', '描述缺陷，或试用示例。'],
   sample: ['Review a sample contract', '审阅示例契约'],

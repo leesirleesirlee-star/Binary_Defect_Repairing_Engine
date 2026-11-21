@@ -485,3 +485,19 @@ details.disclosure > summary > svg { transition: transform 320ms var(--ios-ease,
   details.disclosure > summary > svg,
   .chat-header .mobile-only svg { transition: none; }
 }
+
+
+/* Revision 2.2: the chat column stays conversation-only. Progress rows and
+   contract details render as inline chips, never as cards. */
+.inline-note, .inline-error, .inline-actions { margin: .12rem 0 .45rem 2.85rem; }
+.inline-note { color: var(--muted); font-size: .74rem; letter-spacing: .01em; }
+.inline-error {
+  display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
+  color: var(--error, #ffb3a7); font-size: .78rem;
+}
+.inline-actions {
+  display: flex; align-items: center; gap: .45rem; flex-wrap: wrap;
+  color: var(--muted); font-size: .8rem;
+}
+.inline-actions .control { min-height: 1.9rem; }
+.inline-actions .muted { color: var(--muted); font-size: .74rem; }
