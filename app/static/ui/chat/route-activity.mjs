@@ -8,6 +8,7 @@
  */
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
+import {disclosure} from './chat-steps.mjs?v=20261121i';
 
 const STEPS = ['collect', 'freeze', 'analyze', 'audit', 'decision', 'repair', 'verify', 'export'];
 const LABELS = {
@@ -50,11 +51,9 @@ async function tasks() {
 function buildEventLog(route) {
   const count = el('span', {class: 'ra-count'}, '0 个运行');
   const body = el('div', {class: 'ra-log-body'}, el('p', {class: 'ra-muted'}, '等待运行事件…'));
-  const panel = el('details', {class: 'ra-monitor ra-event-log', open: true},
-    el('summary', {class: 'ra-summary'},
-      el('span', {class: 'ra-title'}, icon('terminal', 15), route + ' · 事件日志'),
-      count),
-    body);
+  const heading = el('span', {class: 'ra-heading'},
+    el('span', {class: 'ra-title'}, icon('terminal', 15), route + ' · 事件日志'), count);
+  const panel = disclosure({className: 'ra-monitor ra-event-log', heading, open: true}, body);
   return {panel, body, count, groups: 0};
 }
 
@@ -73,9 +72,8 @@ function taskCard(task, index) {
     artifacts);
   const logRows = el('div', {class: 'ra-log-rows'}, el('p', {class: 'ra-muted'}, '等待运行事件…'));
   const logStatus = el('span', {class: 'ra-log-status'}, '连接中');
-  const logGroup = el('details', {class: 'ra-log-run', open: true},
-    el('summary', {}, el('strong', {}, labelText), logStatus),
-    logRows);
+  const logHeading = el('span', {class: 'ra-log-heading'}, el('strong', {}, labelText), logStatus);
+  const logGroup = disclosure({className: 'ra-log-run', heading: logHeading, open: true}, logRows);
   if (state.logA) {
     state.logA.body.append(logGroup);
     state.logA.groups += 1;
@@ -185,13 +183,16 @@ function buildMonitor() {
   const list = el('div', {class: 'ra-task-list'}, el('p', {class: 'ra-muted'}, '正在读取任务…'));
   const refresh = el('button', {type: 'button', class: 'ra-refresh', title: '刷新任务'},
     icon('refresh', 14), '刷新');
-  refresh.addEventListener('click', () => refreshTasks(list, count));
-  const monitor = el('details', {class: 'ra-monitor', open: true},
-    el('summary', {class: 'ra-summary'},
-      el('span', {class: 'ra-title'}, icon('terminal', 15), 'Route A · 修复运行监视'),
-      el('span', {class: 'ra-live'}, el('span', {class: 'ra-dot'}), '实时'),
-      count,
-      refresh),
+  refresh.addEventListener('click', event => {
+    event.stopPropagation();
+    refreshTasks(list, count);
+  });
+  const heading = el('span', {class: 'ra-heading'},
+    el('span', {class: 'ra-title'}, icon('terminal', 15), 'Route A · 修复运行监视'),
+    el('span', {class: 'ra-live'}, el('span', {class: 'ra-dot'}), '实时'),
+    count,
+    refresh);
+  const monitor = disclosure({className: 'ra-monitor', heading, open: true},
     el('div', {class: 'ra-body'}, list));
   state.monitor = monitor;
   if (!state.logA) state.logA = buildEventLog('Route A');

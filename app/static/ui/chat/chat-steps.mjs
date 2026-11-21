@@ -11,18 +11,23 @@ export function disclosure({className, heading, open = false}, ...children) {
   const panel = el('div', {class: 'step-panel'}, content);
   const summary = el('summary', {}, heading, icon('chevron', 14));
   const details = el('details', {class: className, open}, summary, panel);
+  details.dataset.expanded = String(open);
   let wanted = open;
   let frame = 0;
   let height = 0;
   let velocity = 0;
   let last = 0;
+  let startHeight = 0;
 
   function settle() {
     details.open = wanted;
-    delete details.dataset.expanded;
+    details.dataset.expanded = String(wanted);
     panel.inert = false;
     panel.style.removeProperty('height');
     panel.style.removeProperty('overflow');
+    panel.style.removeProperty('opacity');
+    panel.style.removeProperty('transform');
+    panel.style.removeProperty('will-change');
     frame = 0;
     velocity = 0;
   }
@@ -32,10 +37,17 @@ export function disclosure({className, heading, open = false}, ...children) {
     const dt = Math.min(Math.max((now - last) / 1000, 0), .024);
     last = now;
     const target = wanted ? content.offsetHeight : 0;
-    velocity += ((target - height) * 520 - velocity * 37) * dt;
+    // A softer critically-damped spring, then a small non-linear opacity/rise
+    // cue. This keeps expansion legible instead of snapping to the new height.
+    velocity += ((target - height) * 238 - velocity * 28) * dt;
     height += velocity * dt;
+    const boundary = wanted ? Math.max(target, 1) : Math.max(startHeight, 1);
+    const progress = Math.max(0, Math.min(1, height / boundary));
     panel.style.height = Math.max(0, height) + 'px';
-    if (Math.abs(target - height) < .35 && Math.abs(velocity) < 8) return settle();
+    panel.style.opacity = String(.38 + .62 * progress);
+    panel.style.transform = `translateY(${(1 - progress) * 6}px)`;
+    panel.style.willChange = 'height, opacity, transform';
+    if (Math.abs(target - height) < .25 && Math.abs(velocity) < 6) return settle();
     frame = requestAnimationFrame(advance);
   }
 
@@ -47,7 +59,10 @@ export function disclosure({className, heading, open = false}, ...children) {
     if (!wanted && panel.contains(document.activeElement)) summary.focus({preventScroll: true});
     if (!frame) {
       height = details.open ? panel.getBoundingClientRect().height : 0;
+      startHeight = height;
       panel.style.height = height + 'px';
+      panel.style.opacity = details.open ? '1' : '.38';
+      panel.style.transform = details.open ? 'none' : 'translateY(6px)';
       panel.style.overflow = 'hidden';
       last = performance.now();
       frame = requestAnimationFrame(advance);

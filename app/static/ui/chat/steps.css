@@ -87,9 +87,9 @@
     border-radius: .62rem;
   }
   :is(.step-card, .phase-group, .route-lane) > summary { padding: .24rem .55rem; min-height: 2.58rem; }
-  :is(.step-card, .phase-group, .route-lane) > summary > svg:last-child { color: var(--muted); }
-  :is(.step-card, .phase-group, .route-lane)[data-expanded="false"] > summary > svg:last-child { transform: none; }
-  :is(.step-card, .phase-group, .route-lane)[data-expanded="true"] > summary > svg:last-child { transform: rotate(90deg); }
+  :is(.step-card, .phase-group, .route-lane, .ra-monitor, .ra-log-run) > summary > svg:last-child { color: var(--muted); transition: transform .46s cubic-bezier(.22, 1, .36, 1), color .22s ease; }
+  :is(.step-card, .phase-group, .route-lane, .ra-monitor, .ra-log-run)[data-expanded="false"] > summary > svg:last-child { transform: none; }
+  :is(.step-card, .phase-group, .route-lane, .ra-monitor, .ra-log-run)[data-expanded="true"] > summary > svg:last-child { transform: rotate(90deg); }
   .step-heading { flex: 1; min-width: 0; display: flex; align-items: center; gap: .44rem; }
   .step-icon { position: relative; display: grid; place-items: center; width: 1.55rem; height: 1.55rem; border-radius: .36rem; flex: none; color: var(--muted); background: color-mix(in srgb, var(--sidebar) 83%, transparent); }
   .step-card[data-status="in_progress"] .step-icon, .phase-group[data-status="in_progress"] > summary { color: var(--accent); }

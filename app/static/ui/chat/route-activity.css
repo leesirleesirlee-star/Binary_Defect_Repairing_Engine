@@ -16,17 +16,7 @@
   font-size: .73rem;
 }
 .ra-monitor > summary::-webkit-details-marker { display: none; }
-.ra-monitor > summary::after {
-  content: '';
-  margin-inline-start: auto;
-  width: .42rem;
-  height: .42rem;
-  border-inline-end: 1.5px solid var(--muted);
-  border-block-end: 1.5px solid var(--muted);
-  transform: rotate(45deg);
-  transition: transform .18s ease;
-}
-.ra-monitor[open] > summary::after { transform: rotate(225deg); }
+.ra-heading { display: flex; align-items: center; gap: .34rem; flex: 1; min-width: 0; }
 .ra-title { display: inline-flex; align-items: center; gap: .32rem; font-weight: 650; }
 .ra-title svg { color: var(--accent); }
 .ra-live { display: inline-flex; align-items: center; gap: .25rem; color: var(--pass); font-size: .66rem; }
@@ -96,7 +86,6 @@
 .ra-log-run > summary { display: flex; align-items: center; gap: .35rem; cursor: pointer; list-style: none; font-size: .67rem; }
 .ra-log-run > summary::-webkit-details-marker { display: none; }
 .ra-log-run > summary strong { font-family: ui-monospace, monospace; font-size: .66rem; }
-.ra-log-run > summary::after { content: '›'; margin-inline-start: auto; color: var(--muted); transform: rotate(90deg); }
-.ra-log-run[open] > summary::after { transform: rotate(270deg); }
+.ra-log-heading { display: flex; align-items: center; gap: .3rem; flex: 1; min-width: 0; }
 .ra-log-status { color: var(--muted); font-size: .62rem; }
 .ra-log-rows { display: grid; gap: .12rem; margin-top: .22rem; max-height: 17rem; overflow: auto; }
