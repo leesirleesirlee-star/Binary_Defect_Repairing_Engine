@@ -12,9 +12,23 @@ frozen, human-reviewed contract and regression corpus, and reports
 The model never writes the contract and never decides the verdict. That
 separation is the point of the redesign.
 
-> **Status:** G0, repository bootstrap. The GitHub repository is empty and this
-> tree is the local skeleton. No fixture, no AI call, no patch and no verdict
-> exist yet. Do not describe this as a working repair tool.
+> **Status (2026-11-21):** G1 fixture freeze and G2 AI audit are signed — tags
+> `g0-bootstrap`, `fixture-v1`, `audit-v1`. G3 (patch + verify) and G4
+> (conversation console) are in progress. **No verified repair exists yet; this
+> is not a working product.**
+>
+> - **G1** — frozen x86-64 fixture, 9-case corpus, contract, original guest
+>   observations: [`docs/plan/evidence/G1-RECORD.md`](docs/plan/evidence/G1-RECORD.md).
+> - **G2** — three `deepseek-v4-pro` runs on the fixed prompt, rubric scores
+>   (M1 99 / M5 100 on the selected plan), decision **`proceed`**:
+>   [`docs/plan/evidence/G2-RECORD.md`](docs/plan/evidence/G2-RECORD.md),
+>   [`docs/audit/2026-11-21-audit-01.md`](docs/audit/2026-11-21-audit-01.md).
+> - **G3** — repair CLI merged; `CandidateV1` published (ADR 0004). The V0-V4
+>   verifier ([#11](https://github.com/leesirleesirlee-star/Binary_Defect_Repairing_Engine/issues/11))
+>   and the applied candidate are still open.
+> - **G4** — the minimal chat-first conversation console (plan Revision 2.2,
+>   live run panels) is implemented on branch `gui/complete-mvp2-2026-11-21`;
+>   the task runner is on `main`. The console itself is not merged yet.
 
 ## Read first
 
@@ -22,8 +36,9 @@ separation is the point of the redesign.
 - [`AGENTS.md`](AGENTS.md) - binding rules, safety boundaries, module ownership.
 - [`docs/plan/00-mvp2-roadmap.md`](docs/plan/00-mvp2-roadmap.md) - scope and gates.
 - [`docs/plan/03-fixture-and-ai-audit-spec.md`](docs/plan/03-fixture-and-ai-audit-spec.md) - fixture, PoC, audit rubric.
+- [`docs/gui/conversation-console-plan.md`](docs/gui/conversation-console-plan.md) - the G4 console design (Revision 2.2).
+- [`docs/interfaces/gui-events-v1.md`](docs/interfaces/gui-events-v1.md) - runner-to-GUI event contract.
 - [`docs/MIGRATION.md`](docs/MIGRATION.md) - what to import from the archive and what not to.
-- [`docs/plan/04-module-matching.md`](docs/plan/04-module-matching.md) - module registry and CI scope check.
 
 ## GUI entry point (fixed URL)
 
@@ -42,28 +57,32 @@ default browser. Set `BINARYREPAIR_NO_BROWSER=1` to skip opening the page.
 original ELF + PoC + defect text
         │
         v
-[1] contract + corpus (M1/M3, frozen before the AI)
+[1] contract + corpus (M1/M3, frozen before the AI)          G1 signed
         │
         v
 [2] disassembly (M4, deterministic)
         │
         v
-[3] AI fix plan (M4, model) ──> [4] human review (G2 hard gate)
+[3] AI fix plan (M4, model) ──> [4] human review (G2 hard gate)   G2 signed: proceed
                                       │ approved
                                       v
-                          [5] binary patch (M5) ──> candidate ELF
+                          [5] binary patch (M5) ──> candidate ELF   in progress
                                       │
                                       v
                           [6] guest runs original vs candidate (M3)
                                       │
                                       v
-                          [7] verdict (M3 verifier) ──> [8] GUI / evidence (M2)
+                          [7] verdict (M3 verifier) ──> [8] conversation console (M2)
 ```
+
+Step [8] is a minimal chat-first console: an AI assistant hosts the conversation,
+the backend runner walks the roadmap path, and the right-side panels show the
+live run monitor and event journal.
 
 ## Repository layout
 
 ```text
-app/                  FastAPI + Jinja GUI (thin server; renders only)
+app/                  FastAPI + the conversation console (api.py, journal.py, static/ui/)
 fixtures/             one 32-byte stack-overflow sample, PoC, corpus
 guest/                isolated runner; the only place a binary executes
 pipeline/analyze/     ELF facts and disassembly view
@@ -72,10 +91,13 @@ pipeline/audit/       three-run audit harness and report
 pipeline/repair/      cave finder, patch writer, edit manifest
 pipeline/verify/      deterministic checks and verdict writer
 prompts/              versioned prompt templates (no source material)
-schemas/              ContractV1, FixPlanV1, ObservationV1, VerdictV1
-scripts/              repository checks, including the module scope check
+schemas/              ContractV1, FixPlanV1, ObservationV1, VerdictV1, CandidateV1, ...
+scripts/              repository checks and the task runner (run_task.py)
 docs/plan/            the current plan, ownership and GitHub rules
+docs/adr/             architecture decision records (0001-0004)
+docs/interfaces/      frozen handoff contracts between seats
 docs/archive/         curated v1.2.2 documents, read-only reference
+var/                  runtime artifacts (gitignored; never committed)
 ```
 
 Every path belongs to exactly one module in [`modules.json`](modules.json). A PR

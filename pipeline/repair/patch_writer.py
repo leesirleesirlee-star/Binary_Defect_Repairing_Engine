@@ -500,8 +500,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--contract", type=Path)
     parser.add_argument("--expected-site-bytes")
     parser.add_argument("--created-at")
+    parser.add_argument(
+        "--manifest-version",
+        choices=("draft", "v1"),
+        default="draft",
+        help="draft: m5-dryrun-v0 alias; v1: schema-valid EditManifestV1",
+    )
     parser.add_argument("--out", required=True, type=Path)
     args = parser.parse_args(argv)
+    if args.manifest_version == "v1" and not args.plan_id:
+        parser.error("--plan-id is required with --manifest-version v1")
 
     expected = (
         bytes.fromhex(args.expected_site_bytes)
@@ -509,7 +517,8 @@ def main(argv: list[str] | None = None) -> int:
         else None
     )
     try:
-        manifest = build_manifest(
+        builder = build_manifest_v1 if args.manifest_version == "v1" else build_manifest
+        manifest = builder(
             args.elf,
             patch_site_vaddr=args.patch_site,
             cave_vaddr=args.cave,
@@ -531,6 +540,7 @@ def main(argv: list[str] | None = None) -> int:
         "tool": "m5-patch-writer",
         "version": __version__,
         "manifest": str(out),
+        "manifest_version": args.manifest_version,
         "dry_run": True,
         "candidate_written": False,
         "original_sha256": manifest["original"]["sha256"],

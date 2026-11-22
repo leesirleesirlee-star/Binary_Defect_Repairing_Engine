@@ -18,6 +18,8 @@ def run_audit(
     runs: int = DEFAULT_RUNS,
     api_key: str | None = None,
     model: str | None = None,
+    contract_sha256: str | None = None,
+    fixture_id: str | None = None,
 ) -> list[dict]:
     """Return one record per attempt (plan, model, usage, raw text and any error).
 
@@ -28,7 +30,15 @@ def run_audit(
     for index in range(1, runs + 1):
         print(f"run {index}/{runs}: calling model (can take 1-2 minutes)...", flush=True)
         try:
-            rec = run_plan(contract, view, poc, api_key=api_key, model=model)
+            rec = run_plan(
+                contract,
+                view,
+                poc,
+                api_key=api_key,
+                model=model,
+                contract_sha256=contract_sha256,
+                fixture_id=fixture_id,
+            )
         except Exception as error:  # noqa: BLE001 - a failed run is still a run
             records.append(
                 {

@@ -68,12 +68,48 @@ def call_chat(system: str, user: str, api_key: str, model: str, temperature: flo
         raise ProviderError(f"provider unreachable: {exc.reason}") from exc
 
 
+def _bind_identity(
+    plan: dict,
+    *,
+    contract: dict,
+    contract_sha256: str,
+    fixture_id: str | None,
+    plan_id: str | None,
+    provider_name: str,
+    model: str,
+    prompt_sha256: str,
+    response_sha256: str,
+) -> dict:
+    """Overwrite the identity fields with trusted values from the toolchain.
+
+    The model cannot know the fixture id, the contract hash, the provider or the
+    prompt hash, so it guesses. Binding is the runner's job, not the model's:
+    every downstream consumer needs a plan that points at the frozen contract.
+    """
+    trusted_fixture = fixture_id or (
+        contract.get("fixture_id") if isinstance(contract, dict) else None
+    )
+    if trusted_fixture:
+        plan["fixture_id"] = trusted_fixture
+    plan["contract_sha256"] = contract_sha256
+    plan["plan_id"] = plan_id or ("plan-" + response_sha256[:12])
+    plan["model"] = {
+        "provider": provider_name,
+        "name": model,
+        "prompt_sha256": prompt_sha256,
+    }
+    return plan
+
 def run_plan(
     contract: dict,
     view: dict,
     poc: dict,
     api_key: str | None = None,
     model: str | None = None,
+    contract_sha256: str | None = None,
+    fixture_id: str | None = None,
+    plan_id: str | None = None,
+    provider_name: str = "deepseek",
 ) -> dict:
     """Build the prompt, call the provider, validate FixPlanV1, return a record.
 
@@ -90,6 +126,8 @@ def run_plan(
         raise ProviderError("DEEPSEEK_API_KEY is not set")
     if not model:
         raise ProviderError("DEEPSEEK_MODEL is not set")
+    if not contract_sha256:
+        raise ProviderError("contract_sha256 is required to bind the plan")
 
     prompt = build_prompt(contract, view, poc)
     response = call_chat(prompt["system"], prompt["user"], api_key, model)
@@ -116,6 +154,18 @@ def run_plan(
     schema_valid = False
     try:
         plan = json.loads(content)
+        if isinstance(plan, dict):
+            plan = _bind_identity(
+                plan,
+                contract=contract,
+                contract_sha256=contract_sha256,
+                fixture_id=fixture_id,
+                plan_id=plan_id,
+                provider_name=provider_name,
+                model=model,
+                prompt_sha256=prompt["prompt_sha256"],
+                response_sha256=response_sha256,
+            )
         jsonschema.validate(plan, load_fixplan_schema())
         schema_valid = True
     except (json.JSONDecodeError, jsonschema.ValidationError):

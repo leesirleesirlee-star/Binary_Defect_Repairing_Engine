@@ -49,15 +49,17 @@ python -m pipeline.repair.cave_finder \
 python -m pipeline.repair.patch_writer \
   --elf var/synthetic.elf --patch-site 0x401194 --cave 0x401220 \
   --strcpy-plt 0x401060 --cave-limit 0x402000 \
-  --fixture-id synthetic-01 --out var/manifest.json
+  --fixture-id synthetic-01 --plan-id preflight-01 \
+  --manifest-version v1 --out var/manifest.json
 
 python -m pipeline.repair.self_check \
   --elf var/synthetic.elf --manifest var/manifest.json
 ```
 
-The manifest is currently `m5-dryrun-v0` / `EditManifestV1-draft`; it must be
-replaced by M1's frozen `EditManifestV1` when that schema is published. The
-`self_check` result is structural only and is not a verdict.
+`--manifest-version v1` emits the schema-valid `EditManifestV1`
+(`schema_version: 1`, `manifest_kind: EditManifestV1`). The default `draft` mode
+keeps the older `m5-dryrun-v0` shape for existing callers. The `self_check`
+result is structural only and is not a verdict.
 
 `cave_finder` has two modes: an explicit approved range for fixture preflight,
 and an all-file-backed-R-X scan (`find_caves_in_segments`) for the product
