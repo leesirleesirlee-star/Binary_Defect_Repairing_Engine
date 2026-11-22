@@ -16,6 +16,9 @@ ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "fixtures" / "stack-overflow-01" / "vuln.elf"
 PLAN = ROOT / "docs" / "audit" / "fix-plan-v1.json"
 FIXTURE_SHA = "705ab9290094218af7164fb6415cde14bd800b040d52f3fc1e9d1b766b3d9c26"
+# Frozen G3 evidence: applying the approved plan (run 2) to the frozen fixture
+# yields exactly this candidate. A drift here is a G3 blocking defect.
+CANDIDATE_SHA = "c010c006b573b29a683540d128296bc94343e0d0c8bf73fc2c308b95aaa25b28"
 
 
 def _apply(out: Path) -> dict:
@@ -45,6 +48,7 @@ def test_selected_plan_produces_three_truthful_artifacts(tmp_path: Path) -> None
     assert result["verdict"] is None
     assert result["executed_on_host"] is False
     assert result["candidate_sha256"] == _sha(candidate.read_bytes())
+    assert result["candidate_sha256"] == CANDIDATE_SHA
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     validate_edit_manifest_v1(manifest)
@@ -60,7 +64,12 @@ def test_selected_plan_produces_three_truthful_artifacts(tmp_path: Path) -> None
     jsonschema.Draft202012Validator(schema).validate(record)
     assert record["candidate_written"] is True
     assert record["candidate"]["sha256"] == result["candidate_sha256"]
-    assert record["manifest"]["sha256"] == manifest["manifest_sha256"]
+    # ADR 0004 binding: plan/manifest hashes are file-byte hashes, not canonical JSON hashes.
+    assert record["manifest"]["sha256"] == _sha(manifest_path.read_bytes())
+    assert record["manifest"]["sha256"] == result["manifest_file_sha256"]
+    assert record["manifest"]["sha256"] != manifest["manifest_sha256"]
+    assert record["plan"]["sha256"] == _sha(PLAN.read_bytes())
+    assert record["original"]["sha256"] == FIXTURE_SHA
     assert record["reversibility"]["matches_original"] is True
     assert record["plan"]["plan_id"] == "plan-c16d97ba9bc0"
 

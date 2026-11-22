@@ -319,6 +319,7 @@ def _build_candidate_record(
     *,
     plan_path: Path,
     manifest_path: Path,
+    manifest_file_sha256: str,
     manifest: dict[str, Any],
     candidate_path: Path,
     candidate: bytes,
@@ -349,7 +350,7 @@ def _build_candidate_record(
         },
         "manifest": {
             "path": str(manifest_path),
-            "sha256": manifest["manifest_sha256"],
+            "sha256": manifest_file_sha256,
         },
         "edits_applied": [
             {
@@ -369,7 +370,8 @@ def _build_candidate_record(
         "produced_by": f"{TOOL} {TOOL_VERSION}",
         "produced_at": now,
         "notes": [
-            "EditManifestV1 remains dry-run; CandidateV1 records the applied candidate (ADR 0004)."
+            "EditManifestV1 remains dry-run; CandidateV1 records the applied candidate (ADR 0004).",
+            "manifest.sha256 is the file hash; manifest.manifest_sha256 is the canonical hash.",
         ],
     }
 
@@ -414,9 +416,12 @@ def apply_fix_plan(
     self_check = check_manifest(elf_file, manifest)
     if self_check.get("status") != "checks_passed":
         raise ApplyError(f"self-check failed: {self_check.get('failures')}")
+    manifest_bytes = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    manifest_file_sha256 = _sha256(manifest_bytes)
     record = _build_candidate_record(
         plan_path=plan_file,
         manifest_path=manifest_path,
+        manifest_file_sha256=manifest_file_sha256,
         manifest=manifest,
         candidate_path=candidate_path,
         candidate=candidate,
@@ -428,9 +433,7 @@ def apply_fix_plan(
     _validate_candidate_record(record)
 
     candidate_path.write_bytes(candidate)
-    manifest_path.write_text(
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    manifest_path.write_bytes(manifest_bytes)
     record_path.write_text(
         json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -442,6 +445,7 @@ def apply_fix_plan(
         "candidate_sha256": _sha256(candidate),
         "manifest": str(manifest_path),
         "manifest_sha256": manifest["manifest_sha256"],
+        "manifest_file_sha256": manifest_file_sha256,
         "candidate_record": str(record_path),
         "candidate_record_sha256": _sha256(record_path.read_bytes()),
         "fixture_sha256": original_sha,
