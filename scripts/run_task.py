@@ -9,8 +9,12 @@ score or success label.
 
 `repair` runs M5's apply CLI on the approved `FixPlanV1`; `verify` runs M3's
 verifier only when the guest wrote `observations-candidate.json` and records the
-persisted verdict verbatim. `audit`, `decision` and `export` stay `skipped` with
-stable codes, so the terminal `run_end` is `failed` — never `completed`.
+persisted verdict verbatim. Both refuse unless the GUI persisted a `proceed`
+audit decision (task state, or the `user_response` entry written by
+`POST /decision`). The runner polls the GUI task snapshot for a cancel request,
+terminates a running child promptly, and ends the journal with
+`run_end.execution = "cancelled"`. `audit` and `export` stay `skipped`, so a run
+that does not finish the whole pipeline still ends `failed` — never `completed`.
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ import os
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -32,6 +37,10 @@ _MAX_EVENT_BYTES = 1_000_000
 _ANALYZE_TIMEOUT_S = 120
 _REPAIR_TIMEOUT_S = 120
 _VERIFY_TIMEOUT_S = 300
+_CANCEL_POLL_S = 0.2
+_CANCEL_KILL_TIMEOUT_S = 5.0
+_CANCELLED_STATUSES = frozenset({"cancelling", "cancelled"})
+_DECISIONS = frozenset({"proceed", "iterate", "change_scope"})
 _OBSERVATIONS_FILE = "observations-candidate.json"
 _VERDICT_FILE = "verdict.json"
 _DEFAULT_PLAN = "docs/audit/fix-plan-v1.json"
@@ -45,6 +54,7 @@ EXIT_OK = 0
 EXIT_INVALID = 2
 EXIT_NOT_APPROVED = 3
 EXIT_INTERNAL = 4
+EXIT_CANCELLED = 5
 
 
 class RunnerError(Exception):
@@ -53,6 +63,10 @@ class RunnerError(Exception):
     def __init__(self, message: str, code: int) -> None:
         super().__init__(message)
         self.code = code
+
+
+class StageCancelled(Exception):
+    """The GUI asked to cancel; a running child is terminated and the run stops."""
 
 
 class StageOutcome(NamedTuple):
@@ -167,6 +181,47 @@ def resolve_plan(repo_root: Path, task: dict[str, Any]) -> Path:
     return resolved
 
 
+def _cancel_requested(var_root: Path, task_id: str) -> bool:
+    """Poll the GUI task snapshot; true when the console recorded a cancel request."""
+    try:
+        task = json.loads(
+            (var_root / "tasks" / f"{task_id}.json").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return False  # a GUI write can be caught mid-write; poll again
+    execution = task.get("execution") if isinstance(task, dict) else None
+    if not isinstance(execution, dict):
+        return False
+    return (
+        execution.get("status") in _CANCELLED_STATUSES
+        or execution.get("cancel_requested") is True
+    )
+
+
+def _persisted_decision(task: dict[str, Any], journal: Journal) -> str | None:
+    """Latest explicit G2 audit decision: task state first, then GUI `user_response`."""
+    state = task.get("decision")
+    if isinstance(state, dict):
+        state = state.get("decision") or state.get("outcome")
+    if isinstance(state, str) and state in _DECISIONS:
+        return state
+    if not journal.path.is_file():
+        return None
+    decision: str | None = None
+    for raw in journal.path.read_text(encoding="utf-8").splitlines():
+        record = _read_json_text(raw)
+        payload = record.get("payload") if record is not None else None
+        if (
+            record is not None
+            and record.get("type") == "user_response"
+            and isinstance(payload, dict)
+            and payload.get("kind") == "audit_decision"
+            and payload.get("decision") in _DECISIONS
+        ):
+            decision = str(payload["decision"])
+    return decision
+
+
 class Journal:
     """Append-only writer for `var/events/{task_id}.jsonl` (gui-events-v1)."""
 
@@ -239,18 +294,52 @@ class Plan:
 
 
 def _run_cli(
-    module: str, args: list[str], *, repo_root: Path, timeout: int
+    module: str, args: list[str], *, repo_root: Path, timeout: int,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Run one pipeline CLI as a subprocess (no imports, no shared state)."""
+    """Run one pipeline CLI as a subprocess (no imports, no shared CLI state)."""
     command = [sys.executable, "-m", module, *args]
-    return subprocess.run(
-        command,
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
+    return _run_cli_process(command, repo_root=repo_root, timeout=timeout,
+                            should_cancel=should_cancel)
+
+
+def _run_cli_process(
+    command: list[str], *, repo_root: Path, timeout: float,
+    should_cancel: Callable[[], bool] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run one child process, polling for cancellation and enforcing the timeout."""
+    started = time.monotonic()
+    process = subprocess.Popen(
+        command, cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
     )
+    try:
+        while True:
+            if should_cancel is not None and should_cancel():
+                _terminate(process)
+                raise StageCancelled()
+            remaining = timeout - (time.monotonic() - started)
+            if remaining <= 0:
+                _terminate(process)
+                raise subprocess.TimeoutExpired(command, timeout)
+            try:
+                stdout, stderr = process.communicate(timeout=min(_CANCEL_POLL_S, remaining))
+            except subprocess.TimeoutExpired:
+                continue
+            return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+    finally:
+        if process.poll() is None:  # pragma: no cover - defensive cleanup
+            process.kill()
+            process.communicate()
+
+
+def _terminate(process: subprocess.Popen[str]) -> None:
+    """Terminate the child (SIGTERM/terminate), then kill it if it does not exit."""
+    process.terminate()
+    try:
+        process.communicate(timeout=_CANCEL_KILL_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.communicate()
 
 
 def _module_available(module: str, *, repo_root: Path) -> bool:
@@ -280,20 +369,28 @@ def _failed_stage(journal: Journal, plan: Plan, step: str, reason: str) -> None:
 def _run_cli_stage(
     journal: Journal, step: str, command_id: str, label_code: str, module: str,
     args: list[str], *, repo_root: Path, timeout: int,
+    should_cancel: Callable[[], bool] | None = None, display_cwd: str = "artifacts",
 ) -> subprocess.CompletedProcess[str] | None:
-    """Run one CLI with H11 started/output/finished command events; None on timeout."""
-    base = {"command_id": command_id, "label_code": label_code, "display_cwd": "artifacts"}
+    """Run one CLI with H11 command events; None on timeout, raises StageCancelled."""
+    base = {"command_id": command_id, "label_code": label_code, "display_cwd": display_cwd}
 
     def event(phase: str, **fields: Any) -> None:
         journal.append("command", {**base, "phase": phase, **fields}, step_id=step)
 
+    if should_cancel is not None and should_cancel():
+        raise StageCancelled()
     event("started")
     try:
-        result = _run_cli(module, args, repo_root=repo_root, timeout=timeout)
+        result = _run_cli(module, args, repo_root=repo_root, timeout=timeout,
+                          should_cancel=should_cancel)
     except subprocess.TimeoutExpired:
         event("output", text=f"timeout after {timeout}s\n", truncated=False)
         event("finished", exit_code=None)
         return None
+    except StageCancelled:
+        event("output", text="cancelled by the user\n", truncated=False)
+        event("finished", exit_code=None)
+        raise
     text = result.stderr or result.stdout or ""
     event("output", text=text[-2000:], truncated=len(text) > 2000)
     event("finished", exit_code=result.returncode)
@@ -322,9 +419,42 @@ def _valid_repair_output(summary: dict[str, Any], artifacts: Path) -> bool:
     )
 
 
+# ---------------------------------------------------------------------------
+# Stages
+# ---------------------------------------------------------------------------
+def _stage_analyze(
+    journal: Journal, plan: Plan, binary: Path, artifacts: Path, repo_root: Path,
+    should_cancel: Callable[[], bool],
+) -> StageOutcome:
+    plan.update("analyze", "in_progress")
+    if not _module_available("pipeline.analyze", repo_root=repo_root):
+        _skipped_stage(journal, plan, "analyze", "analyze_not_wired")
+        return StageOutcome("analyze_not_wired")
+    result = _run_cli_stage(
+        journal, "analyze", "analyze-1", "analysis", "pipeline.analyze",
+        ["--elf", str(binary), "--out-dir", str(artifacts)], repo_root=repo_root,
+        timeout=_ANALYZE_TIMEOUT_S, should_cancel=should_cancel, display_cwd="evidence")
+    if result is None:
+        _failed_stage(journal, plan, "analyze", "analyze_timeout")
+        return StageOutcome("analyze_timeout")
+    if result.returncode != 0:
+        _failed_stage(journal, plan, "analyze", "analyze_failed")
+        return StageOutcome("analyze_failed")
+    files = [
+        _artifact_row(item.name, _sha256_file(item), "generated by pipeline.analyze;")
+        for item in (artifacts / "disassembly.json", artifacts / "finding.json")
+        if item.is_file()
+    ]
+    journal.append("file_change", {"change_id": "analyze-1", "stage": "proposed",
+                                   "files": files}, step_id="analyze")
+    plan.update("analyze", "completed")
+    return StageOutcome(files=len(files))
+
+
 def _stage_repair(
     journal: Journal, plan: Plan, task: dict[str, Any], binary: Path,
     plan_path: Path, artifacts: Path, repo_root: Path,
+    should_cancel: Callable[[], bool],
 ) -> StageOutcome:
     plan.update("repair", "in_progress")
     if not plan_path.is_file():
@@ -334,7 +464,7 @@ def _stage_repair(
             "--out-dir", str(artifacts), "--fixture-id", str(task["fixture_id"])]
     result = _run_cli_stage(
         journal, "repair", "repair-1", "repair", "pipeline.repair.apply_fixplan", args,
-        repo_root=repo_root, timeout=_REPAIR_TIMEOUT_S)
+        repo_root=repo_root, timeout=_REPAIR_TIMEOUT_S, should_cancel=should_cancel)
     if result is None:
         _failed_stage(journal, plan, "repair", "repair_timeout")
         return StageOutcome("repair_timeout")
@@ -361,7 +491,7 @@ def _stage_repair(
 
 def _stage_verify(
     journal: Journal, plan: Plan, task: dict[str, Any], binary: Path,
-    artifacts: Path, repo_root: Path,
+    artifacts: Path, repo_root: Path, should_cancel: Callable[[], bool],
 ) -> StageOutcome:
     plan.update("verify", "in_progress")
     observations = artifacts / _OBSERVATIONS_FILE
@@ -379,7 +509,7 @@ def _stage_verify(
             "--out", str(verdict_path)]
     result = _run_cli_stage(
         journal, "verify", "verify-1", "verification", "pipeline.verify.verdict", args,
-        repo_root=repo_root, timeout=_VERIFY_TIMEOUT_S)
+        repo_root=repo_root, timeout=_VERIFY_TIMEOUT_S, should_cancel=should_cancel)
     if result is None:
         _failed_stage(journal, plan, "verify", "verify_timeout")
         return StageOutcome("verify_timeout")
@@ -431,6 +561,10 @@ def run_task(task_id: str, *, var_root: Path, repo_root: Path) -> dict[str, Any]
     files_changed = 0
     evaluation_id: str | None = None
     reason_code: str | None = None
+    execution_state = "failed"
+
+    def should_cancel() -> bool:
+        return _cancel_requested(var_root, task_id)
 
     journal.append("run_state", {"status": "running", "message_id": None})
     corpus = task.get("corpus") or {}
@@ -449,86 +583,54 @@ def run_task(task_id: str, *, var_root: Path, repo_root: Path) -> dict[str, Any]
         plan.update("collect", "completed")
         plan.update("freeze", "completed")
 
-        analyze_code: str | None = None
-        plan.update("analyze", "in_progress")
-        if not _module_available("pipeline.analyze", repo_root=repo_root):
-            _skipped_stage(journal, plan, "analyze", "analyze_not_wired")
-            analyze_code = "analyze_not_wired"
-        else:
-            journal.append(
-                "command",
-                {
-                    "command_id": "analyze-1",
-                    "phase": "started",
-                    "label_code": "analysis",
-                    "display_cwd": "evidence",
-                },
-                step_id="analyze",
-            )
-            result = _run_cli(
-                "pipeline.analyze",
-                ["--elf", str(binary), "--out-dir", str(artifacts)],
-                repo_root=repo_root,
-                timeout=_ANALYZE_TIMEOUT_S,
-            )
-            journal.append(
-                "command",
-                {
-                    "command_id": "analyze-1",
-                    "phase": "finished",
-                    "label_code": "analysis",
-                    "display_cwd": "evidence",
-                    "exit_code": result.returncode,
-                    "text": (result.stderr or result.stdout or "")[-2000:],
-                    "truncated": len(result.stderr or result.stdout or "") > 2000,
-                },
-                step_id="analyze",
-            )
-            if result.returncode != 0:
-                _failed_stage(journal, plan, "analyze", "analyze_failed")
-                analyze_code = "analyze_failed"
-            else:
-                produced = [artifacts / "disassembly.json", artifacts / "finding.json"]
-                files = [
-                    _artifact_row(item.name, _sha256_file(item), "generated by pipeline.analyze;")
-                    for item in produced
-                    if item.is_file()
-                ]
-                files_changed += len(files)
-                journal.append(
-                    "file_change",
-                    {"change_id": "analyze-1", "stage": "proposed", "files": files},
-                    step_id="analyze",
-                )
-                plan.update("analyze", "completed")
-
-        if analyze_code is not None:
-            reason_code = analyze_code
+        analyze = _stage_analyze(journal, plan, binary, artifacts, repo_root, should_cancel)
+        files_changed += analyze.files
+        if analyze.reason is not None:
+            reason_code = analyze.reason
+            for step in ("audit", "decision"):
+                _skipped_stage(journal, plan, step, "stage_not_wired")
             for step in ("repair", "verify"):
-                _skipped_stage(journal, plan, step, analyze_code)
+                _skipped_stage(journal, plan, step, reason_code)
         else:
-            repair = _stage_repair(journal, plan, task, binary, plan_path, artifacts, repo_root)
-            files_changed += repair.files
-            if repair.reason is not None:
-                reason_code = repair.reason
-                _skipped_stage(journal, plan, "verify", repair.reason)
+            _skipped_stage(journal, plan, "audit", "stage_not_wired")
+            decision = _persisted_decision(task, journal)
+            blocked: str | None = None
+            if decision is None:
+                blocked = "decision_missing"
+                _skipped_stage(journal, plan, "decision", blocked)
+            elif decision != "proceed":
+                blocked = "decision_not_proceed"
+                plan.update("decision", "completed")
             else:
-                verify = _stage_verify(journal, plan, task, binary, artifacts, repo_root)
-                files_changed += verify.files
-                evaluation_id = verify.evaluation_id
-                reason_code = verify.reason
+                plan.update("decision", "completed")
+                repair = _stage_repair(journal, plan, task, binary, plan_path,
+                                       artifacts, repo_root, should_cancel)
+                files_changed += repair.files
+                if repair.reason is None:
+                    verify = _stage_verify(journal, plan, task, binary, artifacts,
+                                           repo_root, should_cancel)
+                    files_changed += verify.files
+                    evaluation_id = verify.evaluation_id
+                    reason_code = verify.reason
+                else:
+                    reason_code = repair.reason
+            if blocked is not None:
+                reason_code = blocked
+                for step in ("repair", "verify"):
+                    if plan.status[step] == "pending":
+                        _skipped_stage(journal, plan, step, blocked)
 
-        for step in ("audit", "decision", "export"):
-            _skipped_stage(journal, plan, step, "stage_not_wired")
+        _skipped_stage(journal, plan, "export", "stage_not_wired")
         if reason_code is None:
             reason_code = "stages_not_wired"
-    except subprocess.TimeoutExpired:
-        journal.append(
-            "error",
-            {"code": "analyze_timeout", "correlation_id": "analyze", "retry": {"kind": "manual"}},
-            step_id="analyze",
-        )
-        reason_code = "analyze_timeout"
+        if should_cancel():
+            raise StageCancelled()
+    except StageCancelled:
+        execution_state, reason_code = "cancelled", "user_cancelled"
+        running = next((name for name in STEPS if plan.status[name] == "in_progress"), None)
+        if running is not None:
+            _failed_stage(journal, plan, running, "user_cancelled")
+        journal.append("run_state", {"status": "cancelled", "message_id": None})
     except OSError as error:
         journal.append(
             "error",
@@ -539,7 +641,7 @@ def run_task(task_id: str, *, var_root: Path, repo_root: Path) -> dict[str, Any]
         journal.append(
             "run_end",
             {
-                "execution": "failed",
+                "execution": execution_state,
                 "duration_ms": int((time.monotonic() - started) * 1000),
                 "steps_taken": sum(1 for value in plan.status.values() if value == "completed"),
                 "files_changed": files_changed,
@@ -548,7 +650,7 @@ def run_task(task_id: str, *, var_root: Path, repo_root: Path) -> dict[str, Any]
             },
         )
 
-    return {"task_id": task_id, "run_id": run_id, "execution": "failed",
+    return {"task_id": task_id, "run_id": run_id, "execution": execution_state,
             "reason_code": reason_code, "events": journal.events}
 
 
@@ -570,7 +672,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return error.code
     print(json.dumps(summary, sort_keys=True))
-    return EXIT_OK
+    return EXIT_CANCELLED if summary["execution"] == "cancelled" else EXIT_OK
 
 
 if __name__ == "__main__":
