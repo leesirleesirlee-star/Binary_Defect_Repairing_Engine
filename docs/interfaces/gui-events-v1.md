@@ -101,13 +101,26 @@ python -m scripts.run_task --task <task_id> --var-root var
 - Refuses to run unless `approval.approved` is true and
   `approval.binding_digest == review_binding_digest`; otherwise exit code `3`
   and no journal events.
+- **G2 hard stop at the last execution point:** `repair` and `verify` run only when
+  a persisted `proceed` decision exists — the task snapshot `decision` field
+  (preferred), else the latest journal `user_response` with
+  `payload.kind == "audit_decision"`. Without a persisted decision those stages are
+  `skipped` with code `decision_missing`; a persisted `iterate` / `change_scope`
+  refuses them with `decision_not_proceed`. The runner never invents a decision and
+  never reports success in those cases.
+- **Cancellation reaches the process:** the GUI records `execution.status =
+  "cancelled"` (or `execution.cancel_requested = true`) in the task snapshot; the
+  runner polls it, terminates the running child (SIGTERM, then kill), appends
+  exactly one terminal `run_end` with `execution: "cancelled"` and exits with code
+  `5`. A cancelled run is never reported as still running or as success.
 - Appends `source: "runner"` events for one `run_id`; exactly one terminal
   `run_end` per run.
 - Writes artifacts under `var/artifacts/{task_id}/` and events that point at them
   by `display_path` only.
 - Exit codes: `0` journal written and terminated (even when stages are `not_run`),
   `2` invalid task or journal, `3` not approved / stale binding, `4` internal error
-  after a terminal `run_end` was written.
+  after a terminal `run_end` was written, `5` cancelled after a terminal `run_end`
+  with `execution: "cancelled"` was written.
 - Prints one JSON summary to stdout: `{task_id, run_id, execution, reason_code, events}`.
 - Never reads a provider key; the audit stage's own CLI owns that, and the runner
   records only the provider id/usage the audit reports.
