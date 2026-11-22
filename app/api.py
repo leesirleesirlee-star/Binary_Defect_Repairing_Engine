@@ -22,12 +22,16 @@ from urllib.parse import quote, unquote
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
-from app import tasks
+from app import assistant, tasks
 from app.journal import JournalError, read_records, wait_for_records
 from app.preview_events import ensure_preview_journal
 
 SESSION_COOKIE = "br_session"
 CSRF_HEADER = "x-csrf-token"
+
+# M1 infrastructure injects the real provider client into this seam; until then
+# the assistant runs its deterministic fallback and the badge says so.
+ASSISTANT_CLIENT: assistant.Client | None = None
 _BASE = Path(__file__).resolve().parent.parent
 _SESSION_FILE = _BASE / "var" / "session.token"
 
@@ -498,3 +502,35 @@ def export_task(task_id: str) -> dict[str, Any]:
         "verdict": verdict,
         "artifacts": artifacts,
     }
+
+
+@router.post(
+    "/tasks/{task_id}/assistant",
+    dependencies=[Depends(require_session), Depends(require_csrf)],
+)
+def assistant_turn(task_id: str, body: Annotated[dict[str, Any], Body()]) -> dict[str, Any]:
+    """One chat turn: validated envelope from the assistant (T3)."""
+    task = _task(task_id)
+    message = body.get("message")
+    if not isinstance(message, str) or not message.strip():
+        raise _error(422, "invalid_message")
+    if len(message) > assistant.MAX_MESSAGE_CHARS:
+        raise _error(422, "message_too_long")
+    locale = body.get("locale")
+    locale = locale if isinstance(locale, str) and locale else "zh-Hans"
+    try:
+        records = read_records(task_id)
+    except JournalError as error:
+        raise _error(422, "journal_invalid") from error
+    directory = _artifact_dir(task_id)
+    artifacts = (
+        [_artifact_info(task_id, path) for path in sorted(directory.iterdir()) if path.is_file()]
+        if directory.is_dir()
+        else []
+    )
+    verdict = _read_task_file(task_id, "verdict.json")
+    if verdict is not None:
+        task = {**task, "verdict": verdict}
+    return assistant.respond(
+        task, records, message, locale=locale, client=ASSISTANT_CLIENT, artifacts=artifacts
+    )
