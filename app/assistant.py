@@ -162,7 +162,9 @@ def _latest(records: Sequence[Mapping[str, Any]], event_type: str) -> Mapping[st
     return None
 
 
-def _latest_payload(records: Sequence[Mapping[str, Any]], event_types: Sequence[str]) -> Mapping[str, Any] | None:
+def _latest_payload(
+    records: Sequence[Mapping[str, Any]], event_types: Sequence[str]
+) -> Mapping[str, Any] | None:
     for record in reversed(_records(records)):
         if record.get("type") in event_types:
             payload = record.get("payload")
@@ -188,7 +190,9 @@ def _verdict_word(task: Mapping[str, Any], records: Sequence[Mapping[str, Any]])
     return None
 
 
-def _corpus(task: Mapping[str, Any], records: Sequence[Mapping[str, Any]]) -> Mapping[str, Any] | None:
+def _corpus(
+    task: Mapping[str, Any], records: Sequence[Mapping[str, Any]]
+) -> Mapping[str, Any] | None:
     payload = _latest(records, "corpus_update")
     if payload is not None:
         return payload
@@ -212,7 +216,9 @@ def _error_code(task: Mapping[str, Any], records: Sequence[Mapping[str, Any]]) -
     return code if isinstance(code, str) and code else None
 
 
-def _artifacts(task: Mapping[str, Any], artifacts: Sequence[Mapping[str, Any]] | None) -> list[Mapping[str, Any]]:
+def _artifacts(
+    task: Mapping[str, Any], artifacts: Sequence[Mapping[str, Any]] | None
+) -> list[Mapping[str, Any]]:
     if artifacts is not None:
         return [item for item in artifacts if isinstance(item, Mapping)]
     stored = task.get("artifacts")
@@ -270,7 +276,6 @@ def _score_list(records: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]
     runs = payload.get("runs") if isinstance(payload, Mapping) else None
     if isinstance(runs, list):
         return [run for run in runs if isinstance(run, Mapping)]
-    stored = payload.get("runs") if isinstance(payload, Mapping) else None
     return []
 
 
@@ -348,7 +353,11 @@ def _fallback(task: Mapping[str, Any], records: Sequence[Mapping[str, Any]], *,
             if isinstance(run.get("score"), int) and run.get("run_index") is not None
         ]
         if scores:
-            best = max(runs, key=lambda run: run.get("score") if isinstance(run.get("score"), int) else -1)
+            def _score(run: Mapping[str, Any]) -> int:
+                value = run.get("score")
+                return value if isinstance(value, int) else -1
+
+            best = max(runs, key=_score)
             best_index = best.get("run_index") or 1
             reply = _text(locale, "audit", scores=" / ".join(str(score) for score in scores),
                           best=best_index)
@@ -420,13 +429,19 @@ def validate_envelope(value: Any) -> dict[str, Any] | None:
     return {"reply": reply.strip(), "actions": actions}
 
 
-def build_messages(context: Mapping[str, Any], message: str, locale: str | None) -> list[dict[str, str]]:
+def build_messages(
+    context: Mapping[str, Any], message: str, locale: str | None
+) -> list[dict[str, str]]:
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
         {
             "role": "user",
             "content": json.dumps(
-                {"locale": _locale(locale), "context": context, "message": message[:MAX_MESSAGE_CHARS]},
+                {
+                    "locale": _locale(locale),
+                    "context": context,
+                    "message": message[:MAX_MESSAGE_CHARS],
+                },
                 ensure_ascii=False,
                 sort_keys=True,
             ),

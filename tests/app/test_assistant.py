@@ -48,7 +48,16 @@ def _running() -> list[dict[str, Any]]:
                 "steps": [
                     {"step_id": step, "label_code": step, "status": status}
                     for step, status in zip(
-                        ("collect", "freeze", "analyze", "audit", "decision", "repair", "verify", "export"),
+                        (
+                            "collect",
+                            "freeze",
+                            "analyze",
+                            "audit",
+                            "decision",
+                            "repair",
+                            "verify",
+                            "export",
+                        ),
                         (
                             "completed",
                             "completed",
@@ -83,7 +92,9 @@ def test_frozen_contract_quotes_only_persisted_counts_and_hash_prefix() -> None:
 
 
 def test_frozen_contract_without_values_does_not_invent_numbers() -> None:
-    envelope = assistant.respond({"id": "tsk_1"}, [_record("corpus_update", {})], "开始", locale="zh-Hans")
+    envelope = assistant.respond(
+        {"id": "tsk_1"}, [_record("corpus_update", {})], "开始", locale="zh-Hans"
+    )
     assert envelope["reply"] == assistant._TEXTS["zh-Hans"]["frozen_plain"]
     assert not any(char.isdigit() for char in envelope["reply"])
 
@@ -98,12 +109,18 @@ def test_running_progress_uses_the_plan_counts() -> None:
 def test_decision_quotes_persisted_audit_scores() -> None:
     records = _running() + [
         _record("audit_runs", {"report_sha256": None, "runs": [
-            {"run_index": 1, "schema_valid": True, "score": 86, "critical_errors": [], "usable": True},
-            {"run_index": 2, "schema_valid": True, "score": 74, "critical_errors": [], "usable": True},
-            {"run_index": 3, "schema_valid": True, "score": 62, "critical_errors": [], "usable": True},
+            {"run_index": 1, "schema_valid": True, "score": 86,
+             "critical_errors": [], "usable": True},
+            {"run_index": 2, "schema_valid": True, "score": 74,
+             "critical_errors": [], "usable": True},
+            {"run_index": 3, "schema_valid": True, "score": 62,
+             "critical_errors": [], "usable": True},
         ]}),
-        _record("awaiting_user", {"request_id": "req_1", "kind": "audit_decision",
-                                  "allowed": ["proceed", "iterate", "change_scope"], "binding": {}}),
+        _record(
+            "awaiting_user",
+            {"request_id": "req_1", "kind": "audit_decision",
+             "allowed": ["proceed", "iterate", "change_scope"], "binding": {}},
+        ),
     ]
     envelope = assistant.respond({"id": "tsk_1"}, records, "继续", locale="zh-Hans")
     assert "86 / 74 / 62" in envelope["reply"]
@@ -136,7 +153,10 @@ def test_missing_verdict_never_becomes_success() -> None:
     records = [
         _record("error", {"code": "stage_not_wired",
                           "correlation_id": "synthetic", "retry": {"kind": "manual"}}),
-        _record("run_end", {"execution": "failed", "ai": {"calls": None, "tokens": None, "cost_usd": None}}),
+        _record(
+            "run_end",
+            {"execution": "failed", "ai": {"calls": None, "tokens": None, "cost_usd": None}},
+        ),
     ]
     envelope = assistant.respond({"id": "tsk_1"}, records, "结果", locale="zh-Hans")
     assert SUCCESS not in envelope["reply"]

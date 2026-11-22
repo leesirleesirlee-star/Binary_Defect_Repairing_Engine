@@ -16,27 +16,33 @@ from fastapi import FastAPI, Response
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import SESSION_TOKEN, router as api_router
+from app.api import SESSION_TOKEN
+from app.api import router as api_router
 from app.fixture import snapshot
 
 BASE_DIR = Path(__file__).resolve().parent
 UI_ROOT = BASE_DIR / "static" / "ui"
 # Reference v1.2.2 GUI, started beside this console by scripts/start-legacy-gui.sh.
-LEGACY_URL = os.environ.get("BINARYREPAIR_LEGACY_URL", "http://127.0.0.1:8125").rstrip("/")
+LEGACY_URL = os.environ.get(
+    "BINARYREPAIR_LEGACY_URL", "http://127.0.0.1:8125"
+).rstrip("/")
 
 
 def _legacy_reachable() -> bool:
     """Best-effort probe so /legacy can explain how to start the reference app."""
     parts = urlsplit(LEGACY_URL)
     try:
-        with socket.create_connection((parts.hostname or "127.0.0.1", parts.port or 80), timeout=0.4):
+        with socket.create_connection(
+            (parts.hostname or "127.0.0.1", parts.port or 80), timeout=0.4
+        ):
             return True
     except OSError:
         return False
 
 
 _LEGACY_OFFLINE = """<!doctype html>
-<html lang="zh-Hans"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="zh-Hans"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>旧版界面未启动 · BinaryRepair</title>
 <style>
   body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0d1020;color:#eef0ff;
@@ -51,9 +57,11 @@ _LEGACY_OFFLINE = """<!doctype html>
 </style></head>
 <body><div class="card">
   <h1>旧版界面未启动</h1>
-  <p>新版控制台仍在运行。旧版 v1.2.2 GUI 需要在本机 <code>8125</code> 端口启动，启动后两个界面可随时往返切换。</p>
+  <p>新版控制台仍在运行。旧版 v1.2.2 GUI 需要在本机 <code>8125</code> 端口启动，
+    启动后两个界面可随时往返切换。</p>
   <p>在新版仓库目录执行：<br><code>./scripts/start-legacy-gui.sh</code></p>
-  <p>也可以直接访问 <code>http://127.0.0.1:8125/</code>（令牌与新版共用）。返回 <a href="/welcome">新版界面</a>。</p>
+  <p>也可以直接访问 <code>http://127.0.0.1:8125/</code>（令牌与新版共用）。
+    返回 <a href="/welcome">新版界面</a>。</p>
 </div></body></html>"""
 
 app = FastAPI(title="BinaryRepair conversation console")
