@@ -13,7 +13,10 @@ live provider client is injected by M1's host infrastructure.
    the repair-progress strip and a `详情` expander).
 2. Choose a binary with the attachment control. The upload-only flow sends the
    intake turn, freezes the synthetic contract, records the approval decision and
-   starts the repair without further chat text or clicks.
+   starts the repair without further chat text or clicks. The G2 decision is
+   persisted in the task snapshot *before* Start (`POST /decision` writes
+   `{decision, decided_at, binding_digest}` into `var/tasks/<task>.json`), which
+   is the field the runner prefers (#53).
 3. During the run the right-side panel expands to the live surface
    (`运行概览 / Run overview`, `路线 A/B`, the run monitor and `事件日志 / Event log`).
 4. The run ends with the honest verdict line: `尚无结论（…）；详情：…` — the

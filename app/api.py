@@ -14,6 +14,7 @@ import os
 import secrets
 import subprocess
 import sys
+from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 from typing import Annotated, Any
@@ -216,13 +217,27 @@ def approve_task(task_id: str, body: Annotated[dict[str, Any], Body()]) -> dict[
     "/tasks/{task_id}/decision", dependencies=[Depends(require_session), Depends(require_csrf)]
 )
 def decide_task(task_id: str, body: Annotated[dict[str, Any], Body()]) -> dict[str, Any]:
-    "Record a G2 decision and journal it; repair remains blocked until runner consumes it."
+    """Record a G2 decision in the journal and the task snapshot.
+
+    The runner prefers the persisted snapshot decision; writing both before the
+    Start call closes the GUI/runner journal-append race without a second runner
+    change (issue #53).
+    """
     task = _task(task_id)
     if not (task.get("approval") or {}).get("approved"):
         raise _error(409, "approval_required")
     decision = str(body.get("decision") or "")
     if decision not in {"proceed", "iterate", "change_scope"}:
         raise _error(422, "invalid_decision")
+    binding_digest = task.get("review_binding_digest")
+    if not isinstance(binding_digest, str) or not binding_digest:
+        raise _error(409, "approval_required")
+    decided_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    record_value = {
+        "decision": decision,
+        "decided_at": decided_at,
+        "binding_digest": binding_digest,
+    }
     request_id = str(body.get("request_id") or "decision")
     record = append_gui_event(
         task_id,
@@ -230,10 +245,11 @@ def decide_task(task_id: str, body: Annotated[dict[str, Any], Body()]) -> dict[s
         {
             "request_id": request_id,
             "kind": "audit_decision",
-            "decision": decision,
+            **record_value,
         },
     )
-    return {"decision": decision, "seq": record["seq"]}
+    tasks.update({**task, "decision": record_value})
+    return {"decision": decision, "seq": record["seq"], **record_value}
 
 
 @router.post(
