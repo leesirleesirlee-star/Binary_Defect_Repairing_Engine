@@ -154,3 +154,57 @@ def test_decision_is_allowed_after_approval(client: TestClient) -> None:
     bad = client.post(f"/api/tasks/{task_id}/decision",
                       json={"request_id": "r2", "decision": "success"})
     assert bad.status_code == 422
+
+
+def test_decision_is_persisted_in_the_task_snapshot(client: TestClient) -> None:
+    task_id = client.post("/api/tasks", json={}).json()["id"]
+    digest = client.get(f"/api/tasks/{task_id}").json()["review_binding_digest"]
+    approved = client.post(
+        f"/api/tasks/{task_id}/approve",
+        json={"expected_review_binding_digest": digest, "reviewer_label": "test"},
+    )
+    assert approved.status_code == 200
+    decided = client.post(
+        f"/api/tasks/{task_id}/decision",
+        json={"request_id": "req-1", "decision": "proceed"},
+    )
+    assert decided.status_code == 200
+    body = decided.json()
+    assert body["decision"] == "proceed"
+    assert body["binding_digest"] == digest
+    assert body["decided_at"].endswith("Z")
+
+    snapshot = client.get(f"/api/tasks/{task_id}").json()
+    record = snapshot["decision"]
+    assert record["decision"] == "proceed"
+    assert record["binding_digest"] == digest
+    assert record["decided_at"] == body["decided_at"]
+
+    journal = read_records(task_id)
+    response = [item for item in journal if item["type"] == "user_response"][-1]
+    assert response["payload"]["decision"] == "proceed"
+    assert response["payload"]["binding_digest"] == digest
+    assert response["payload"]["decided_at"] == body["decided_at"]
+
+
+def test_unauthorized_decision_is_not_persisted(client: TestClient) -> None:
+    task_id = client.post("/api/tasks", json={}).json()["id"]
+    refused = client.post(
+        f"/api/tasks/{task_id}/decision",
+        json={"request_id": "req-1", "decision": "proceed"},
+    )
+    assert refused.status_code == 409
+    assert refused.json()["detail"]["code"] == "approval_required"
+    assert "decision" not in client.get(f"/api/tasks/{task_id}").json()
+
+    digest = client.get(f"/api/tasks/{task_id}").json()["review_binding_digest"]
+    client.post(
+        f"/api/tasks/{task_id}/approve",
+        json={"expected_review_binding_digest": digest, "reviewer_label": "test"},
+    )
+    invalid = client.post(
+        f"/api/tasks/{task_id}/decision",
+        json={"request_id": "req-1", "decision": "invent_success"},
+    )
+    assert invalid.status_code == 422
+    assert "decision" not in client.get(f"/api/tasks/{task_id}").json()
