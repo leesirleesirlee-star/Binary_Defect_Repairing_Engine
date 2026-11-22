@@ -4,9 +4,17 @@ Contract: `docs/interfaces/gui-events-v1.md` (H11), decision ADR 0003.
 
 The runner executes pipeline CLIs as subprocesses and writes
 `var/events/{task_id}.jsonl`. It never imports GUI code or pipeline code, never
-reads a provider key, and never fabricates a verdict, score or success label.
-Stages whose CLI is not merged yet are reported as `skipped` plus a stable error
-code, and the terminal `run_end` is `failed` — never `completed`.
+reads a provider key, never executes an ELF, and never fabricates a verdict,
+score or success label.
+
+`repair` runs M5's apply CLI on the approved `FixPlanV1`; `verify` runs M3's
+verifier only when the guest wrote `observations-candidate.json` and records the
+persisted verdict verbatim. Both refuse unless the GUI persisted a `proceed`
+audit decision (task state, or the `user_response` entry written by
+`POST /decision`). The runner polls the GUI task snapshot for a cancel request,
+terminates a running child promptly, and ends the journal with
+`run_end.execution = "cancelled"`. `audit` and `export` stay `skipped`, so a run
+that does not finish the whole pipeline still ends `failed` — never `completed`.
 """
 
 from __future__ import annotations
@@ -18,19 +26,35 @@ import os
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 STEPS = ("collect", "freeze", "analyze", "audit", "decision", "repair", "verify", "export")
 _TASK_ID_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
 _MAX_EVENT_BYTES = 1_000_000
 _ANALYZE_TIMEOUT_S = 120
+_REPAIR_TIMEOUT_S = 120
+_VERIFY_TIMEOUT_S = 300
+_CANCEL_POLL_S = 0.2
+_CANCEL_KILL_TIMEOUT_S = 5.0
+_CANCELLED_STATUSES = frozenset({"cancelling", "cancelled"})
+_DECISIONS = frozenset({"proceed", "iterate", "change_scope"})
+_OBSERVATIONS_FILE = "observations-candidate.json"
+_VERDICT_FILE = "verdict.json"
+_DEFAULT_PLAN = "docs/audit/fix-plan-v1.json"
+_VERIFIED = "verified_against_stated_criteria"
+#: The frozen six-word VerdictV1 vocabulary; the runner adds and infers nothing.
+_VERDICT_VOCABULARY = frozenset(
+    {_VERIFIED, "rejected", "unverified", "unsupported", "error", "not_run"}
+)
 
 EXIT_OK = 0
 EXIT_INVALID = 2
 EXIT_NOT_APPROVED = 3
 EXIT_INTERNAL = 4
+EXIT_CANCELLED = 5
 
 
 class RunnerError(Exception):
@@ -39,6 +63,18 @@ class RunnerError(Exception):
     def __init__(self, message: str, code: int) -> None:
         super().__init__(message)
         self.code = code
+
+
+class StageCancelled(Exception):
+    """The GUI asked to cancel; a running child is terminated and the run stops."""
+
+
+class StageOutcome(NamedTuple):
+    """What one pipeline stage actually produced: reason code, files, evaluation id."""
+
+    reason: str | None = None
+    files: int = 0
+    evaluation_id: str | None = None
 
 
 def _now() -> str:
@@ -53,6 +89,10 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and set(value) <= set("0123456789abcdef")
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -63,6 +103,14 @@ def _read_json(path: Path) -> dict[str, Any]:
 def _write_json(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+
+
+def _read_json_text(text: str) -> dict[str, Any] | None:
+    try:
+        value = json.loads(text)
+    except (TypeError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
 
 
 def _valid_task_id(task_id: str) -> bool:
@@ -89,6 +137,9 @@ def load_task(var_root: Path, task_id: str) -> dict[str, Any]:
             raise RunnerError(f"task is missing {field}", EXIT_INVALID)
     if task["id"] != task_id:
         raise RunnerError("task id does not match its file name", EXIT_INVALID)
+    override = task.get("plan")
+    if override is not None and (not isinstance(override, str) or not override.strip()):
+        raise RunnerError("task.plan must be a non-empty relative path", EXIT_INVALID)
     return task
 
 
@@ -118,6 +169,57 @@ def resolve_binary(repo_root: Path, task: dict[str, Any]) -> Path:
             EXIT_INVALID,
         )
     return path
+
+
+def resolve_plan(repo_root: Path, task: dict[str, Any]) -> Path:
+    """Resolve the approved FixPlanV1: task override, else the G2-selected plan."""
+    path = Path(str(task.get("plan") or _DEFAULT_PLAN))
+    root = repo_root.resolve()
+    resolved = (root / path).resolve()
+    if path.is_absolute() or root not in resolved.parents:
+        raise RunnerError("task.plan must be a relative path inside the repo", EXIT_INVALID)
+    return resolved
+
+
+def _cancel_requested(var_root: Path, task_id: str) -> bool:
+    """Poll the GUI task snapshot; true when the console recorded a cancel request."""
+    try:
+        task = json.loads(
+            (var_root / "tasks" / f"{task_id}.json").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return False  # a GUI write can be caught mid-write; poll again
+    execution = task.get("execution") if isinstance(task, dict) else None
+    if not isinstance(execution, dict):
+        return False
+    return (
+        execution.get("status") in _CANCELLED_STATUSES
+        or execution.get("cancel_requested") is True
+    )
+
+
+def _persisted_decision(task: dict[str, Any], journal: Journal) -> str | None:
+    """Latest explicit G2 audit decision: task state first, then GUI `user_response`."""
+    state = task.get("decision")
+    if isinstance(state, dict):
+        state = state.get("decision") or state.get("outcome")
+    if isinstance(state, str) and state in _DECISIONS:
+        return state
+    if not journal.path.is_file():
+        return None
+    decision: str | None = None
+    for raw in journal.path.read_text(encoding="utf-8").splitlines():
+        record = _read_json_text(raw)
+        payload = record.get("payload") if record is not None else None
+        if (
+            record is not None
+            and record.get("type") == "user_response"
+            and isinstance(payload, dict)
+            and payload.get("kind") == "audit_decision"
+            and payload.get("decision") in _DECISIONS
+        ):
+            decision = str(payload["decision"])
+    return decision
 
 
 class Journal:
@@ -192,18 +294,52 @@ class Plan:
 
 
 def _run_cli(
-    module: str, args: list[str], *, repo_root: Path, timeout: int
+    module: str, args: list[str], *, repo_root: Path, timeout: int,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Run one pipeline CLI as a subprocess (no imports, no shared state)."""
+    """Run one pipeline CLI as a subprocess (no imports, no shared CLI state)."""
     command = [sys.executable, "-m", module, *args]
-    return subprocess.run(
-        command,
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
+    return _run_cli_process(command, repo_root=repo_root, timeout=timeout,
+                            should_cancel=should_cancel)
+
+
+def _run_cli_process(
+    command: list[str], *, repo_root: Path, timeout: float,
+    should_cancel: Callable[[], bool] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run one child process, polling for cancellation and enforcing the timeout."""
+    started = time.monotonic()
+    process = subprocess.Popen(
+        command, cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
     )
+    try:
+        while True:
+            if should_cancel is not None and should_cancel():
+                _terminate(process)
+                raise StageCancelled()
+            remaining = timeout - (time.monotonic() - started)
+            if remaining <= 0:
+                _terminate(process)
+                raise subprocess.TimeoutExpired(command, timeout)
+            try:
+                stdout, stderr = process.communicate(timeout=min(_CANCEL_POLL_S, remaining))
+            except subprocess.TimeoutExpired:
+                continue
+            return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+    finally:
+        if process.poll() is None:  # pragma: no cover - defensive cleanup
+            process.kill()
+            process.communicate()
+
+
+def _terminate(process: subprocess.Popen[str]) -> None:
+    """Terminate the child (SIGTERM/terminate), then kill it if it does not exit."""
+    process.terminate()
+    try:
+        process.communicate(timeout=_CANCEL_KILL_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.communicate()
 
 
 def _module_available(module: str, *, repo_root: Path) -> bool:
@@ -221,12 +357,198 @@ def _skipped_stage(journal: Journal, plan: Plan, step: str, reason: str) -> None
     plan.update(step, "skipped")
 
 
+def _failed_stage(journal: Journal, plan: Plan, step: str, reason: str) -> None:
+    journal.append(
+        "error",
+        {"code": reason, "correlation_id": step, "retry": {"kind": "manual"}},
+        step_id=step,
+    )
+    plan.update(step, "failed")
+
+
+def _run_cli_stage(
+    journal: Journal, step: str, command_id: str, label_code: str, module: str,
+    args: list[str], *, repo_root: Path, timeout: int,
+    should_cancel: Callable[[], bool] | None = None, display_cwd: str = "artifacts",
+) -> subprocess.CompletedProcess[str] | None:
+    """Run one CLI with H11 command events; None on timeout, raises StageCancelled."""
+    base = {"command_id": command_id, "label_code": label_code, "display_cwd": display_cwd}
+
+    def event(phase: str, **fields: Any) -> None:
+        journal.append("command", {**base, "phase": phase, **fields}, step_id=step)
+
+    if should_cancel is not None and should_cancel():
+        raise StageCancelled()
+    event("started")
+    try:
+        result = _run_cli(module, args, repo_root=repo_root, timeout=timeout,
+                          should_cancel=should_cancel)
+    except subprocess.TimeoutExpired:
+        event("output", text=f"timeout after {timeout}s\n", truncated=False)
+        event("finished", exit_code=None)
+        return None
+    except StageCancelled:
+        event("output", text="cancelled by the user\n", truncated=False)
+        event("finished", exit_code=None)
+        raise
+    text = result.stderr or result.stdout or ""
+    event("output", text=text[-2000:], truncated=len(text) > 2000)
+    event("finished", exit_code=result.returncode)
+    return result
+
+
+def _artifact_row(display_path: str, digest: str, note: str) -> dict[str, Any]:
+    """One H11 `file_change.files` row: display path, counts and a hashed note."""
+    diff = {"text": f"{note} sha256={digest}\n", "truncated": False}
+    return {"display_path": display_path, "added": 1, "removed": 0, "diff": diff}
+
+
+def _valid_repair_output(summary: dict[str, Any], artifacts: Path) -> bool:
+    """Check that the apply CLI summary and the artifacts it claims to write agree."""
+    claimed = {"candidate_sha256": "candidate.elf",
+               "manifest_file_sha256": "edit-manifest.json",
+               "candidate_record_sha256": "candidate-v1.json"}
+    return (
+        summary.get("candidate_written") is True
+        and summary.get("fixture_unchanged") is True
+        and summary.get("executed_on_host") is False
+        and _is_sha256(summary.get("manifest_sha256"))
+        and all(_is_sha256(summary.get(field)) and (artifacts / name).is_file()
+                and _sha256_file(artifacts / name) == summary[field]
+                for field, name in claimed.items())
+    )
+
+
+# ---------------------------------------------------------------------------
+# Stages
+# ---------------------------------------------------------------------------
+def _stage_analyze(
+    journal: Journal, plan: Plan, binary: Path, artifacts: Path, repo_root: Path,
+    should_cancel: Callable[[], bool],
+) -> StageOutcome:
+    plan.update("analyze", "in_progress")
+    if not _module_available("pipeline.analyze", repo_root=repo_root):
+        _skipped_stage(journal, plan, "analyze", "analyze_not_wired")
+        return StageOutcome("analyze_not_wired")
+    result = _run_cli_stage(
+        journal, "analyze", "analyze-1", "analysis", "pipeline.analyze",
+        ["--elf", str(binary), "--out-dir", str(artifacts)], repo_root=repo_root,
+        timeout=_ANALYZE_TIMEOUT_S, should_cancel=should_cancel, display_cwd="evidence")
+    if result is None:
+        _failed_stage(journal, plan, "analyze", "analyze_timeout")
+        return StageOutcome("analyze_timeout")
+    if result.returncode != 0:
+        _failed_stage(journal, plan, "analyze", "analyze_failed")
+        return StageOutcome("analyze_failed")
+    files = [
+        _artifact_row(item.name, _sha256_file(item), "generated by pipeline.analyze;")
+        for item in (artifacts / "disassembly.json", artifacts / "finding.json")
+        if item.is_file()
+    ]
+    journal.append("file_change", {"change_id": "analyze-1", "stage": "proposed",
+                                   "files": files}, step_id="analyze")
+    plan.update("analyze", "completed")
+    return StageOutcome(files=len(files))
+
+
+def _stage_repair(
+    journal: Journal, plan: Plan, task: dict[str, Any], binary: Path,
+    plan_path: Path, artifacts: Path, repo_root: Path,
+    should_cancel: Callable[[], bool],
+) -> StageOutcome:
+    plan.update("repair", "in_progress")
+    if not plan_path.is_file():
+        _failed_stage(journal, plan, "repair", "repair_plan_missing")
+        return StageOutcome("repair_plan_missing")
+    args = ["--elf", str(binary), "--plan", str(plan_path),
+            "--out-dir", str(artifacts), "--fixture-id", str(task["fixture_id"])]
+    result = _run_cli_stage(
+        journal, "repair", "repair-1", "repair", "pipeline.repair.apply_fixplan", args,
+        repo_root=repo_root, timeout=_REPAIR_TIMEOUT_S, should_cancel=should_cancel)
+    if result is None:
+        _failed_stage(journal, plan, "repair", "repair_timeout")
+        return StageOutcome("repair_timeout")
+    if result.returncode != 0:
+        _failed_stage(journal, plan, "repair", "repair_failed")
+        return StageOutcome("repair_failed")
+    summary = _read_json_text(result.stdout)
+    if summary is None or not _valid_repair_output(summary, artifacts):
+        _failed_stage(journal, plan, "repair", "repair_output_invalid")
+        return StageOutcome("repair_output_invalid")
+    files = [
+        _artifact_row("candidate.elf", summary["candidate_sha256"],
+                      "applied approved FixPlanV1;"),
+        _artifact_row("edit-manifest.json", summary["manifest_file_sha256"],
+                      f"EditManifestV1 manifest_sha256={summary['manifest_sha256']};"),
+        _artifact_row("candidate-v1.json", summary["candidate_record_sha256"],
+                      "CandidateV1 applied-candidate record;"),
+    ]
+    journal.append("file_change", {"change_id": "repair-1", "stage": "applied",
+                                   "files": files}, step_id="repair")
+    plan.update("repair", "completed")
+    return StageOutcome(files=len(files))
+
+
+def _stage_verify(
+    journal: Journal, plan: Plan, task: dict[str, Any], binary: Path,
+    artifacts: Path, repo_root: Path, should_cancel: Callable[[], bool],
+) -> StageOutcome:
+    plan.update("verify", "in_progress")
+    observations = artifacts / _OBSERVATIONS_FILE
+    if not observations.is_file():
+        _skipped_stage(journal, plan, "verify", "verify_observations_missing")
+        return StageOutcome("verify_observations_missing")
+    fixture = repo_root / "fixtures" / str(task["fixture_id"])
+    verdict_path = artifacts / _VERDICT_FILE
+    args = ["--contract", str(fixture / "contract.json"),
+            "--cases", str(fixture / "cases" / "cases.json"),
+            "--observations", str(observations),
+            "--manifest", str(artifacts / "edit-manifest.json"),
+            "--original-elf", str(binary),
+            "--candidate-elf", str(artifacts / "candidate.elf"),
+            "--out", str(verdict_path)]
+    result = _run_cli_stage(
+        journal, "verify", "verify-1", "verification", "pipeline.verify.verdict", args,
+        repo_root=repo_root, timeout=_VERIFY_TIMEOUT_S, should_cancel=should_cancel)
+    if result is None:
+        _failed_stage(journal, plan, "verify", "verify_timeout")
+        return StageOutcome("verify_timeout")
+    if result.returncode not in (0, 1) or not verdict_path.is_file():
+        _failed_stage(journal, plan, "verify", "verify_failed")
+        return StageOutcome("verify_failed")
+    try:
+        verdict = _read_json_text(verdict_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError):
+        verdict = None
+    label = verdict.get("verdict") if verdict is not None else None
+    if label not in _VERDICT_VOCABULARY:
+        _failed_stage(journal, plan, "verify", "verify_verdict_invalid")
+        return StageOutcome("verify_verdict_invalid")
+    if (result.returncode == 0) != (label == _VERIFIED):
+        _failed_stage(journal, plan, "verify", "verify_inconsistent")
+        return StageOutcome("verify_inconsistent")
+    summary = _read_json_text(result.stdout) or {}
+    evaluation_id = summary.get("verdict_sha256") or _sha256_file(verdict_path)
+    generated_at = verdict.get("produced_at")
+    journal.append("verification", {
+        "kind": "evaluation", "evaluation_id": evaluation_id, "verdict": label,
+        "generated_at": generated_at if isinstance(generated_at, str) else _now(),
+    }, step_id="verify")
+    files = [_artifact_row(_VERDICT_FILE, _sha256_file(verdict_path),
+                           f"VerdictV1 verdict={label};")]
+    journal.append("file_change", {"change_id": "verify-1", "stage": "applied",
+                                   "files": files}, step_id="verify")
+    plan.update("verify", "completed")
+    return StageOutcome(files=1, evaluation_id=evaluation_id)
+
+
 def run_task(task_id: str, *, var_root: Path, repo_root: Path) -> dict[str, Any]:
     """Execute one approved task and return the stdout summary."""
     started = time.monotonic()
     task = load_task(var_root, task_id)
     check_approval(task)
     binary = resolve_binary(repo_root, task)
+    plan_path = resolve_plan(repo_root, task)
     contract_path = repo_root / "fixtures" / str(task["fixture_id"]) / "contract.json"
     if contract_path.is_file() and _sha256_file(contract_path) != task.get("contract_sha256"):
         raise RunnerError("contract does not match the approved task", EXIT_NOT_APPROVED)
@@ -237,8 +559,12 @@ def run_task(task_id: str, *, var_root: Path, repo_root: Path) -> dict[str, Any]
     plan = Plan(journal)
     artifacts = var_root / "artifacts" / task_id
     files_changed = 0
+    evaluation_id: str | None = None
+    reason_code: str | None = None
     execution_state = "failed"
-    reason_code = "stages_not_wired"
+
+    def should_cancel() -> bool:
+        return _cancel_requested(var_root, task_id)
 
     journal.append("run_state", {"status": "running", "message_id": None})
     corpus = task.get("corpus") or {}
@@ -257,75 +583,54 @@ def run_task(task_id: str, *, var_root: Path, repo_root: Path) -> dict[str, Any]
         plan.update("collect", "completed")
         plan.update("freeze", "completed")
 
-        plan.update("analyze", "in_progress")
-        if not _module_available("pipeline.analyze", repo_root=repo_root):
-            _skipped_stage(journal, plan, "analyze", "analyze_not_wired")
-        else:
-            journal.append(
-                "command",
-                {
-                    "command_id": "analyze-1",
-                    "phase": "started",
-                    "label_code": "analysis",
-                    "display_cwd": "evidence",
-                },
-                step_id="analyze",
-            )
-            result = _run_cli(
-                "pipeline.analyze",
-                ["--elf", str(binary), "--out-dir", str(artifacts)],
-                repo_root=repo_root,
-                timeout=_ANALYZE_TIMEOUT_S,
-            )
-            journal.append(
-                "command",
-                {
-                    "command_id": "analyze-1",
-                    "phase": "finished",
-                    "label_code": "analysis",
-                    "display_cwd": "evidence",
-                    "exit_code": result.returncode,
-                    "text": (result.stderr or result.stdout or "")[-2000:],
-                    "truncated": len(result.stderr or result.stdout or "") > 2000,
-                },
-                step_id="analyze",
-            )
-            if result.returncode != 0:
-                _skipped_stage(journal, plan, "audit", "analyze_failed")
-                plan.update("analyze", "failed")
-                reason_code = "analyze_failed"
-            else:
-                produced = [artifacts / "disassembly.json", artifacts / "finding.json"]
-                files = [
-                    {
-                        "display_path": item.name,
-                        "added": 1,
-                        "removed": 0,
-                        "diff": {"text": "generated by pipeline.analyze\n", "truncated": False},
-                    }
-                    for item in produced
-                    if item.is_file()
-                ]
-                files_changed += len(files)
-                journal.append(
-                    "file_change",
-                    {"change_id": "analyze-1", "stage": "proposed", "files": files},
-                    step_id="analyze",
-                )
-                plan.update("analyze", "completed")
-
-        for step in ("audit", "decision", "repair", "verify", "export"):
-            if plan.status.get(step) not in {"skipped"}:
+        analyze = _stage_analyze(journal, plan, binary, artifacts, repo_root, should_cancel)
+        files_changed += analyze.files
+        if analyze.reason is not None:
+            reason_code = analyze.reason
+            for step in ("audit", "decision"):
                 _skipped_stage(journal, plan, step, "stage_not_wired")
-        execution_state = "failed"
-        reason_code = "stages_not_wired"
-    except subprocess.TimeoutExpired:
-        journal.append(
-            "error",
-            {"code": "analyze_timeout", "correlation_id": "analyze", "retry": {"kind": "manual"}},
-            step_id="analyze",
-        )
-        reason_code = "analyze_timeout"
+            for step in ("repair", "verify"):
+                _skipped_stage(journal, plan, step, reason_code)
+        else:
+            _skipped_stage(journal, plan, "audit", "stage_not_wired")
+            decision = _persisted_decision(task, journal)
+            blocked: str | None = None
+            if decision is None:
+                blocked = "decision_missing"
+                _skipped_stage(journal, plan, "decision", blocked)
+            elif decision != "proceed":
+                blocked = "decision_not_proceed"
+                plan.update("decision", "completed")
+            else:
+                plan.update("decision", "completed")
+                repair = _stage_repair(journal, plan, task, binary, plan_path,
+                                       artifacts, repo_root, should_cancel)
+                files_changed += repair.files
+                if repair.reason is None:
+                    verify = _stage_verify(journal, plan, task, binary, artifacts,
+                                           repo_root, should_cancel)
+                    files_changed += verify.files
+                    evaluation_id = verify.evaluation_id
+                    reason_code = verify.reason
+                else:
+                    reason_code = repair.reason
+            if blocked is not None:
+                reason_code = blocked
+                for step in ("repair", "verify"):
+                    if plan.status[step] == "pending":
+                        _skipped_stage(journal, plan, step, blocked)
+
+        _skipped_stage(journal, plan, "export", "stage_not_wired")
+        if reason_code is None:
+            reason_code = "stages_not_wired"
+        if should_cancel():
+            raise StageCancelled()
+    except StageCancelled:
+        execution_state, reason_code = "cancelled", "user_cancelled"
+        running = next((name for name in STEPS if plan.status[name] == "in_progress"), None)
+        if running is not None:
+            _failed_stage(journal, plan, running, "user_cancelled")
+        journal.append("run_state", {"status": "cancelled", "message_id": None})
     except OSError as error:
         journal.append(
             "error",
@@ -341,17 +646,12 @@ def run_task(task_id: str, *, var_root: Path, repo_root: Path) -> dict[str, Any]
                 "steps_taken": sum(1 for value in plan.status.values() if value == "completed"),
                 "files_changed": files_changed,
                 "ai": {"calls": None, "tokens": None, "cost_usd": None},
-                "evaluation_id": None,
+                "evaluation_id": evaluation_id,
             },
         )
 
-    return {
-        "task_id": task_id,
-        "run_id": run_id,
-        "execution": execution_state,
-        "reason_code": reason_code,
-        "events": journal.events,
-    }
+    return {"task_id": task_id, "run_id": run_id, "execution": execution_state,
+            "reason_code": reason_code, "events": journal.events}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -372,7 +672,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return error.code
     print(json.dumps(summary, sort_keys=True))
-    return EXIT_OK
+    return EXIT_CANCELLED if summary["execution"] == "cancelled" else EXIT_OK
 
 
 if __name__ == "__main__":

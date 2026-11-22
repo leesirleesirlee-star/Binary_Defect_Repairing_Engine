@@ -119,6 +119,13 @@ invalid corpora; `observations-original.json` (PoC crashes, valid cases pass);
 `observations-candidate.json`; `verdict.json` in the fixed vocabulary. M3 signs
 the fixture freeze with M1 and independently re-runs M5's candidate.
 
+**G3 runner handoff.** After the repair stage writes `candidate.elf` under
+`var/artifacts/{task_id}/`, M3 runs the candidate on the frozen corpus in the
+guest and writes `var/artifacts/{task_id}/observations-candidate.json` next to
+it. The runner's `verify` stage calls `python -m pipeline.verify.verdict` (the
+only writer of `verdict.json`); without the observations file it reports the
+stage as `skipped` with `verify_observations_missing` and never invents a verdict.
+
 **Does not own.** The contract text (M1 owns it, M3 reviews), the AI prompt, the
 repair, the GUI. M3 must not edit the contract to make a candidate pass.
 

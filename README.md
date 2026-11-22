@@ -12,10 +12,10 @@ frozen, human-reviewed contract and regression corpus, and reports
 The model never writes the contract and never decides the verdict. That
 separation is the point of the redesign.
 
-> **Status (2026-11-21):** G1 fixture freeze and G2 AI audit are signed — tags
-> `g0-bootstrap`, `fixture-v1`, `audit-v1`. G3 (patch + verify) and G4
-> (conversation console) are in progress. **No verified repair exists yet; this
-> is not a working product.**
+> **Status (2026-11-22):** G1 fixture freeze and G2 AI audit are signed — tags
+> `g0-bootstrap`, `fixture-v1`, `audit-v1`. G3 (applied candidate + verdict) and
+> G4 (end-to-end demo) are in progress. **No verified repair exists yet; this is
+> not a working product.**
 >
 > - **G1** — frozen x86-64 fixture, 9-case corpus, contract, original guest
 >   observations: [`docs/plan/evidence/G1-RECORD.md`](docs/plan/evidence/G1-RECORD.md).
@@ -23,12 +23,12 @@ separation is the point of the redesign.
 >   (M1 99 / M5 100 on the selected plan), decision **`proceed`**:
 >   [`docs/plan/evidence/G2-RECORD.md`](docs/plan/evidence/G2-RECORD.md),
 >   [`docs/audit/2026-11-21-audit-01.md`](docs/audit/2026-11-21-audit-01.md).
-> - **G3** — repair CLI merged; `CandidateV1` published (ADR 0004). The V0-V4
->   verifier ([#11](https://github.com/leesirleesirlee-star/Binary_Defect_Repairing_Engine/issues/11))
->   and the applied candidate are still open.
-> - **G4** — the minimal chat-first conversation console (plan Revision 2.2,
->   live run panels) is implemented on branch `gui/complete-mvp2-2026-11-21`;
->   the task runner is on `main`. The console itself is not merged yet.
+> - **G3** — patch/apply CLI merged (`cd006bc`), `CandidateV1` published
+>   (ADR 0004), verifier V0-V5 merged (`924a50c`). The applied candidate, the
+>   guest observations and the signed verdict are still pending (M3 guest run).
+> - **G4** — the minimal chat-first conversation console is merged (`fb8af46`);
+>   the end-to-end demo still awaits the runner wiring (#48) and that guest
+>   verdict.
 
 ## Read first
 
