@@ -1,0 +1,57 @@
+{
+  "candidate_sha256": "c010c006b573b29a683540d128296bc94343e0d0c8bf73fc2c308b95aaa25b28",
+  "contract_sha256": "856b6ad2dabf69b705836f3a7c6466b534034cb1a4770a43f3fb596a11ce578c",
+  "coverage": {
+    "cases_run": 9,
+    "cases_total": 9,
+    "unmeasured": []
+  },
+  "criteria": [
+    {
+      "evidence_sha256": "b0f58f3b94025bec1927f90c6aa79c5c8f91e5a74c04ddac0904b04c7558d8e0",
+      "id": "V0-identity",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "evidence_sha256": "49f20c0fccdd8c5f21b1e645ea5d61838794e8ba8150dc987e93ce7f80f49dee",
+      "id": "V1-structure",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "evidence_sha256": "79ad45015a8e2d29469430a7c796719661daf61cfc527d6fd1c7384ce46d9ee5",
+      "id": "V2-valid-behaviour",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "evidence_sha256": "bb4816ae7738bb17f7edc97fdd219d70ee234bea95bb460603315dcdda08844a",
+      "id": "V3-invalid-response",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "evidence_sha256": "69b1eee6b4ef255e80a938e0c7792cd5020749ae4ecaa3c5b54bc75b7abb8b6e",
+      "id": "V4-boundary",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "evidence_sha256": "37c94bdef4f2c25fc55e1a00cb54ea161c0bd6fe4606fadfe495b3171f267b3b",
+      "id": "V5-reapply",
+      "required": false,
+      "status": "pass"
+    }
+  ],
+  "limitations": [
+    "verified_against_stated_criteria is scoped to the frozen ContractV1 and CaseSetV1 of fixture stack-overflow-01; it is not a proof of whole-program correctness or security.",
+    "V5 re-apply reproducibility is optional for MVP2 and is reported next to the required V0-V4 checks; it is not part of the success rule.",
+    "V4 static evidence uses bounded byte-pattern matching over the declared cave code, not a full disassembly; a guard that cannot be recognised is not_run, never a pass."
+  ],
+  "original_sha256": "705ab9290094218af7164fb6415cde14bd800b040d52f3fc1e9d1b766b3d9c26",
+  "produced_at": "2026-11-22T11:06:48Z",
+  "produced_by": "pipeline.verify.verdict",
+  "schema_version": 1,
+  "verdict": "verified_against_stated_criteria"
+}

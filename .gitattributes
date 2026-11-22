@@ -8,3 +8,5 @@
 *.jpg binary
 *.jpeg binary
 *.pdf binary
+# G3 evidence is hash-bound: keep the bytes exactly as produced (do not normalize newlines).
+/docs/plan/evidence/g3/*.json -text

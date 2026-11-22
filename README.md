@@ -12,10 +12,11 @@ frozen, human-reviewed contract and regression corpus, and reports
 The model never writes the contract and never decides the verdict. That
 separation is the point of the redesign.
 
-> **Status (2026-11-22):** G1 fixture freeze and G2 AI audit are signed — tags
-> `g0-bootstrap`, `fixture-v1`, `audit-v1`. G3 (applied candidate + verdict) and
-> G4 (end-to-end demo) are in progress. **No verified repair exists yet; this is
-> not a working product.**
+> **Status (2026-11-22):** G1 fixture freeze, G2 AI audit and **G3 repair verdict are
+> signed** — tags `g0-bootstrap`, `fixture-v1`, `audit-v1`, `candidate-v1`. G4 (the
+> end-to-end console demo) is the only gate still open. The verdict is scoped to the
+> frozen contract and corpus: **it is not a proof of whole-program correctness or
+> security.**
 >
 > - **G1** — frozen x86-64 fixture, 9-case corpus, contract, original guest
 >   observations: [`docs/plan/evidence/G1-RECORD.md`](docs/plan/evidence/G1-RECORD.md).
@@ -23,12 +24,16 @@ separation is the point of the redesign.
 >   (M1 99 / M5 100 on the selected plan), decision **`proceed`**:
 >   [`docs/plan/evidence/G2-RECORD.md`](docs/plan/evidence/G2-RECORD.md),
 >   [`docs/audit/2026-11-21-audit-01.md`](docs/audit/2026-11-21-audit-01.md).
-> - **G3** — patch/apply CLI merged (`cd006bc`), `CandidateV1` published
->   (ADR 0004), verifier V0-V5 merged (`924a50c`). The applied candidate, the
->   guest observations and the signed verdict are still pending (M3 guest run).
-> - **G4** — the minimal chat-first conversation console is merged (`fb8af46`);
->   the end-to-end demo still awaits the runner wiring (#48) and that guest
->   verdict.
+> - **G3** — candidate `c010c006…` produced from the approved plan by the apply CLI;
+>   the V0–V5 verifier returned **`verified_against_stated_criteria`** on the guest
+>   observations (9/9 cases, canonical verdict hash `51f29be5…`), reproduced
+>   independently: [`docs/plan/evidence/G3-RECORD.md`](docs/plan/evidence/G3-RECORD.md),
+>   [evidence bundle](docs/plan/evidence/g3/). The guest runtime was a fresh-boot
+>   WSL2 VM; strict disposable-guest isolation is recorded as an open limitation.
+> - **G4** — the minimal chat-first console (`fb8af46`) and the runner with the G2
+>   decision gate and cancellation (`b680a27`) are merged; the end-to-end console
+>   demo on the frozen fixture is the remaining gate. The runner needs M3's guest
+>   observations and never fabricates a verdict.
 
 ## Read first
 
