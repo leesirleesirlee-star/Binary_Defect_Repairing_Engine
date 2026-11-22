@@ -1,0 +1,23 @@
+/* Cross-fade hand-off between the welcome page and the console.
+   No overlay, no scan, no flash: the outgoing page fades to its background and
+   the incoming console fades its content in. Motion-reduced users see the pages
+   immediately, and the pages work without this file. */
+
+html.warp-leaving body {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+html.warp-arriving #app {
+  animation: warp-fade-in 260ms ease both;
+}
+
+@keyframes warp-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.warp-leaving body { opacity: 1; transition: none; }
+  html.warp-arriving #app { animation: none; }
+}

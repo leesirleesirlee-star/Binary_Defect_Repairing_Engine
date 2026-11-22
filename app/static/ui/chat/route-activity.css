@@ -1,0 +1,91 @@
+/* Route A live run monitor: a collapsible nested panel inside the Route A lane. */
+.ra-monitor {
+  margin-top: .6rem;
+  border: 1px solid var(--line);
+  border-radius: .62rem;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  overflow: hidden;
+}
+.ra-monitor > summary {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .48rem .55rem;
+  cursor: pointer;
+  list-style: none;
+  font-size: .73rem;
+}
+.ra-monitor > summary::-webkit-details-marker { display: none; }
+.ra-heading { display: flex; align-items: center; gap: .34rem; flex: 1; min-width: 0; }
+.ra-title { display: inline-flex; align-items: center; gap: .32rem; font-weight: 650; }
+.ra-title svg { color: var(--accent); }
+.ra-live { display: inline-flex; align-items: center; gap: .25rem; color: var(--pass); font-size: .66rem; }
+.ra-dot { width: .4rem; height: .4rem; border-radius: 50%; background: var(--pass); box-shadow: 0 0 0 .16rem color-mix(in srgb, var(--pass) 14%, transparent); }
+.ra-count { color: var(--muted); font-size: .66rem; }
+.ra-refresh { display: inline-flex; align-items: center; gap: .2rem; min-height: 1.35rem; padding: .1rem .4rem; border: 1px solid var(--line); border-radius: .35rem; background: transparent; color: var(--muted); font: .66rem inherit; }
+.ra-refresh:hover { color: var(--text); border-color: var(--accent); }
+.ra-body { border-top: 1px solid var(--line); padding: .5rem; max-height: 26rem; overflow: auto; }
+.ra-task-list { display: grid; gap: .45rem; }
+.ra-task { border: 1px solid var(--line); border-radius: .5rem; padding: .45rem .5rem; background: color-mix(in srgb, var(--surface) 82%, transparent); }
+.ra-task-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; font-size: .72rem; }
+.ra-task-head strong { font-family: ui-monospace, monospace; font-size: .69rem; }
+.ra-target { display: block; margin-top: .15rem; color: var(--muted); font-size: .65rem; overflow-wrap: anywhere; }
+.ra-task-state { display: inline-flex; align-items: center; gap: .28rem; color: var(--muted); white-space: nowrap; }
+.ra-task-state .ra-dot { background: var(--warn); box-shadow: none; }
+.ra-status { font-size: .65rem; }
+.ra-steps { display: flex; flex-wrap: wrap; gap: .2rem; margin: .4rem 0; }
+.ra-step { display: inline-flex; align-items: center; gap: .2rem; padding: .1rem .3rem; border: 1px solid var(--line); border-radius: .3rem; font-size: .62rem; color: var(--muted); }
+.ra-step[data-status="completed"] { color: var(--pass); border-color: color-mix(in srgb, var(--pass) 38%, var(--line)); }
+.ra-step[data-status="in_progress"] { color: var(--accent); border-color: var(--accent); }
+.ra-step[data-status="failed"] { color: var(--error); border-color: color-mix(in srgb, var(--error) 38%, var(--line)); }
+.ra-step-state { opacity: .85; }
+.ra-events { display: grid; gap: .15rem; max-height: 15rem; overflow: auto; }
+.ra-event { border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); padding-top: .15rem; }
+.ra-event > summary { display: flex; align-items: baseline; gap: .28rem; cursor: pointer; font-size: .67rem; list-style: none; }
+.ra-event > summary::-webkit-details-marker { display: none; }
+.ra-seq { color: var(--muted); font: .62rem ui-monospace, monospace; }
+.ra-event > summary strong { font-size: .67rem; }
+.ra-event-summary { color: var(--muted); overflow-wrap: anywhere; }
+.ra-chip { display: inline-flex; padding: .02rem .25rem; border: 1px solid var(--line); border-radius: 999px; font-size: .58rem; color: var(--muted); }
+.ra-chip[data-tone="warn"] { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 38%, var(--line)); }
+.ra-raw { background: color-mix(in srgb, var(--page) 72%, transparent); border-radius: .3rem; padding: .25rem .35rem; margin-top: .2rem; }
+.ra-raw .ra-muted { display: block; margin-bottom: .15rem; }
+.ra-raw pre { margin: 0; max-height: 9rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: .61rem/1.35 ui-monospace, monospace; }
+.ra-artifacts { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; border-top: 1px solid var(--line); margin-top: .35rem; padding-top: .3rem; }
+.ra-artifact { display: inline-flex; align-items: center; gap: .15rem; color: var(--accent); font-size: .64rem; text-decoration: none; }
+.ra-artifact:hover { text-decoration: underline; }
+.ra-muted { color: var(--muted); font-size: .67rem; }
+.ra-error { color: var(--error); font-size: .68rem; }
+
+/* The old borderless log below the two route lanes is superseded by the
+   per-route nested logs. Keep the node in the component tree but do not show a
+   second, unscoped activity area. */
+.trace { display: none !important; }
+.ra-log-head { display: flex; align-items: center; gap: .28rem; margin: 0 0 .35rem; color: var(--muted); font-size: .66rem; font-weight: 650; }
+.ra-log-head svg { color: var(--accent); }
+.ra-route-b-log { border-color: var(--line); }
+.ra-monitor { position: relative; }
+.ra-monitor::before {
+  content: '';
+  position: absolute;
+  left: -.42rem;
+  top: 1.05rem;
+  width: .3rem;
+  height: .3rem;
+  border-inline-start: 1px solid var(--line);
+  border-block-end: 1px solid var(--line);
+}
+@media (min-width: 1081px) {
+  .workspace.inspect-before-run { grid-template-columns: minmax(17rem, .72fr) minmax(0, 1.28fr); }
+}
+
+/* Dedicated per-route event log, separate from the run overview. */
+.ra-event-log { margin-top: .45rem; }
+.ra-log-body { display: grid; gap: .3rem; max-height: 22rem; overflow: auto; }
+.ra-log-run { border: 1px solid var(--line); border-radius: .42rem; padding: .3rem .38rem; background: color-mix(in srgb, var(--surface) 78%, transparent); }
+.ra-log-run > summary { display: flex; align-items: center; gap: .35rem; cursor: pointer; list-style: none; font-size: .67rem; }
+.ra-log-run > summary::-webkit-details-marker { display: none; }
+.ra-log-run > summary strong { font-family: ui-monospace, monospace; font-size: .66rem; }
+.ra-log-heading { display: flex; align-items: center; gap: .3rem; flex: 1; min-width: 0; }
+.ra-log-status { color: var(--muted); font-size: .62rem; }
+.ra-log-rows { display: grid; gap: .12rem; margin-top: .22rem; max-height: 17rem; overflow: auto; }

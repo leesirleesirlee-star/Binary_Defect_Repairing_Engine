@@ -5,3 +5,8 @@ ruff>=0.6,<1
 jsonschema>=4.21,<5
 pyelftools>=0.33,<1
 capstone>=5.0,<6
+
+# S3 conversation-console API/SSE runtime and test client.
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+httpx>=0.27,<1
