@@ -13,8 +13,15 @@ persisted verdict verbatim. Both refuse unless the GUI persisted a `proceed`
 audit decision (task state, or the `user_response` entry written by
 `POST /decision`). The runner polls the GUI task snapshot for a cancel request,
 terminates a running child promptly, and ends the journal with
-`run_end.execution = "cancelled"`. `audit` and `export` stay `skipped`, so a run
-that does not finish the whole pipeline still ends `failed` — never `completed`.
+`run_end.execution = "cancelled"`.
+
+The `audit` stage is signed evidence (the G2 three-run record), not work this run
+repeats; when a persisted decision exists it is `skipped` with
+`satisfied_by_signed_g2`, never `completed`. The `export` stage writes the
+hash-manifest of the run's artifacts and never recomputes the verdict. A run ends
+`completed` only when analysis, the signed decision, repair, verify and export
+all actually finished; any skipped or failed gate leaves `execution = "failed"`
+with its reason code (ADR 0005).
 """
 
 from __future__ import annotations
@@ -542,6 +549,68 @@ def _stage_verify(
     return StageOutcome(files=1, evaluation_id=evaluation_id)
 
 
+def _stage_export(
+    journal: Journal, plan: Plan, task: dict[str, Any], artifacts: Path
+) -> StageOutcome:
+    """Write the run's evidence-bundle manifest; never recomputes the verdict."""
+    plan.update("export", "in_progress")
+    verdict_path = artifacts / _VERDICT_FILE
+    if not verdict_path.is_file():
+        _skipped_stage(journal, plan, "export", "export_verdict_missing")
+        return StageOutcome("export_verdict_missing")
+    try:
+        verdict = _read_json_text(verdict_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError):
+        verdict = None
+    if verdict is None or verdict.get("verdict") not in _VERDICT_VOCABULARY:
+        _failed_stage(journal, plan, "export", "export_verdict_invalid")
+        return StageOutcome("export_verdict_invalid")
+    files = []
+    for name in (
+        "candidate.elf",
+        "edit-manifest.json",
+        "candidate-v1.json",
+        _VERDICT_FILE,
+        _OBSERVATIONS_FILE,
+        "disassembly.json",
+        "finding.json",
+    ):
+        path = artifacts / name
+        if path.is_file():
+            files.append(
+                {"name": name, "sha256": _sha256_file(path), "bytes": path.stat().st_size}
+            )
+    manifest_path = artifacts / "export" / "bundle-manifest.json"
+    _write_json(
+        manifest_path,
+        {
+            "schema_version": 1,
+            "task_id": str(task["id"]),
+            "fixture_id": str(task["fixture_id"]),
+            "verdict": verdict.get("verdict"),
+            "verdict_sha256": _sha256_file(verdict_path),
+            "artifacts": files,
+            "generated_at": _now(),
+        },
+    )
+    digest = _sha256_file(manifest_path)
+    journal.append(
+        "file_change",
+        {
+            "change_id": "export-1",
+            "stage": "exported",
+            "files": [
+                _artifact_row(
+                    "export/bundle-manifest.json", digest, "evidence bundle manifest;"
+                )
+            ],
+        },
+        step_id="export",
+    )
+    plan.update("export", "completed")
+    return StageOutcome(files=1)
+
+
 def run_task(task_id: str, *, var_root: Path, repo_root: Path) -> dict[str, Any]:
     """Execute one approved task and return the stdout summary."""
     started = time.monotonic()
@@ -587,42 +656,45 @@ def run_task(task_id: str, *, var_root: Path, repo_root: Path) -> dict[str, Any]
         files_changed += analyze.files
         if analyze.reason is not None:
             reason_code = analyze.reason
-            for step in ("audit", "decision"):
-                _skipped_stage(journal, plan, step, "stage_not_wired")
-            for step in ("repair", "verify"):
+            for step in ("audit", "decision", "repair", "verify", "export"):
                 _skipped_stage(journal, plan, step, reason_code)
         else:
-            _skipped_stage(journal, plan, "audit", "stage_not_wired")
             decision = _persisted_decision(task, journal)
-            blocked: str | None = None
             if decision is None:
-                blocked = "decision_missing"
-                _skipped_stage(journal, plan, "decision", blocked)
-            elif decision != "proceed":
-                blocked = "decision_not_proceed"
-                plan.update("decision", "completed")
+                reason_code = "decision_missing"
+                for step in ("audit", "decision", "repair", "verify", "export"):
+                    _skipped_stage(journal, plan, step, reason_code)
             else:
+                # The three-run audit is signed evidence (G2); this run binds it
+                # instead of repeating it, and says so in the step status.
+                _skipped_stage(journal, plan, "audit", "satisfied_by_signed_g2")
                 plan.update("decision", "completed")
-                repair = _stage_repair(journal, plan, task, binary, plan_path,
-                                       artifacts, repo_root, should_cancel)
-                files_changed += repair.files
-                if repair.reason is None:
-                    verify = _stage_verify(journal, plan, task, binary, artifacts,
-                                           repo_root, should_cancel)
-                    files_changed += verify.files
-                    evaluation_id = verify.evaluation_id
-                    reason_code = verify.reason
+                if decision != "proceed":
+                    reason_code = "decision_not_proceed"
+                    for step in ("repair", "verify", "export"):
+                        _skipped_stage(journal, plan, step, reason_code)
                 else:
-                    reason_code = repair.reason
-            if blocked is not None:
-                reason_code = blocked
-                for step in ("repair", "verify"):
-                    if plan.status[step] == "pending":
-                        _skipped_stage(journal, plan, step, blocked)
-
-        _skipped_stage(journal, plan, "export", "stage_not_wired")
-        if reason_code is None:
-            reason_code = "stages_not_wired"
+                    repair = _stage_repair(journal, plan, task, binary, plan_path,
+                                           artifacts, repo_root, should_cancel)
+                    files_changed += repair.files
+                    if repair.reason is None:
+                        verify = _stage_verify(journal, plan, task, binary, artifacts,
+                                               repo_root, should_cancel)
+                        files_changed += verify.files
+                        evaluation_id = verify.evaluation_id
+                        reason_code = verify.reason
+                    else:
+                        reason_code = repair.reason
+                    if reason_code is None:
+                        export = _stage_export(journal, plan, task, artifacts)
+                        files_changed += export.files
+                        reason_code = export.reason
+                    if reason_code is None:
+                        execution_state = "completed"
+                    else:
+                        for step in ("repair", "verify", "export"):
+                            if plan.status[step] == "pending":
+                                _skipped_stage(journal, plan, step, reason_code)
         if should_cancel():
             raise StageCancelled()
     except StageCancelled:
