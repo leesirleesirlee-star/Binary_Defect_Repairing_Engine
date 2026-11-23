@@ -169,3 +169,43 @@ def test_upload_validation(client: TestClient) -> None:
     )
     assert bad.status_code == 422
     assert bad.json()["detail"]["code"] == "not_an_elf"
+
+
+def test_fixture_payload_is_the_signed_demo(client: TestClient) -> None:
+    response = client.get("/api/g4/fixture")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    binary = base64.b64decode(body["binary_base64"])
+    assert binary == FIXTURE.read_bytes()
+    assert body["sha256"] == body["sha256"].lower()
+    assert len(body["case_files"]) == 2
+    decoded = [json.loads(base64.b64decode(item["content_base64"])) for item in body["case_files"]]
+    assert any(item.get("valid") for item in decoded)
+    assert any(item.get("invalid") for item in decoded)
+
+
+def test_elf_without_supported_finding_is_an_honest_scope_refusal(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app import g4
+
+    def no_finding(binary: Path, out_dir: Path) -> dict:
+        return {
+            "finding": None,
+            "view": {"functions": []},
+            "finding_sha256": None,
+            "view_sha256": "0" * 64,
+            "analysis_status": "no_supported_finding",
+            "unsupported_detail": "no call to strcpy@plt found in the disassembly view",
+        }
+
+    monkeypatch.setattr(g4, "analyze_binary", no_finding)
+    response = _upload(client, FIXTURE.read_bytes())
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["supported"] is False
+    assert body["analysis_status"] == "no_supported_finding"
+    assert body["analysis"]["status"] == "no_supported_finding"
+    assert body["task"]["phase"] == "unsupported"
+    assert [item["feasible"] for item in body["plans"]] == [False, False, False]
+    assert body["task"]["g4"]["analysis_status"] == "no_supported_finding"

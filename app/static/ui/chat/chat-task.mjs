@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261123d';
+import {label} from './chat-copy.mjs?v=20261123e';
 
 const newId = () => crypto.randomUUID();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -105,23 +105,6 @@ export function chatTask({notify = () => {}} = {}) {
     });
   }
 
-  async function uploadAndAnalyze(chat, file, cases, defect, locale) {
-    const binaryBase64 = await readBase64(file);
-    const caseFiles = [];
-    for (const item of cases) {
-      caseFiles.push({name: item.name, content_base64: await readBase64(item)});
-    }
-    return api('/api/tasks/upload', {
-      method: 'POST',
-      body: {
-        binary_name: file.name,
-        binary_base64: binaryBase64,
-        case_files: caseFiles,
-        defect,
-      },
-    });
-  }
-
   async function send(chat, text, locale, attachment, file, cases = []) {
     chat.locale = locale;
     if (!file) {
@@ -137,27 +120,64 @@ export function chatTask({notify = () => {}} = {}) {
         + 'derive the repair contracts.'));
       return;
     }
+    const payload = {
+      binaryName: file.name,
+      binaryBase64: await readBase64(file),
+      caseFiles: [],
+    };
+    for (const item of cases) {
+      payload.caseFiles.push({name: item.name, content_base64: await readBase64(item)});
+    }
+    await submitPayload(chat, payload, text, locale);
+  }
+
+  async function sendFixture(chat, locale = chat.locale) {
+    if (['running', 'awaiting_user', 'cancel_requested'].includes(chat.phase)) return;
+    chat.locale = locale;
+    try {
+      const payload = await api('/api/g4/fixture');
+      await submitPayload(chat, {
+        binaryName: payload.binary_name,
+        binaryBase64: payload.binary_base64,
+        caseFiles: payload.case_files || [],
+      }, t(locale, '试用冻结示例：分析并演示修复流程',
+        'Demo the frozen fixture: analyze and show the repair flow'), locale);
+    } catch (error) {
+      say(chat, t(locale, `无法加载示例：${error.message}。`, `Could not load the demo: ${error.message}.`));
+    }
+  }
+
+  async function submitPayload(chat, payload, text, locale) {
+    const cases = payload.caseFiles || [];
     const clean = String(text || '').trim() ||
       t(locale, '请修复这个二进制文件', 'Repair this binary');
     const messageId = newId();
     const attachmentIds = [newId(), ...cases.map(() => newId())];
-    chat.attachmentNames.set(attachmentIds[0], file.name);
+    chat.attachmentNames.set(attachmentIds[0], payload.binaryName);
     cases.forEach((item, index) => chat.attachmentNames.set(attachmentIds[index + 1], item.name));
     event(chat, 'user_message', {
       message_id: messageId, text: clean, attachment_ids: attachmentIds, delivery: 'accepted',
     }, null, null);
-    chat.title ||= file.name;
+    chat.title ||= payload.binaryName;
     chat.kind = 'repair';
     chat.started = Date.now();
     state(chat, 'running');
     planSteps(chat, {collect: 'in_progress'});
     event(chat, 'thinking', {phase: 'started'}, 'collect');
     say(chat, t(locale,
-      `已收到 ${file.name} 与 ${cases.length} 个用例文件，正在分析漏洞并生成多种修复契约…`,
-      'Received ' + file.name + ' and ' + cases.length + ' case file(s); analyzing the defect '
-      + 'and deriving the repair contracts…'));
+      `已收到 ${payload.binaryName} 与 ${cases.length} 个用例文件，正在分析漏洞并生成多种修复契约…`,
+      'Received ' + payload.binaryName + ' and ' + cases.length + ' case file(s); analyzing '
+      + 'the defect and deriving the repair contracts…'));
     try {
-      const data = await uploadAndAnalyze(chat, file, cases, clean, locale);
+      const data = await api('/api/tasks/upload', {
+        method: 'POST',
+        body: {
+          binary_name: payload.binaryName,
+          binary_base64: payload.binaryBase64,
+          case_files: payload.caseFiles || [],
+          defect: clean,
+        },
+      });
       chat.jobId = data.task.id;
       chat.task = data.task;
       chat.g4 = data.task.g4;
@@ -167,6 +187,32 @@ export function chatTask({notify = () => {}} = {}) {
       planSteps(chat, {collect: 'completed', freeze: 'completed', analyze: 'completed'});
       const finding = data.analysis || {};
       const counts = data.task.g4?.cases?.counts || {};
+      const status = data.analysis_status || data.task.g4?.analysis_status || 'ok';
+      if (status === 'no_supported_finding' || !data.supported) {
+        if (status === 'no_supported_finding') {
+          say(chat, t(locale,
+            '分析器已完成反汇编，但没有识别到 MVP2 支持的栈溢出模式（strcpy 调用点）。'
+            + '这个 ELF 不在冻结 fixture 的签名修复范围内，因此不会写入修复补丁。'
+            + '可以点下方「试用示例」用冻结 fixture 跑完整演示；你的二进制仍可作为只读分析证据保留。',
+            'The analyzer disassembled the ELF but did not find the MVP2-supported stack '
+            + 'overflow pattern (the strcpy call site). This binary is outside the frozen '
+            + 'fixture scope, so no repair patch is written. Use "Try the demo" below to run '
+            + 'the full signed-fixture demo; your binary remains as read-only analysis evidence.'));
+        } else {
+          say(chat, t(locale,
+            `这个 ELF 的 SHA-256 不是冻结 fixture（${data.task.g4?.binary_sha256?.slice(0, 12) ?? '?'}）。`
+            + 'MVP2 只对签名 fixture 写补丁；当前已完成只读分析，不会伪造修复输出。',
+            `This ELF is not the frozen fixture (sha256 ${data.task.g4?.binary_sha256?.slice(0, 12) ?? '?'}). `
+            + 'MVP2 only patches the signed fixture; the analysis is read-only and no repair '
+            + 'output is fabricated.'));
+        }
+        event(chat, 'g4_actions', {
+          id: 'g4-actions-' + data.task.id,
+          actions: [{id: 'fixture', kind: 'fixture', label: t(locale, '试用示例', 'Try the demo')}],
+        }, 'export');
+        finish(chat, 'unsupported');
+        return;
+      }
       say(chat, t(locale,
         `分析完成：${finding.function || '?'} @ ${finding.address || '?'}，`
         + `${finding.instruction || '?'}，${finding.cwe || 'CWE-121'}；`
@@ -174,14 +220,6 @@ export function chatTask({notify = () => {}} = {}) {
         `Analysis finished: ${finding.function || '?'} @ ${finding.address || '?'}, `
         + `${finding.instruction || '?'}, ${finding.cwe || 'CWE-121'}; recorded `
         + `${counts.valid ?? 0} valid and ${counts.poc ?? 0} PoC case(s).`));
-      if (!data.supported) {
-        say(chat, t(locale,
-          '当前构建的修复器只对冻结 fixture 签名应用补丁；这个二进制已完成分析，但不会写入修复输出。',
-          'This build only applies signed patches to the frozen fixture; the binary was analyzed, '
-          + 'but no repair output will be written.'));
-            finish(chat, 'unsupported');
-        return;
-      }
       chat.request = {
         kind: 'repair_plan',
         request_id: newId(),
@@ -199,9 +237,12 @@ export function chatTask({notify = () => {}} = {}) {
     } catch (error) {
       event(chat, 'thinking', {phase: 'finished', duration_ms: 0, summary_code: 'analysis'},
         'collect');
-      say(chat, t(locale,
-        `上传或分析失败：${error.message}。请检查文件后重试。`,
-        `Upload or analysis failed: ${error.message}. Check the files and try again.`));
+      const reason = error.status === 422
+        ? t(locale, '分析器无法处理这个 ELF（请确认它是可供分析器读取的 x86-64 ELF）。',
+          'The analyzer could not process this ELF (confirm it is a readable x86-64 ELF).')
+        : t(locale, `上传或分析失败：${error.message}。`,
+          `Upload or analysis failed: ${error.message}.`);
+      say(chat, reason);
       finish(chat, 'failed');
     }
   }
@@ -345,6 +386,6 @@ export function chatTask({notify = () => {}} = {}) {
 
   function deactivate() {}
 
-  return {chats, live: true, taskMode: true, create, send, decide, start: async () => {}, stop,
-    seed, activate, deactivate};
+  return {chats, live: true, taskMode: true, create, send, sendFixture, decide,
+    start: async () => {}, stop, seed, activate, deactivate};
 }

@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261123d';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261123e';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -59,6 +59,8 @@ const copy = {
   composer: ['Message', '消息'], attach: ['Attach a sample file', '添加示例文件'],
   attachBinary: ['Attach binary', '添加二进制文件'],
   attachCases: ['Attach case files', '添加用例文件'],
+  useFixture: ['Try the demo', '试用示例'],
+  fixtureHelp: ['Use the frozen demo ELF and its oracle cases', '使用冻结示例 ELF 与用例一键演示'],
   needCases: ['Binary received. Add the correct/error case files to start.', '已添加二进制文件，请再添加正确用例与错误用例文件。'],
   casesAttached: [count => count + ' case file(s)', count => count + ' 个用例文件'],
   selectPlan: ['Select this contract', '选择此修复契约'],

@@ -168,23 +168,59 @@ def analyze_binary(binary: Path, out_dir: Path) -> dict[str, Any]:
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise G4Error(422, "analysis_failed", detail=error.__class__.__name__) from error
-    if result.returncode != 0:
-        raise G4Error(422, "analysis_failed", detail=result.returncode)
     finding_path = out_dir / "finding.json"
     view_path = out_dir / "disassembly.json"
-    if not finding_path.is_file() or not view_path.is_file():
-        raise G4Error(422, "analysis_failed", detail="missing artifacts")
-    try:
-        finding = json.loads(finding_path.read_text(encoding="utf-8"))
-        view = json.loads(view_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise G4Error(422, "analysis_failed", detail="unreadable artifacts") from error
-    return {
-        "finding": finding,
-        "view": view,
-        "finding_sha256": _sha256_bytes(finding_path.read_bytes()),
-        "view_sha256": _sha256_bytes(view_path.read_bytes()),
-    }
+    view: dict[str, Any] | None = None
+    finding: dict[str, Any] | None = None
+    if view_path.is_file():
+        try:
+            loaded = json.loads(view_path.read_text(encoding="utf-8"))
+            view = loaded if isinstance(loaded, dict) else None
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            view = None
+    if finding_path.is_file():
+        try:
+            loaded = json.loads(finding_path.read_text(encoding="utf-8"))
+            finding = loaded if isinstance(loaded, dict) else None
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            finding = None
+    if finding is not None and view is not None:
+        return {
+            "finding": finding,
+            "view": view,
+            "finding_sha256": _sha256_bytes(finding_path.read_bytes()),
+            "view_sha256": _sha256_bytes(view_path.read_bytes()),
+            "analysis_status": "ok",
+            "unsupported_detail": None,
+        }
+    # The deterministic analyzer is scoped to the frozen fixture family: it can
+    # disassemble any ELF, but it refuses to invent a finding when the supported
+    # stack-overflow pattern is absent.  That is an honest refusal, not a
+    # transient failure, so the console explains the scope instead of asking the
+    # operator to "check the file and retry".
+    detail = _analysis_detail(result.stderr.decode("utf-8", errors="replace"))
+    if view is not None:
+        return {
+            "finding": None,
+            "view": view,
+            "finding_sha256": None,
+            "view_sha256": _sha256_bytes(view_path.read_bytes()),
+            "analysis_status": "no_supported_finding",
+            "unsupported_detail": detail or "no_supported_finding",
+        }
+    raise G4Error(422, "analysis_failed", detail=detail or "analyzer_error")
+
+
+def _analysis_detail(stderr: str) -> str:
+    """Short, path-free reason from the analyzer; never a raw traceback."""
+    for line in reversed(stderr.strip().splitlines()):
+        line = line.strip()
+        if not line or line.startswith("File ") or line.startswith("^"):
+            continue
+        if line.startswith(("ValueError:", "RuntimeError:", "KeyError:", "AssertionError:")):
+            line = line.split(":", 1)[1].strip()
+        return line[:200]
+    return ""
 
 
 def _frame_buffer_bytes(finding: dict[str, Any]) -> int | None:
@@ -313,7 +349,6 @@ def create_task(
     files = _decode_files(case_files)
     cases = _collect_cases(files, str(defect or ""))
     binary_sha = _sha256_bytes(data)
-    supported = binary_sha == FROZEN_BINARY_SHA
     task_id = "tsk_" + hashlib.sha256((binary_sha + str(time.time())).encode()).hexdigest()[:24]
     upload_dir = UPLOAD_ROOT / task_id
     upload_dir.mkdir(parents=True, exist_ok=True)
@@ -322,7 +357,21 @@ def create_task(
     cases_path = upload_dir / "cases.json"
     cases_path.write_text(json.dumps(cases, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     analysis = analyze_binary(binary_path, upload_dir / "analysis")
-    plans = build_plans(analysis["finding"], supported)
+    analysis_status = analysis.get("analysis_status") or "ok"
+    finding = analysis.get("finding")
+    if not isinstance(finding, dict):
+        finding = {
+            "status": "no_supported_finding",
+            "function": None,
+            "address": None,
+            "instruction": None,
+            "cwe": None,
+            "evidence": [analysis.get("unsupported_detail") or "no_supported_finding"],
+            "frame": None,
+            "buffer_bytes": None,
+        }
+    supported = binary_sha == FROZEN_BINARY_SHA and analysis_status == "ok"
+    plans = build_plans(finding, supported)
 
     if supported:
         frozen = fixture_snapshot_module.snapshot()
@@ -349,9 +398,11 @@ def create_task(
                 "binary_name": name,
                 "binary_sha256": binary_sha,
                 "cases": {key: cases[key] for key in ("counts", "defect", "files")},
-                "finding": analysis["finding"],
+                "finding": finding,
                 "finding_sha256": analysis["finding_sha256"],
                 "view_sha256": analysis["view_sha256"],
+                "analysis_status": analysis_status,
+                "unsupported_detail": analysis.get("unsupported_detail"),
                 "options": plans,
                 "selected_option": None,
             },
@@ -393,9 +444,11 @@ def create_task(
                 "binary_name": name,
                 "binary_sha256": binary_sha,
                 "cases": {key: cases[key] for key in ("counts", "defect", "files")},
-                "finding": analysis["finding"],
+                "finding": finding,
                 "finding_sha256": analysis["finding_sha256"],
                 "view_sha256": analysis["view_sha256"],
+                "analysis_status": analysis_status,
+                "unsupported_detail": analysis.get("unsupported_detail"),
                 "options": plans,
                 "selected_option": None,
             },
@@ -403,7 +456,9 @@ def create_task(
     tasks.update(task)
     return {
         "task": _public_task(task),
-        "analysis": analysis["finding"],
+        "analysis": finding,
+        "analysis_status": analysis_status,
+        "unsupported_detail": analysis.get("unsupported_detail"),
         "plans": plans,
         "supported": supported,
     }
@@ -411,6 +466,32 @@ def create_task(
 
 def _public_task(task: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in task.items() if key not in {"idempotency"}}
+
+
+def fixture_payload() -> dict[str, Any]:
+    """The frozen demo upload as base64, so the console can run it in one click."""
+    binary = ROOT / "fixtures" / FROZEN_FIXTURE_ID / "vuln.elf"
+    if not binary.is_file():
+        raise G4Error(404, "fixture_missing", detail=FROZEN_FIXTURE_ID)
+    data = binary.read_bytes()
+    valid = ["", "A", "hello", "31 characters 0123456789012345"]
+    invalid = ["A" * 64]
+    files = [
+        {"name": "regression-valid.json", "text": json.dumps({"valid": valid})},
+        {"name": "poc-crash.json", "text": json.dumps({"invalid": invalid})},
+    ]
+    return {
+        "binary_name": "vuln.elf",
+        "binary_base64": base64.b64encode(data).decode("ascii"),
+        "sha256": _sha256_bytes(data),
+        "case_files": [
+            {
+                "name": item["name"],
+                "content_base64": base64.b64encode(item["text"].encode("utf-8")).decode("ascii"),
+            }
+            for item in files
+        ],
+    }
 
 
 def get_task_g4(task_id: str) -> dict[str, Any]:

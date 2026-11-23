@@ -51,9 +51,14 @@ only the input, run and output behaviour and their copy changed.
 ## Honest limits
 
 - The deterministic patcher in MVP2 only applies signed plans to the frozen
-  fixture; uploading a different ELF is analyzed (finding/contracts are shown)
-  but the console refuses to write a patch with
-  `unsupported_binary_scope`.  That is a refusal, not a fabricated success.
+  fixture.  Uploading a different ELF is analyzed read-only; when the analyzer
+  cannot build a supported finding it returns `analysis_status =
+  no_supported_finding` (not a generic `analysis_failed`) and the chat explains
+  the scope + offers a one-click **试用示例 / Try the demo** action that uploads
+  the frozen fixture and runs the full repair.  That is a refusal, not a
+  fabricated success: `screenshots/unsupported-scope.png` shows the explanation,
+  `screenshots/demo-from-scope.png` shows the signed demo verdict reached from
+  that action.
 - The uploaded oracle cases are recorded as part of the task evidence; the
   MVP2 verifier compares the candidate against the frozen contract/corpus and
   M3's guest observations.  Arbitrary on-host case execution is out of scope and

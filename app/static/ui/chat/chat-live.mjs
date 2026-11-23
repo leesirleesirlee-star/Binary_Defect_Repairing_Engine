@@ -5,7 +5,7 @@
 // is a short status sentence derived from those values, and it is labelled as a
 // local summary, never as a model answer.
 import {currentEvaluation, live} from '../workbench/api.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261123d';
+import {label} from './chat-copy.mjs?v=20261123e';
 
 const newId = () => crypto.randomUUID();
 const ACTIVE = new Set(['queued', 'waiting_for_executor', 'running', 'cancelling']);

@@ -6,14 +6,14 @@ import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261121z';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261123d';
-import {chatPreview} from './chat-stream.mjs?v=20261123d';
-import {chatTask} from './chat-task.mjs?v=20261123d';
+import {label} from './chat-copy.mjs?v=20261123e';
+import {chatPreview} from './chat-stream.mjs?v=20261123e';
+import {chatTask} from './chat-task.mjs?v=20261123f';
 import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261121z';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261121z';
 import {bindSidebarSpring} from './chat-spring.mjs?v=20261120au';
 import {refreshStepCard} from './chat-steps.mjs?v=20261121j';
-import {control, displayTitle, renderItem, transcript} from './chat-view.mjs?v=20261123a';
+import {control, displayTitle, renderItem, transcript} from './chat-view.mjs?v=20261123e';
 import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261122g';
 
 const root = document.documentElement;
@@ -221,7 +221,10 @@ function mount() {
     appMark('hero-mark'), el('h2', {}, t('empty')),
     el('p', {}, t(engine.taskMode ? 'helpLive' : engine.live ? 'helpLive' : 'help')),
     el('div', {class: 'hero-actions'}, heroAttach, heroCases,
-      control(t('sample'), () => send(t('samplePrompt')), {glyph: 'arrow', tone: 'sample'})));
+      engine.sendFixture
+        ? control(t('useFixture'), () => engine.sendFixture(selected, locale),
+          {glyph: 'arrow', tone: 'sample', title: t('fixtureHelp')})
+        : control(t('sample'), () => send(t('samplePrompt')), {glyph: 'arrow', tone: 'sample'})));
   const log = el('div', {class: 'transcript', role: 'log', 'aria-live': 'off', 'aria-label': t('chats')});
   const scroll = el('div', {class: 'chat-scroll', tabindex: '0', onscroll: () => {
     if (nodes) nodes.latest.hidden = atEnd();

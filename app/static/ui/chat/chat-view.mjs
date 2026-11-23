@@ -71,6 +71,7 @@ export function transcript() {
           put(run + ':verification', event, {checks: checks.get(run) ?? [], evaluation: evaluations.get(run)});
           break;
         case 'g4_downloads': put(p.id, event); break;
+        case 'g4_actions': put(p.id, event); break;
         case 'run_end': {
           if (active && items.get(active)?.run_id === run) {
             put(active, items.get(active), {decision: p.execution});
@@ -233,6 +234,13 @@ export function renderItem(item, ctx) {
         el('code', {}, p.code),
         p.retry.kind === 'manual' && chat.phase === 'failed' && chat.run === item.run_id
           ? control(t('retry'), () => engine.start(chat, locale, true)) : null);
+    case 'g4_actions': {
+      const actions = p.actions ?? [];
+      return el('article', {class: 'message assistant'}, el('div', {class: 'reply-body'},
+        el('div', {class: 'inline-actions'}, actions.map(action =>
+          control(action.label, () => engine.sendFixture?.(chat, chat.locale),
+            {tone: 'primary', glyph: 'arrow'})))));
+    }
     case 'g4_downloads': {
       const links = [p.candidate, p.manifest, p.verdict].filter(Boolean);
       return el('article', {class: 'message assistant'}, el('div', {class: 'reply-body'},

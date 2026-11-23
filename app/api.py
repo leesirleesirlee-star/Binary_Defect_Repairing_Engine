@@ -209,6 +209,12 @@ def assistant_key_clear() -> dict[str, Any]:
     return {"key": assistant_key.key_status(), "assistant": assistant_key.assistant_status()}
 
 
+@router.get("/g4/fixture", dependencies=[Depends(require_session)])
+def g4_fixture() -> dict[str, Any]:
+    """Frozen demo binary + oracle cases for the console's one-click demo."""
+    return g4.fixture_payload()
+
+
 @router.post(
     "/tasks/upload",
     status_code=201,
