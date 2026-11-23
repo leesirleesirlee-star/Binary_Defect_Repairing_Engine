@@ -23,7 +23,7 @@ from urllib.parse import quote, unquote
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
-from app import assistant, tasks
+from app import assistant, g4, tasks
 from app.journal import JournalError, read_records, wait_for_records
 from app.preview_events import ensure_preview_journal
 
@@ -167,6 +167,45 @@ def create_task(body: Annotated[dict[str, Any] | None, Body()] = None) -> dict[s
         ensure_preview_journal(task["id"])
     return {"id": task["id"], "phase": task["phase"]}
 
+
+@router.post(
+    "/tasks/upload",
+    status_code=201,
+    dependencies=[Depends(require_session), Depends(require_csrf)],
+)
+def upload_task(body: Annotated[dict[str, Any] | None, Body()] = None) -> dict[str, Any]:
+    """Upload an ELF plus its cases; analyze it and offer repair contracts."""
+    payload = body or {}
+    try:
+        return g4.create_task(
+            binary_name=payload.get("binary_name"),
+            binary_base64=payload.get("binary_base64"),
+            case_files=payload.get("case_files"),
+            defect=payload.get("defect"),
+        )
+    except g4.G4Error as error:
+        raise _error(error.status, error.code, **error.extra) from error
+
+
+@router.get("/tasks/{task_id}/g4", dependencies=[Depends(require_session)])
+def task_g4(task_id: str) -> dict[str, Any]:
+    _task(task_id)
+    try:
+        return g4.get_task_g4(task_id)
+    except g4.G4Error as error:
+        raise _error(error.status, error.code, **error.extra) from error
+
+
+@router.post(
+    "/tasks/{task_id}/g4/select",
+    dependencies=[Depends(require_session), Depends(require_csrf)],
+)
+def select_g4_option(task_id: str, body: Annotated[dict[str, Any], Body()]) -> dict[str, Any]:
+    _task(task_id)
+    try:
+        return g4.select_option(task_id, body.get("option_id"))
+    except g4.G4Error as error:
+        raise _error(error.status, error.code, **error.extra) from error
 
 @router.get("/tasks/{task_id}", dependencies=[Depends(require_session)])
 def get_task(task_id: str) -> dict[str, Any]:

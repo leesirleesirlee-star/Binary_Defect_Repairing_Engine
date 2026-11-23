@@ -70,6 +70,7 @@ export function transcript() {
           else evaluations.set(run, p);
           put(run + ':verification', event, {checks: checks.get(run) ?? [], evaluation: evaluations.get(run)});
           break;
+        case 'g4_downloads': put(p.id, event); break;
         case 'run_end': {
           if (active && items.get(active)?.run_id === run) {
             put(active, items.get(active), {decision: p.execution});
@@ -138,6 +139,22 @@ function approval(item, ctx) {
   const {t, chat, engine, locale} = ctx;
   const p = item.payload;
   const status = item.decision;
+  if (p.kind === 'repair_plan') {
+    const options = p.options ?? [];
+    if (status) {
+      const chosen = options.find(option => option.id === status);
+      return el('div', {class: 'inline-actions'}, icon('check', 15),
+        el('span', {}, t('planChosen') + (chosen ? ' · ' + chosen.title : '')));
+    }
+    return el('div', {class: 'plan-choices', role: 'group', 'aria-label': t('approval')},
+      options.map(option => el('div', {class: 'plan-choice'},
+        el('strong', {}, option.title),
+        el('p', {}, option.summary),
+        option.feasible
+          ? control(t('selectPlan'), () => engine.decide(chat, p.request_id, option.id),
+            {tone: 'primary'})
+          : el('span', {class: 'muted'}, option.reason || t('planUnavailable')))));
+  }
   const complete = Boolean(chat.contract?.review_binding_digest &&
     chat.contract?.review_binding?.original_sha256 && chat.contract?.review_binding?.test_manifest_sha256);
   if (status === 'approve') {
@@ -216,6 +233,14 @@ export function renderItem(item, ctx) {
         el('code', {}, p.code),
         p.retry.kind === 'manual' && chat.phase === 'failed' && chat.run === item.run_id
           ? control(t('retry'), () => engine.start(chat, locale, true)) : null);
+    case 'g4_downloads': {
+      const links = [p.candidate, p.manifest, p.verdict].filter(Boolean);
+      return el('article', {class: 'message assistant'}, el('div', {class: 'reply-body'},
+        el('div', {class: 'inline-actions'}, links.map(link =>
+          el('a', {class: 'control', href: link.href, download: '',
+            title: link.sha256 ? 'sha256: ' + link.sha256 : null},
+          icon('file', 16), link.label)))));
+    }
     case 'run_end': return summary(item, t, chat, engine);
   }
 }

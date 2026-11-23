@@ -507,3 +507,11 @@ details.disclosure > summary > svg { transition: transform 320ms var(--ios-ease,
    sample-contract shortcut. */
 .hero-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .55rem; margin-top: 1.25rem; }
 .hero-actions .hero-attach, .hero-actions .sample { margin-top: 0; }
+
+/* G4: repair-contract choices stay inline in the conversation (no cards). */
+.plan-choices { display: grid; gap: .45rem; margin: .35rem 0 .55rem 2.85rem; }
+.plan-choice { display: grid; gap: .18rem; }
+.plan-choice strong { font-size: .88rem; font-weight: 620; }
+.plan-choice p { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.45; }
+.plan-choice .control { justify-self: start; margin-top: .22rem; min-height: 1.9rem; }
+.hero-cases { border-color: var(--line); background: var(--surface); font-weight: 540; }

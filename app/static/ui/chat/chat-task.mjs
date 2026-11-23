@@ -1,0 +1,350 @@
+// G4 conversation engine: upload -> analysis -> repair contracts -> repaired output.
+//
+// The browser never computes a verdict and never executes the uploaded ELF. It
+// uploads the binary and its case files to the console API, lets the user pick
+// one repair contract from the analyzed options, then follows the real runner
+// journal and renders the persisted VerdictV1 and the artifact download links.
+import {label} from './chat-copy.mjs?v=20261123d';
+
+const newId = () => crypto.randomUUID();
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const t = (locale, zh, en) => locale === 'zh-Hans' ? zh : en;
+
+export function chatTask({notify = () => {}} = {}) {
+  const chats = new Map();
+  let sessionPromise = null;
+
+  function create() {
+    const chat = {
+      id: newId(), events: [], phase: 'idle', title: '', queue: [],
+      attachmentNames: new Map(), reviewScopes: new Map(),
+      jobId: null, task: null, g4: null, options: [], request: null,
+      run: null, started: null, ended: null, epoch: 0, locale: 'en',
+      live: true, taskMode: true, requireAscii: false, timer: null,
+    };
+    chats.set(chat.id, chat);
+    return chat;
+  }
+
+  function event(chat, type, payload, step = null, run = chat.run) {
+    const entry = {
+      version: 1, type, conversation_id: chat.id, seq: String(chat.events.length + 1),
+      run_id: run ?? null, step_id: step, ts: new Date().toISOString(), source: 'gui', payload,
+    };
+    chat.events.push(entry);
+    notify(chat, entry);
+    return entry;
+  }
+
+  function say(chat, text) {
+    const id = newId();
+    event(chat, 'assistant_delta', {message_id: id, append: text});
+    event(chat, 'assistant_end', {message_id: id, status: 'complete'});
+  }
+
+  function state(chat, status) {
+    chat.phase = status;
+    event(chat, 'run_state', {status, message_id: null});
+  }
+
+  function planSteps(chat, statuses) {
+    const order = ['collect', 'freeze', 'analyze', 'repair', 'verify'];
+    event(chat, 'plan_update', {
+      revision: (chat.planRevision ?? 0) + 1,
+      steps: order.map(step => ({step_id: step, label_code: step,
+        status: statuses[step] ?? 'pending'})),
+    });
+    chat.planRevision = (chat.planRevision ?? 0) + 1;
+  }
+
+  async function session() {
+    if (!sessionPromise) {
+      sessionPromise = fetch('/api/session', {credentials: 'same-origin', cache: 'no-store'})
+        .then(response => {
+          if (!response.ok) throw new Error('session_unavailable');
+          return response.json();
+        });
+    }
+    return sessionPromise;
+  }
+
+  async function api(path, {method = 'GET', body, headers = {}} = {}) {
+    const current = await session();
+    const requestHeaders = {'x-csrf-token': current.csrf_token, ...headers};
+    if (body !== undefined && !(body instanceof FormData)) {
+      requestHeaders['content-type'] = 'application/json';
+    }
+    let response;
+    try {
+      response = await fetch(path, {
+        method, headers: requestHeaders, credentials: 'same-origin', cache: 'no-store',
+        body: body === undefined ? undefined : (body instanceof FormData ? body : JSON.stringify(body)),
+      });
+    } catch (error) {
+      throw new Error(t('zh-Hans', '本地服务不可达', 'The local service is unreachable'));
+    }
+    let data = null;
+    try { data = await response.json(); } catch { /* empty body */ }
+    if (!response.ok) {
+      const detail = data?.detail;
+      const message = typeof detail === 'string' ? detail : detail?.code ?? ('HTTP ' + response.status);
+      const error = new Error(message);
+      error.status = response.status;
+      error.detail = detail;
+      throw error;
+    }
+    return data;
+  }
+
+  function readBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function uploadAndAnalyze(chat, file, cases, defect, locale) {
+    const binaryBase64 = await readBase64(file);
+    const caseFiles = [];
+    for (const item of cases) {
+      caseFiles.push({name: item.name, content_base64: await readBase64(item)});
+    }
+    return api('/api/tasks/upload', {
+      method: 'POST',
+      body: {
+        binary_name: file.name,
+        binary_base64: binaryBase64,
+        case_files: caseFiles,
+        defect,
+      },
+    });
+  }
+
+  async function send(chat, text, locale, attachment, file, cases = []) {
+    chat.locale = locale;
+    if (!file) {
+      say(chat, t(locale,
+        '请先添加需要修复的 .elf 二进制文件，以及对应正确用例与错误用例（PoC）文件。',
+        'Attach the .elf binary plus its valid and PoC case files first.'));
+      return;
+    }
+    if (!cases.length) {
+      say(chat, t(locale,
+        '已收到二进制文件。请再添加正确用例与错误用例文件（可多选），我会一起分析并生成修复契约。',
+        'Binary received. Add the valid and PoC case files (multi-select) so I can analyze and '
+        + 'derive the repair contracts.'));
+      return;
+    }
+    const clean = String(text || '').trim() ||
+      t(locale, '请修复这个二进制文件', 'Repair this binary');
+    const messageId = newId();
+    const attachmentIds = [newId(), ...cases.map(() => newId())];
+    chat.attachmentNames.set(attachmentIds[0], file.name);
+    cases.forEach((item, index) => chat.attachmentNames.set(attachmentIds[index + 1], item.name));
+    event(chat, 'user_message', {
+      message_id: messageId, text: clean, attachment_ids: attachmentIds, delivery: 'accepted',
+    }, null, null);
+    chat.title ||= file.name;
+    chat.kind = 'repair';
+    chat.started = Date.now();
+    state(chat, 'running');
+    planSteps(chat, {collect: 'in_progress'});
+    event(chat, 'thinking', {phase: 'started'}, 'collect');
+    say(chat, t(locale,
+      `已收到 ${file.name} 与 ${cases.length} 个用例文件，正在分析漏洞并生成多种修复契约…`,
+      'Received ' + file.name + ' and ' + cases.length + ' case file(s); analyzing the defect '
+      + 'and deriving the repair contracts…'));
+    try {
+      const data = await uploadAndAnalyze(chat, file, cases, clean, locale);
+      chat.jobId = data.task.id;
+      chat.task = data.task;
+      chat.g4 = data.task.g4;
+      chat.options = data.plans || [];
+      event(chat, 'thinking', {phase: 'finished', duration_ms: 0, summary_code: 'analysis',
+        description: 'analysis'}, 'collect');
+      planSteps(chat, {collect: 'completed', freeze: 'completed', analyze: 'completed'});
+      const finding = data.analysis || {};
+      const counts = data.task.g4?.cases?.counts || {};
+      say(chat, t(locale,
+        `分析完成：${finding.function || '?'} @ ${finding.address || '?'}，`
+        + `${finding.instruction || '?'}，${finding.cwe || 'CWE-121'}；`
+        + `已登记 ${counts.valid ?? 0} 个正确用例、${counts.poc ?? 0} 个错误用例。`,
+        `Analysis finished: ${finding.function || '?'} @ ${finding.address || '?'}, `
+        + `${finding.instruction || '?'}, ${finding.cwe || 'CWE-121'}; recorded `
+        + `${counts.valid ?? 0} valid and ${counts.poc ?? 0} PoC case(s).`));
+      if (!data.supported) {
+        say(chat, t(locale,
+          '当前构建的修复器只对冻结 fixture 签名应用补丁；这个二进制已完成分析，但不会写入修复输出。',
+          'This build only applies signed patches to the frozen fixture; the binary was analyzed, '
+          + 'but no repair output will be written.'));
+            finish(chat, 'unsupported');
+        return;
+      }
+      chat.request = {
+        kind: 'repair_plan',
+        request_id: newId(),
+        options: chat.options.map(option => ({
+          id: option.id,
+          title: locale === 'zh-Hans' ? option.title_zh : option.title_en,
+          summary: locale === 'zh-Hans' ? option.summary_zh : option.summary_en,
+          reason: locale === 'zh-Hans' ? (option.reason_zh || option.reason_en)
+            : (option.reason_en || option.reason_zh),
+          feasible: option.feasible,
+        })),
+      };
+      event(chat, 'awaiting_user', chat.request, 'report');
+      state(chat, 'awaiting_user');
+    } catch (error) {
+      event(chat, 'thinking', {phase: 'finished', duration_ms: 0, summary_code: 'analysis'},
+        'collect');
+      say(chat, t(locale,
+        `上传或分析失败：${error.message}。请检查文件后重试。`,
+        `Upload or analysis failed: ${error.message}. Check the files and try again.`));
+      finish(chat, 'failed');
+    }
+  }
+
+  async function decide(chat, requestId, action) {
+    const request = chat.request;
+    if (!request || request.request_id !== requestId) return;
+    const option = chat.options.find(item => item.id === action);
+    if (!option || !option.feasible) return;
+    chat.request = null;
+    event(chat, 'user_response', {request_id: requestId, decision: action}, 'report');
+    planSteps(chat, {collect: 'completed', freeze: 'completed', analyze: 'completed',
+      repair: 'in_progress'});
+    say(chat, t(chat.locale,
+      `已选择「${option.title_zh}」，正在按契约修复：先把修复补丁写入候选程序，再验证。`,
+      `Selected "${option.title_en}"; writing the repair to the candidate program, then verifying.`));
+    state(chat, 'running');
+    chat.started = Date.now();
+    event(chat, 'thinking', {phase: 'started'}, 'repair');
+    try {
+      chat.execution = {run_id: 'pending', terminal: false};
+      const selected = await api(`/api/tasks/${chat.jobId}/g4/select`, {
+        method: 'POST', body: {option_id: action},
+      });
+      chat.task = selected.task;
+      const digest = selected.task.review_binding_digest;
+      await api(`/api/tasks/${chat.jobId}/approve`, {
+        method: 'POST',
+        body: {expected_review_binding_digest: digest, reviewer_label: 'M2-G4'},
+      });
+      await api(`/api/tasks/${chat.jobId}/decision`, {
+        method: 'POST', body: {request_id: 'g4-plan', decision: 'proceed'},
+      });
+      const started = await api(`/api/tasks/${chat.jobId}/start`, {
+        method: 'POST',
+        headers: {'Idempotency-Key': 'g4-' + chat.jobId},
+        body: {expected_review_binding_digest: digest},
+      });
+      chat.run = started.run_id;
+      chat.execution = {run_id: started.run_id, terminal: false};
+      void follow(chat);
+    } catch (error) {
+      event(chat, 'thinking', {phase: 'finished', duration_ms: 0, summary_code: 'repair'},
+        'repair');
+      say(chat, t(chat.locale,
+        `修复启动失败：${error.message}。`,
+        `Repair could not start: ${error.message}.`));
+      finish(chat, 'failed');
+    }
+  }
+
+  async function follow(chat) {
+    const deadline = Date.now() + 180_000;
+    let task = null;
+    while (Date.now() < deadline) {
+      try { task = await api(`/api/tasks/${chat.jobId}`); } catch { task = null; }
+      if (task?.execution?.terminal) break;
+      await sleep(700);
+    }
+    event(chat, 'thinking', {phase: 'finished', duration_ms: 0, summary_code: 'repair'}, 'repair');
+    planSteps(chat, {collect: 'completed', freeze: 'completed', analyze: 'completed',
+      repair: 'completed', verify: 'completed'});
+    let verdict = null;
+    let artifacts = [];
+    try { verdict = await api(`/api/tasks/${chat.jobId}/verdict`); } catch { verdict = null; }
+    try {
+      const listed = await api(`/api/tasks/${chat.jobId}/artifacts`);
+      artifacts = listed.artifacts || [];
+    } catch { artifacts = []; }
+    for (let attempt = 0; attempt < 5 && !verdict?.finalized; attempt += 1) {
+      await sleep(300);
+      try { verdict = await api(`/api/tasks/${chat.jobId}/verdict`); } catch { break; }
+    }
+    const word = verdict?.available && verdict?.finalized ? verdict.verdict : null;
+    if (word) {
+      say(chat, t(chat.locale,
+        `修复完成，验证结论：${word}。`,
+        `Repair complete; verdict: ${word}.`));
+    } else {
+      say(chat, t(chat.locale,
+        '运行结束，但没有可用的持久化 verdict；界面不会伪造结论。',
+        'The run ended without a persisted verdict; the console does not fabricate one.'));
+    }
+    sendDownloads(chat, chat.jobId, artifacts, chat.locale);
+    finish(chat, word ? 'completed' : 'failed');
+  }
+
+  function sendDownloads(chat, taskId, artifacts, locale) {
+    if (!artifacts.length) return;
+    const byName = new Map(artifacts.map(item => [item.display_path, item]));
+    const link = name => {
+      const artifact = byName.get(name);
+      if (!artifact) return null;
+      return {label: name, href: `/api/artifacts/${artifact.artifact_id}/download`,
+        sha256: artifact.sha256};
+    };
+    const candidate = link('candidate.elf');
+    const manifest = link('edit-manifest.json');
+    const verdictFile = link('verdict.json');
+    event(chat, 'g4_downloads', {
+      id: 'g4-downloads-' + taskId,
+      candidate: candidate && {...candidate, label: t(locale, '下载修复后的程序 (.elf)',
+        'Download repaired program (.elf)')},
+      manifest: manifest && {...manifest, label: t(locale, '下载补丁清单',
+        'Download repair manifest')},
+      verdict: verdictFile && {...verdictFile, label: t(locale, '下载验证结论 (verdict.json)',
+        'Download verdict (verdict.json)')},
+    }, 'export');
+  }
+
+  function finish(chat, execution) {
+    chat.phase = execution;
+    chat.ended = Date.now();
+    if (chat.execution) chat.execution = {...chat.execution, terminal: true,
+      status: execution === 'completed' ? 'finished' : execution};
+    event(chat, 'run_state', {status: execution, message_id: null});
+  }
+
+  async function stop(chat) {
+    if (!chat.jobId) return;
+    try {
+      const task = await api(`/api/tasks/${chat.jobId}`);
+      await api(`/api/tasks/${chat.jobId}/cancel`, {
+        method: 'POST', body: {run_id: task.execution?.run_id ?? chat.run},
+      });
+      say(chat, t(chat.locale, '已请求停止。', 'Stop requested.'));
+    } catch { /* the run may already be terminal */ }
+  }
+
+  function seed(locale = 'en') {
+    const chat = create();
+    chat.locale = locale;
+    say(chat, t(locale,
+      '上传 .elf 二进制、正确用例与错误用例（PoC）文件后，我会分析漏洞并给出多种修复契约。',
+      'Upload an .elf binary plus its valid and PoC case files; I will analyze the defect and '
+      + 'offer several repair contracts.'));
+    return chat;
+  }
+
+  function activate() {}
+
+  function deactivate() {}
+
+  return {chats, live: true, taskMode: true, create, send, decide, start: async () => {}, stop,
+    seed, activate, deactivate};
+}
