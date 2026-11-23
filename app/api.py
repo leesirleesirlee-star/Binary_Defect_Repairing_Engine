@@ -23,7 +23,7 @@ from urllib.parse import quote, unquote
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
-from app import assistant, g4, tasks
+from app import assistant, assistant_key, g4, tasks
 from app.journal import JournalError, read_records, wait_for_records
 from app.preview_events import ensure_preview_journal
 
@@ -166,6 +166,47 @@ def create_task(body: Annotated[dict[str, Any] | None, Body()] = None) -> dict[s
         tasks.update(task)
         ensure_preview_journal(task["id"])
     return {"id": task["id"], "phase": task["phase"]}
+
+
+@router.get("/assistant/key", dependencies=[Depends(require_session)])
+def assistant_key_status() -> dict[str, Any]:
+    """Masked provider-key status; the key itself never crosses this boundary."""
+    return {"key": assistant_key.key_status(), "assistant": assistant_key.assistant_status()}
+
+
+@router.post(
+    "/assistant/key", dependencies=[Depends(require_session), Depends(require_csrf)]
+)
+def assistant_key_save(body: Annotated[dict[str, Any], Body()]) -> dict[str, Any]:
+    candidate = body.get("key")
+    if not isinstance(candidate, str) or not candidate.strip():
+        raise _error(422, "key_required")
+    try:
+        saved = assistant_key.save_key(candidate)
+    except assistant_key.KeyError as error:
+        status = 409 if "environment" in str(error) else 422
+        raise _error(status, "key_rejected", detail=str(error)) from error
+    return {"saved": saved, "key": assistant_key.key_status(),
+            "assistant": assistant_key.assistant_status()}
+
+
+@router.post(
+    "/assistant/key/test", dependencies=[Depends(require_session), Depends(require_csrf)]
+)
+def assistant_key_test(body: Annotated[dict[str, Any] | None, Body()] = None) -> dict[str, Any]:
+    payload = body or {}
+    return assistant_key.test_connection(payload.get("model"))
+
+
+@router.delete(
+    "/assistant/key", dependencies=[Depends(require_session), Depends(require_csrf)]
+)
+def assistant_key_clear() -> dict[str, Any]:
+    try:
+        assistant_key.clear_key()
+    except assistant_key.KeyError as error:
+        raise _error(409, "key_managed", detail=str(error)) from error
+    return {"key": assistant_key.key_status(), "assistant": assistant_key.assistant_status()}
 
 
 @router.post(
