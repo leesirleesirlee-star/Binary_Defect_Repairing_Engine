@@ -194,13 +194,14 @@ def test_runner_records_verdict_from_synthetic_observations(
     observations.write_text(json.dumps(_observations(candidate)), encoding="utf-8")
     assert main(["--task", TASK_ID, "--var-root", str(tmp_path), "--repo-root", str(REPO)]) == 0
     summary = json.loads(capsys.readouterr().out)
-    assert summary["reason_code"] == "stages_not_wired"
+    assert summary["reason_code"] is None
+    assert summary["execution"] == "completed"
 
     records = _journal(tmp_path)
     evaluations = [record["payload"] for record in records if record["type"] == "verification"]
     assert len(evaluations) == 1
     assert evaluations[0]["verdict"] == "verified_against_stated_criteria"
-    assert records[-1]["payload"]["execution"] == "failed"
+    assert records[-1]["payload"]["execution"] == "completed"
     assert records[-1]["payload"]["evaluation_id"] == evaluations[0]["evaluation_id"]
 
     artifacts = tmp_path / "artifacts" / TASK_ID
@@ -209,6 +210,19 @@ def test_runner_records_verdict_from_synthetic_observations(
     schema = json.loads((REPO / "schemas" / "VerdictV1.schema.json").read_text(encoding="utf-8"))
     jsonschema.validate(verdict, schema)
     assert verdict["verdict"] == "verified_against_stated_criteria"
+
+    steps = _steps(records)
+    assert steps["decision"] == steps["repair"] == steps["verify"] == "completed"
+    assert steps["audit"] == "skipped"
+    assert _errors(records)["audit"] == "satisfied_by_signed_g2"
+    assert steps["export"] == "completed"
+    bundle = json.loads((artifacts / "export" / "bundle-manifest.json").read_text(encoding="utf-8"))
+    assert bundle["verdict"] == "verified_against_stated_criteria"
+    assert bundle["verdict_sha256"] == _sha(artifacts / "verdict.json")
+    names = {item["name"] for item in bundle["artifacts"]}
+    assert {"candidate.elf", "edit-manifest.json", "candidate-v1.json", "verdict.json"} <= names
+    # 2 analysis + 3 repair + 1 verdict + 1 export
+    assert records[-1]["payload"]["files_changed"] == 7
 
 
 def test_runner_blocks_repair_without_persisted_decision(tmp_path: Path, capsys) -> None:
@@ -225,6 +239,7 @@ def test_runner_blocks_repair_without_persisted_decision(tmp_path: Path, capsys)
     )
     errors = _errors(records)
     assert errors["decision"] == errors["repair"] == errors["verify"] == "decision_missing"
+    assert errors["audit"] == errors["export"] == "decision_missing"
     assert not (tmp_path / "artifacts" / TASK_ID / "candidate.elf").exists()
     assert "verified_against_stated_criteria" not in json.dumps(records)
 
@@ -235,9 +250,11 @@ def test_runner_blocks_repair_when_decision_is_not_proceed(tmp_path: Path, capsy
     assert summary["reason_code"] == "decision_not_proceed"
 
     records = _journal(tmp_path)
-    assert _steps(records)["decision"] == "completed"
-    assert _steps(records)["repair"] == "skipped"
+    steps = _steps(records)
+    assert steps["decision"] == "completed"
+    assert steps["repair"] == steps["verify"] == steps["export"] == "skipped"
     assert _errors(records)["repair"] == "decision_not_proceed"
+    assert _errors(records)["audit"] == "satisfied_by_signed_g2"
     assert not (tmp_path / "artifacts" / TASK_ID / "candidate.elf").exists()
 
 
