@@ -344,3 +344,27 @@ def test_assistant_context_uses_artifact_display_paths() -> None:
         [{"display_path": "candidate.elf"}, {"display_path": "verdict.json"}],
     )
     assert context["artifacts"] == ["candidate.elf", "verdict.json"]
+
+
+def test_assistant_endpoint_passes_the_selected_model(client: TestClient,
+                                                       monkeypatch: pytest.MonkeyPatch) -> None:
+    task_id = client.post("/api/tasks", json={"preview": True}).json()["id"]
+
+    def fake(messages: Any, model: str | None = None) -> str:
+        assert model == "deepseek-flash"
+        return json.dumps({"reply": "flash reply", "actions": []})
+
+    monkeypatch.setattr(api, "ASSISTANT_CLIENT", fake)
+    body = client.post(f"/api/tasks/{task_id}/assistant",
+                       json={"message": "hi", "model": "deepseek-flash"}).json()
+    assert body["mode"] == assistant.MODE_LLM
+    assert body["reply"] == "flash reply"
+    assert body["requested_model"] == "deepseek-flash"
+
+
+def test_assistant_endpoint_rejects_an_unknown_model(client: TestClient) -> None:
+    task_id = client.post("/api/tasks", json={"preview": True}).json()["id"]
+    response = client.post(f"/api/tasks/{task_id}/assistant",
+                           json={"message": "hi", "model": "some-model"})
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_model"

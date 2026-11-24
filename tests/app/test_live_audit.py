@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,49 @@ def client() -> TestClient:
         assert session.status_code == 200
         test_client.headers.update({"x-csrf-token": session.json()["csrf_token"]})
         yield test_client
+
+
+class BlockingProcess:
+    def __init__(self) -> None:
+        self.terminated = False
+        self.killed = False
+        self.release = threading.Event()
+
+    def wait(self, timeout: float | None = None) -> int:
+        self.release.wait(timeout)
+        return 143
+
+    def terminate(self) -> None:
+        self.terminated = True
+        self.release.set()
+
+    def kill(self) -> None:
+        self.killed = True
+        self.release.set()
+
+
+def _blocking_spawn(seen: list[BlockingProcess]):
+    def spawn(command: list[str], env: dict[str, str]) -> BlockingProcess:
+        process = BlockingProcess()
+        seen.append(process)
+        return process
+    return spawn
+
+
+def _prepare_task(task_id: str, *, running: bool) -> None:
+    task = tasks.get(task_id)
+    task["audit_mode"] = "live"
+    task["live_audit"] = {
+        "status": "running" if running else "completed", "model": "deepseek-v4-pro",
+        "started_at": "2026-11-24T00:00:00Z", "finished_at": None, "error": None,
+        "runs": [],
+    }
+    task["selected_plan"] = {"source": "live", "run_index": 1,
+                             "path": "var/audit/x.json", "file_sha256": "a" * 64,
+                             "canonical_sha256": "b" * 64}
+    task["approval"] = {"approved": True}
+    task["decision"] = {"decision": "proceed"}
+    tasks.update(task)
 
 
 def _upload(client: TestClient) -> str:
@@ -181,3 +225,85 @@ def test_switch_back_to_signed_resets_live_selection(client: TestClient,
     task = tasks.get(task_id)
     assert task["approval"].get("approved") is False
     assert task["phase"] == "plans_ready"
+
+
+def test_stale_running_state_recovers_instead_of_audit_running(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_id = _upload(client)
+    _prepare_task(task_id, running=True)
+    with live_audit._LOCK:
+        live_audit._RUNNING.pop(task_id, None)
+    live = _start(client, task_id, monkeypatch)
+    assert live["status"] == "completed"
+    assert len(live["runs"]) == 3
+
+
+def test_reset_cancels_fanout_and_suppresses_late_writes(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_id = _upload(client)
+    processes: list[BlockingProcess] = []
+    monkeypatch.setattr(assistant_key, "load_key", lambda: "sk-test-live-1234567890")
+    monkeypatch.setattr(live_audit, "_spawn", _blocking_spawn(processes))
+    response = client.post(f"/api/tasks/{task_id}/audit/live", json={})
+    assert response.status_code == 202
+    assert len(processes) == 3
+    _prepare_task(task_id, running=True)
+    reset = client.post(f"/api/tasks/{task_id}/audit/signed")
+    assert reset.status_code == 200
+    assert all(process.terminated for process in processes)
+    state = client.get(f"/api/tasks/{task_id}/audit").json()
+    assert state["audit_mode"] == "signed"
+    assert state["live_audit"]["status"] == "idle"
+    assert state["selected_plan"] is None
+    task = tasks.get(task_id)
+    assert task["approval"] == {"approved": False}
+    assert task["decision"] is None
+    # A late watcher write must not resurrect live mode after reset.
+    live_audit._set_state(task_id, {"status": "running", "runs": []})
+    task = tasks.get(task_id)
+    assert task["audit_mode"] == "signed"
+    assert task["live_audit"]["status"] == "idle"
+
+
+def test_reset_then_restart_clears_the_cancellation_flag(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_id = _upload(client)
+    seen: list[BlockingProcess] = []
+    monkeypatch.setattr(assistant_key, "load_key", lambda: "sk-test-live-1234567890")
+    monkeypatch.setattr(live_audit, "_spawn", _blocking_spawn(seen))
+    assert client.post(f"/api/tasks/{task_id}/audit/live", json={}).status_code == 202
+    assert client.post(f"/api/tasks/{task_id}/audit/signed").status_code == 200
+    # Next attempt uses the normal fake child and must record completion.
+    monkeypatch.setattr(live_audit, "_spawn", _fake_spawn())
+    response = client.post(f"/api/tasks/{task_id}/audit/live", json={})
+    assert response.status_code == 202
+    live = live_audit.wait_for_terminal(task_id)
+    assert live["status"] == "completed"
+    assert len(live["runs"]) == 3
+
+
+def test_invalid_generated_plan_reports_a_specific_reason() -> None:
+    plan = {
+        "edits": [
+            {"kind": "redirect_call", "address": "0x1", "new_bytes": "e8 00 00 00 00"},
+            {"kind": "guard_stub", "address": "0x2", "new_bytes": "90"},
+        ]
+    }
+    selectable, reason = live_audit._plan_selectability(None, plan)
+    assert selectable is False
+    assert reason == "edit_kind_not_allowed:guard_stub"
+
+
+def test_live_guest_is_disabled_off_windows(client: TestClient) -> None:
+    task_id = _upload(client)
+    if live_audit.GUEST_AVAILABLE:
+        pytest.skip("WSL2 guest is available on this host")
+    response = client.post(f"/api/tasks/{task_id}/audit/guest", json={"enabled": True})
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "guest_unavailable"
+    audit = client.get(f"/api/tasks/{task_id}/audit").json()
+    assert audit["guest_available"] is False
+    assert audit["live_guest"] is False

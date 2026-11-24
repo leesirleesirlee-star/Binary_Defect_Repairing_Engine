@@ -14,6 +14,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -379,6 +380,42 @@ def build_plans(finding: dict[str, Any], supported: bool) -> list[dict[str, Any]
             "facts": facts,
         },
     ]
+
+
+def probe_binary(*, binary_name: Any, binary_base64: Any) -> dict[str, Any]:
+    """Analyze one uploaded ELF without creating a task or asking for cases yet."""
+    data, name = _decode_binary(binary_base64, binary_name)
+    binary_sha = _sha256_bytes(data)
+    with tempfile.TemporaryDirectory(prefix="g4-probe-") as temporary:
+        root = Path(temporary)
+        binary_path = root / "binary.elf"
+        binary_path.write_bytes(data)
+        analysis = analyze_binary(binary_path, root / "analysis")
+    finding = analysis.get("finding")
+    if not isinstance(finding, dict):
+        finding = {
+            "status": "no_supported_finding",
+            "function": None,
+            "address": None,
+            "instruction": None,
+            "cwe": None,
+            "evidence": [analysis.get("unsupported_detail") or "no_supported_finding"],
+            "frame": None,
+            "buffer_bytes": None,
+        }
+    analysis_status = analysis.get("analysis_status") or "ok"
+    supported = binary_sha == FROZEN_BINARY_SHA and analysis_status == "ok"
+    return {
+        "binary_name": name,
+        "binary_sha256": binary_sha,
+        "supported": supported,
+        "analysis_status": analysis_status,
+        "finding": finding,
+        "finding_sha256": analysis.get("finding_sha256"),
+        "view_sha256": analysis.get("view_sha256"),
+        "unsupported_detail": analysis.get("unsupported_detail"),
+        "next": "add_case_files",
+    }
 
 
 def create_task(

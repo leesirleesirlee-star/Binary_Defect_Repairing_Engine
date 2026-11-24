@@ -13,8 +13,8 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
 import {LANGUAGE_CODES} from '../shared/languages.mjs?v=20261120au';
-import {label as translate} from './chat-copy.mjs?v=20261124q';
-import {disclosure} from './chat-steps.mjs?v=20261121j';
+import {label as translate} from './chat-copy.mjs?v=20261125b';
+import {disclosure} from './chat-steps.mjs?v=20261125b';
 
 const STEPS = ['collect', 'freeze', 'analyze', 'audit', 'decision', 'repair', 'verify', 'export'];
 const PHASE_KEYS = {
@@ -238,6 +238,10 @@ function buildMonitor() {
     icon('refresh', 14), t('refresh'));
   refresh.addEventListener('click', event => {
     event.stopPropagation();
+    refresh.classList.remove('is-spinning');
+    void refresh.offsetWidth;
+    refresh.classList.add('is-spinning');
+    setTimeout(() => refresh.classList.remove('is-spinning'), 700);
     refreshTasks(list, count);
   });
   const heading = el('span', {class: 'ra-heading'},

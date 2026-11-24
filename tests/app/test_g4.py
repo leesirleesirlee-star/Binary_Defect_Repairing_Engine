@@ -283,3 +283,23 @@ def test_journal_after_seq_is_incremental(client: TestClient) -> None:
     assert tail["records"]
     assert all(record["seq"] > cut for record in tail["records"])
     assert tail["last_seq"] == records[-1]["seq"]
+
+
+def test_probe_recognizes_a_binary_before_case_files(client: TestClient) -> None:
+    response = client.post("/api/tasks/probe", json={
+        "binary_name": "vuln.elf", "binary_base64": _b64(FIXTURE.read_bytes()),
+    })
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["supported"] is True
+    assert body["binary_name"] == "vuln.elf"
+    assert body["finding"]["function"] == "handle"
+    assert body["next"] == "add_case_files"
+
+
+def test_probe_rejects_a_non_elf(client: TestClient) -> None:
+    response = client.post("/api/tasks/probe", json={
+        "binary_name": "not-elf.bin", "binary_base64": _b64(b"not an elf"),
+    })
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "not_an_elf"

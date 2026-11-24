@@ -6,15 +6,15 @@ import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261124q';
-import {chatPreview} from './chat-stream.mjs?v=20261124q';
-import {chatTask} from './chat-task.mjs?v=20261124q';
+import {label} from './chat-copy.mjs?v=20261125b';
+import {chatPreview} from './chat-stream.mjs?v=20261125b';
+import {chatTask} from './chat-task.mjs?v=20261125b';
 import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261121z';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261124b';
 import {bindSidebarSpring} from './chat-spring.mjs?v=20261120au';
-import {refreshStepCard} from './chat-steps.mjs?v=20261121j';
-import {control, displayTitle, renderItem, transcript} from './chat-view.mjs?v=20261124q';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261124q';
+import {refreshStepCard} from './chat-steps.mjs?v=20261125b';
+import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125b';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125b';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -29,7 +29,7 @@ function readPreference(key, allowed, fallback) {
   return fallback;
 }
 
-let locale = readPreference('language', LANGUAGE_CODES, 'en');
+let locale = readPreference('language', LANGUAGE_CODES, 'zh-Hans');
 let model = readPreference('model', ['default', 'deepseek-flash', 'deepseek-v4-pro'], 'default');
 let assistantMode = 'deterministic';
 let stopSpring = () => {};
@@ -91,9 +91,20 @@ const currentDraft = () => drafts.get(selected.id) ?? {text: '', attachment: '',
 const setDraft = updates => drafts.set(selected.id, {...currentDraft(), ...updates});
 const busy = chat => ['running', 'awaiting_user', 'cancel_requested', 'queued', 'waiting_for_executor'].includes(chat.phase);
 const atEnd = () => nodes.scroll.scrollHeight - nodes.scroll.scrollTop - nodes.scroll.clientHeight < 60;
+let latestTimer = 0;
+function hideLatest() {
+  clearTimeout(latestTimer);
+  nodes?.latest?.classList.add('latest-dim');
+}
+function showLatest(delay = 1400) {
+  if (!nodes?.latest) return;
+  clearTimeout(latestTimer);
+  nodes.latest.classList.remove('latest-dim');
+  latestTimer = setTimeout(hideLatest, delay);
+}
 function jump() {
   nodes.scroll.scrollTop = nodes.scroll.scrollHeight;
-  nodes.latest.hidden = true;
+  hideLatest();
 }
 
 function requestPaint() {
@@ -143,7 +154,8 @@ function send(text) {
   if (engine.taskMode && !file) {
     if (selected.jobId && text.trim() && !busy(selected)) {
       nodes.composerFeedback.textContent = '';
-      engine.assistantTurn(selected, text.trim(), locale);
+      engine.assistantTurn(selected, text.trim(), locale,
+        model === 'default' ? null : model);
       setDraft({text: '', attachment: '', file: null, cases: []});
       nodes.input.value = '';
       resize();
@@ -245,10 +257,14 @@ function mount() {
       engine.sendFixture
         ? control(t('useFixture'), () => engine.sendFixture(selected, locale),
           {glyph: 'arrow', tone: 'sample', title: t('fixtureHelp')})
-        : control(t('sample'), () => send(t('samplePrompt')), {glyph: 'arrow', tone: 'sample'})));
+        : control(t('sample'), () => send(t('samplePrompt')), {glyph: 'arrow', tone: 'sample'})),
+    fileDropZone({label: t('binaryDrop'), hint: t('binaryDropHint'), accept: '.elf,.bin',
+      multiple: false, onFiles: files => {
+        if (files[0] && engine.probeBinary) engine.probeBinary(selected, files[0], locale);
+      }}));
   const log = el('div', {class: 'transcript', role: 'log', 'aria-live': 'off', 'aria-label': t('chats')});
   const scroll = el('div', {class: 'chat-scroll', tabindex: '0', onscroll: () => {
-    if (nodes) nodes.latest.hidden = atEnd();
+    if (nodes) { if (atEnd()) hideLatest(); else showLatest(); }
   }}, hero, log);
   const composerFeedback = el('p', {class: 'composer-feedback', role: 'status'});
   const input = el('textarea', {rows: '1', value: currentDraft().text, maxlength: '4000',
@@ -298,7 +314,8 @@ function mount() {
   const stop = control(t('stop'), () => engine.stop(selected), {glyph: 'stop', tone: 'stop'});
   const sendButton = control(t('send'), null, {type: 'submit', glyph: 'up', compact: true, tone: 'primary send-button'});
   const queue = control(t('queue'), null, {type: 'submit', tone: 'queue'});
-  const latest = control(t('latest'), jump, {glyph: 'down', tone: 'latest', hidden: true});
+  const latest = control(t('latest'), jump, {glyph: 'down', tone: 'latest'});
+  latest.classList.add('latest-dim');
   const composer = el('form', {class: 'composer', onsubmit: event => {
     event.preventDefault();
     send(input.value);
@@ -397,8 +414,10 @@ function paint() {
   const latestApproval = items.findLast(item => item.type === 'awaiting_user' && item.decision === 'approve');
   for (const item of items) {
     const previous = nodes.rows.get(item.key);
-    const flags = item.type === 'awaiting_user' && item.decision === 'approve' ? selected.phase + selected.startReady :
-      item.type === 'error' ? selected.phase + selected.run : '';
+    const flags = item.type === 'awaiting_user'
+      ? selected.phase + selected.startReady + ':' + (selected.auditMode || '') + ':' + (item.decision || '')
+      : item.type === 'case_prompt' ? (selected.pendingBinary ? 'pending' : 'done')
+        : item.type === 'error' ? selected.phase + selected.run : '';
     if (previous?.item === item && previous.flags === flags) continue;
     const row = renderItem(item, {t, locale, chat: selected, engine, latestApproval});
     if (!row) continue;
@@ -427,7 +446,7 @@ function paint() {
     nodes.rows.set(item.key, {row, item, flags});
   }
   if (stick) jump();
-  else nodes.latest.hidden = atEnd();
+  else if (atEnd()) hideLatest();
   if (stickTrace) trace.scrollTop = trace.scrollHeight;
   paintComposer();
 }

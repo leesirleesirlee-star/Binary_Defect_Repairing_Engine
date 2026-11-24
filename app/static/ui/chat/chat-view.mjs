@@ -1,7 +1,42 @@
 import {animateDetails} from '../shared/details-anim.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
-import {stepCard} from './chat-steps.mjs?v=20261121j';
+import {stepCard} from './chat-steps.mjs?v=20261125b';
+
+export function fileDropZone({label, hint, accept = '', multiple = false, onFiles}) {
+  const input = el('input', {type: 'file', hidden: true, accept, multiple,
+    onchange: () => {
+      const files = [...input.files];
+      input.value = '';
+      if (files.length) onFiles(files);
+    }});
+  const zone = el('div', {class: 'drop-zone', role: 'button', tabindex: '0',
+    'aria-label': label},
+    el('span', {class: 'drop-zone-icon'}, icon('file', 20)),
+    el('strong', {}, label),
+    el('span', {class: 'drop-zone-hint'}, hint),
+    input);
+  const open = () => input.click();
+  zone.addEventListener('click', open);
+  zone.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      open();
+    }
+  });
+  zone.addEventListener('dragover', event => {
+    event.preventDefault();
+    zone.classList.add('dragging');
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragging'));
+  zone.addEventListener('drop', event => {
+    event.preventDefault();
+    zone.classList.remove('dragging');
+    const files = [...event.dataTransfer.files];
+    if (files.length) onFiles(multiple ? files : files.slice(0, 1));
+  });
+  return zone;
+}
 
 export function control(text, onClick, {glyph, compact = false, tone = '', ...attrs} = {}) {
   return el('button', {type: 'button', class: 'control ' + tone + (compact ? ' icon-only' : ''),
@@ -75,6 +110,9 @@ export function transcript() {
         case 'g4_progress': put(p.id, event); break;
         case 'assistant_reply': put(p.message_id, event); break;
         case 'g4_live_audit': put(p.id, event); break;
+        case 'binary_ready': put(p.id, event); break;
+        case 'case_prompt': put(p.id, event); break;
+        case 'case_received': put(p.id, event); break;
         case 'g4_downloads': put(p.id, event); break;
         case 'g4_actions': put(p.id, event); break;
         case 'run_end': {
@@ -147,12 +185,16 @@ function approval(item, ctx) {
   const status = item.decision;
   if (p.kind === 'repair_plan') {
     const options = p.options ?? [];
+    if (chat.auditMode === 'live') {
+      return el('p', {class: 'inline-note'}, t('livePlanFirst'));
+    }
     if (status) {
       const chosen = options.find(option => option.id === status);
       return el('div', {class: 'inline-actions'}, icon('check', 15),
         el('span', {}, t('planChosen') + (chosen ? ' · ' + chosen.title : '')));
     }
     return el('div', {class: 'plan-choices', role: 'group', 'aria-label': t('approval')},
+      el('p', {class: 'inline-note replay-note'}, t('signedReplayPlanNote')),
       p.note ? el('p', {class: 'inline-note'}, p.note) : null,
       options.map(option => el('div', {class: 'plan-choice'},
         el('strong', {}, option.title),
@@ -250,12 +292,32 @@ const CHAT_STEP_KEYS = {
 const stepLabel = (code, t) => t(CHAT_STEP_KEYS[code] ?? code);
 const shortSha = value => value ? String(value).slice(0, 16) + '…' : '—';
 
+function statusMood(label) {
+  const text = String(label ?? '').toLowerCase();
+  if (!text) return 'neutral';
+  if (/运行中|进行中|running|in.?progress|progress/.test(text)) return 'running';
+  if (/失败|错误|拒绝|未通过|failed|failure|error|rejected|unverified|unsupported/.test(text)) return 'failed';
+  if (/完成|成功|通过|有效|completed|complete|success|passed|proceed|verified|valid/.test(text)) return 'success';
+  return 'neutral';
+}
+
+function runningDots() {
+  return el('span', {class: 'running-dots', 'aria-hidden': 'true'},
+    el('i'), el('i'), el('i'));
+}
+
+function statusBadge(label) {
+  const mood = statusMood(label);
+  return el('span', {class: 'gen-badge', 'data-mood': mood}, label,
+    mood === 'running' ? runningDots() : null);
+}
+
 function genCard(kind, glyph, title, badge, ...children) {
   return el('article', {class: 'message assistant gen-card gen-' + kind},
     el('header', {class: 'gen-head'},
       el('span', {class: 'gen-mark'}, icon(glyph, 17)),
       el('strong', {}, title),
-      badge ? el('span', {class: 'gen-badge'}, badge) : null),
+      badge ? statusBadge(badge) : null),
     el('div', {class: 'gen-body'}, ...children));
 }
 
@@ -301,17 +363,22 @@ function genProgress(p, t) {
 
 function genOutcome(p, t) {
   const links = [p.candidate, p.manifest, p.verdict_file].filter(Boolean);
+  const rejected = ['rejected', 'unverified', 'unsupported', 'error'].includes(p.verdict_word);
   const children = [];
   if (p.candidate_sha256) {
     children.push(el('p', {class: 'gen-note mono'},
       'candidate ' + shortSha(p.candidate_sha256)));
   }
+  if (rejected && (p.verdict_reason || (p.failed_criteria || []).length)) {
+    children.push(el('p', {class: 'gen-note verdict-reason'},
+      t('verdictRejectedReason') + ' ' + (p.verdict_reason || (p.failed_criteria || []).join(' · '))));
+  }
   children.push(el('div', {class: 'gen-downloads'}, links.map(link =>
     el('a', {class: 'gen-download', href: link.href, download: '',
       title: link.sha256 ? 'sha256: ' + link.sha256 : null},
     icon('download', 16), el('span', {}, link.label)))));
-  return genCard('outcome', 'check', t('repairComplete'), p.verdict_word || t('noVerdict'),
-    ...children);
+  return genCard('outcome', 'check', rejected ? t('repairNotAccepted') : t('repairComplete'),
+    p.verdict_word || t('noVerdict'), ...children);
 }
 
 const ASSISTANT_ACTION_KEYS = {
@@ -325,6 +392,61 @@ function assistantActionLabel(action, t) {
   const key = ASSISTANT_ACTION_KEYS[action.kind] || code;
   const localized = t(key);
   return localized === key ? (code || key) : localized;
+}
+
+function planReasonLabel(code, t) {
+  const raw = String(code || 'plan_not_allowed');
+  if (raw.startsWith('edit_kind_not_allowed:')) {
+    return t('liveReasonEditKind') + ' (' + raw.split(':')[1] + ')';
+  }
+  const labels = {
+    redirect_size_invalid: t('liveReasonRedirectSize'),
+    redirect_count_invalid: t('liveReasonRedirectCount'),
+    code_budget_exceeded: t('liveReasonCodeBudget'),
+    data_budget_exceeded: t('liveReasonDataBudget'),
+    edit_address_invalid: t('liveReasonAddress'),
+    plan_fixture_mismatch: t('liveReasonFixture'),
+    plan_contract_mismatch: t('liveReasonContract'),
+    plan_not_allowed: t('liveReasonPlan'),
+  };
+  return labels[raw] || raw;
+}
+
+function decodeBase64Text(value) {
+  try {
+    const bytes = Uint8Array.from(atob(String(value || '')), c => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return '';
+  }
+}
+
+function showAttachment(chat, id, t) {
+  const file = chat.attachmentFiles?.get(id);
+  if (!file) return;
+  const close = control(t('close'), () => popup.close(), {glyph: 'x', compact: true});
+  let body;
+  if (file.kind === 'case') {
+    const text = decodeBase64Text(file.base64);
+    body = el('pre', {class: 'attachment-text'}, text || t('previewUnavailable'));
+  } else {
+    const bytes = (() => {
+      try { return Uint8Array.from(atob(String(file.base64 || '')), c => c.charCodeAt(0)); }
+      catch { return new Uint8Array(); }
+    })();
+    const preview = [...bytes.slice(0, 256)].map(byte => byte.toString(16).padStart(2, '0')).join(' ');
+    const href = file.base64 ? 'data:application/octet-stream;base64,' + file.base64 : null;
+    body = el('div', {class: 'attachment-binary'},
+      el('p', {class: 'gen-note'}, `${bytes.length} bytes · ${t('binaryPreview')}`),
+      el('pre', {class: 'attachment-text'}, preview || t('previewUnavailable')),
+      href ? el('a', {class: 'control', href, download: file.name}, icon('download', 16), t('download')) : null);
+  }
+  const popup = el('dialog', {class: 'popup attachment-preview', 'aria-label': file.name},
+    el('header', {}, el('h2', {}, file.name), close),
+    el('div', {class: 'attachment-preview-body'}, body));
+  popup.addEventListener('close', () => popup.remove());
+  document.body.append(popup);
+  popup.showModal();
 }
 
 function genLiveAudit(p, ctx, t) {
@@ -348,29 +470,46 @@ function genLiveAudit(p, ctx, t) {
   }
   children.push(el('p', {class: 'gen-note'},
     `${t('liveAuditRuns')}: ${runs.length} / 3` + (audit.error ? ` · ${audit.error}` : '')));
+  if (status === 'running' && !runs.length) {
+    children.push(el('p', {class: 'muted live-audit-hint'}, t('liveAuditStarted')));
+  }
   if (status === 'completed' && runs.length) {
-    children.push(el('div', {class: 'live-plans'}, runs.map(run => {
+    const cards = runs.map(run => {
       const picked = selected && Number(selected.run_index) === Number(run.run_index);
-      return el('div', {class: 'live-plan' + (picked ? ' selected' : '')},
+      const children = [
         el('div', {class: 'live-plan-head'},
           el('strong', {}, 'run ' + run.run_index),
-          el('span', {class: 'gen-badge'}, run.schema_valid ? t('liveAuditSchemaOk')
-            : t('liveAuditSchemaBad'))),
+          statusBadge(run.schema_valid ? t('liveAuditSchemaOk') : t('liveAuditSchemaBad'))),
         el('p', {class: 'gen-note mono'},
           'canonical ' + shortSha(run.canonical_sha256 || run.plan_sha256)),
-        (run.critical_errors || []).length
-          ? el('p', {class: 'gen-note'}, run.critical_errors.join(' · ')) : null,
-        control(picked ? t('liveAuditSelected') : t('liveAuditSelect'),
+      ];
+      if ((run.critical_errors || []).length) {
+        children.push(el('p', {class: 'gen-note'}, run.critical_errors.join(' · ')));
+      }
+      if (run.selectable === false) {
+        children.push(el('p', {class: 'gen-note plan-unavailable'}, t('livePlanUnavailable')
+          .replace('{reason}', planReasonLabel(run.select_reason, t))));
+      } else {
+        children.push(control(picked ? t('liveAuditSelected') : t('liveAuditSelect'),
           () => engine.selectLivePlan?.(chat, run.run_index),
           {tone: picked ? '' : 'primary'}));
-    })));
+      }
+      return el('div', {class: 'live-plan' + (picked ? ' selected' : '')}, ...children);
+    });
+    children.push(el('div', {class: 'live-plans'}, cards));
   }
   if (selected) {
+    if (p.guest_available === false) {
+      children.push(el('p', {class: 'gen-note verdict-reason'}, t('liveGuestRequired')));
+    }
     children.push(el('div', {class: 'live-guest'},
       el('label', {},
         el('input', {type: 'checkbox', checked: p.live_guest,
+          disabled: p.guest_available === false,
           onchange: event => engine.setLiveGuest?.(chat, event.target.checked)}),
-        ' ' + t('liveAuditGuest'))));
+        ' ' + t('liveAuditGuest')),
+      p.guest_available === false
+        ? el('p', {class: 'gen-note'}, t('liveGuestUnavailable')) : null));
     children.push(control(t('liveAuditStart'), () => engine.startLivePlan?.(chat),
       {tone: 'primary', glyph: 'arrow'}));
   }
@@ -391,7 +530,9 @@ export function renderItem(item, ctx) {
   switch (type) {
     case 'user_message':
       return el('article', {class: 'message user', 'aria-label': t('you')}, el('p', {class: 'message-body'}, p.text),
-        p.attachment_ids.map(id => el('span', {class: 'message-file'}, icon('file', 14), chat.attachmentNames.get(id) ?? id)),
+        p.attachment_ids.map(id => el('button', {type: 'button', class: 'message-file',
+          onclick: () => showAttachment(chat, id, t), title: t('previewFile')},
+        icon('file', 14), chat.attachmentNames.get(id) ?? id)),
         p.delivery === 'queued' ? chips(t('queued')) : null);
     case 'assistant_delta':
       return el('article', {class: 'message assistant', 'aria-label': t('assistant')},
@@ -420,6 +561,27 @@ export function renderItem(item, ctx) {
         p.retry.kind === 'manual' && chat.phase === 'failed' && chat.run === item.run_id
           ? control(t('retry'), () => engine.start(chat, locale, true)) : null);
     case 'g4_live_audit': return genLiveAudit(p, ctx, t);
+    case 'binary_ready': {
+      const f = p.finding || {};
+      return el('article', {class: 'message assistant binary-ready'},
+        el('div', {class: 'binary-ready-head'}, icon('check', 16),
+          el('strong', {}, t('binaryRecognized')),
+          el('span', {class: 'muted'}, p.binary_name)),
+        el('p', {class: 'message-body'}, p.supported
+          ? t('binarySupported').replace('{function}', f.function || '—')
+            .replace('{address}', f.address || '—').replace('{cwe}', f.cwe || '—')
+          : t('binaryUnsupported')),
+        el('code', {class: 'sha-line'}, (p.binary_sha256 || '').slice(0, 24) + '…'));
+    }
+    case 'case_prompt':
+      if (!chat.pendingBinary) return el('p', {class: 'inline-note'}, t('casesAccepted'));
+      return el('div', {class: 'message assistant case-ready'},
+        el('p', {class: 'inline-note'}, t('addCasesNow')),
+        fileDropZone({label: t('caseDrop'), hint: t('caseDropHint'),
+          accept: '.json', multiple: true,
+          onFiles: files => engine.submitCases?.(chat, files, chat.locale)}));
+    case 'case_received': return el('p', {class: 'inline-note'},
+      t('casesReceived').replace('{count}', String(p.count || 0)));
     case 'assistant_reply': {
       const mode = p.mode === 'llm' ? t('assistantModeLlm')
         : p.mode === 'llm (not wired)' ? t('assistantModeNotWired')
