@@ -1,7 +1,7 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
-import {control} from './chat-view.mjs?v=20261124d';
-import {createProgress} from './chat-progress.mjs?v=20261124d';
+import {control} from './chat-view.mjs?v=20261124e';
+import {createProgress} from './chat-progress.mjs?v=20261124e';
 import {createStepGroups, disclosure} from './chat-steps.mjs?v=20261121j';
 import {motionReduced} from '../shared/motion.mjs?v=20261120au';
 
@@ -143,7 +143,8 @@ export function createExecution(t, showConversation, taskMode = false) {
       return el('li', {'data-status': step.status},
         el('span', {class: 'runner-dot'}, icon('circle', 10)),
         el('span', {class: 'runner-name'}, stepName(step.label_code || id, t)),
-        el('span', {class: 'runner-state'}, t(step.status) + (reason ? ' · ' + reason : '')));
+        el('span', {class: 'runner-state'},
+          t(step.status) + ' · ' + step.status + (reason ? ' · ' + reason : '')));
     }));
   }
 
@@ -214,7 +215,7 @@ export function createExecution(t, showConversation, taskMode = false) {
     const activeStep = steps?.find(step => step.status === 'in_progress');
     const runEnd = chat.runEnd;
     phase.textContent = taskMode
-      ? (runEnd?.execution ? t(runEnd.execution)
+      ? (runEnd?.execution ? t(runEnd.execution) + ' · ' + runEnd.execution
         : activeStep ? stepName(activeStep.label_code, t)
           : t(chat.phase === 'idle' ? 'noRun' : chat.phase))
       : t(chat.phase === 'running' && activeStep ? stepName(activeStep.label_code, t)
