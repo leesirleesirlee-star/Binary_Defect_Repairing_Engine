@@ -96,7 +96,8 @@ def update(task: dict[str, Any]) -> dict[str, Any]:
 
 
 def approve(
-    task_id: str, expected_binding_digest: str, reviewer_label: str = "M2"
+    task_id: str, expected_binding_digest: str, reviewer_label: str = "M2",
+    plan_sha256: str | None = None,
 ) -> dict[str, Any]:
     task = _read(task_id)
     if expected_binding_digest != task["review_binding_digest"]:
@@ -109,6 +110,8 @@ def approve(
         "reviewer_label": reviewer_label or "M2",
         "binding_digest": task["review_binding_digest"],
     }
+    if plan_sha256:
+        task["approval"]["plan_sha256"] = plan_sha256
     _write(task)
     return task["approval"]
 

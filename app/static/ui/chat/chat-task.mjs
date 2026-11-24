@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261124p';
+import {label} from './chat-copy.mjs?v=20261124q';
 
 const newId = () => crypto.randomUUID();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -268,6 +268,13 @@ export function chatTask({notify = () => {}} = {}) {
           contract_sha256: g2.contract_sha256 || null,
         }, 'report');
       } catch { chat.g2 = null; }
+      try {
+        const audit = await api(`/api/tasks/${chat.jobId}/audit`);
+        chat.audit = audit;
+        chat.auditMode = audit.audit_mode || 'signed';
+        chat.liveGuest = Boolean(audit.live_guest);
+        emitLiveAudit(chat);
+      } catch { chat.audit = null; }
       chat.request = {
         kind: 'repair_plan',
         request_id: newId(),
@@ -298,9 +305,123 @@ export function chatTask({notify = () => {}} = {}) {
     }
   }
 
+  function emitLiveAudit(chat, extra = {}) {
+    const audit = chat.audit || {};
+    event(chat, 'g4_live_audit', {
+      id: 'g4-live-' + chat.jobId,
+      mode: chat.auditMode || 'signed',
+      live_audit: audit.live_audit || {status: 'idle', runs: []},
+      selected_plan: audit.selected_plan || null,
+      live_guest: Boolean(chat.liveGuest),
+      ...extra,
+    }, 'audit');
+  }
+
+  function setLiveMode(chat, mode) {
+    chat.auditMode = mode === 'live' ? 'live' : 'signed';
+    emitLiveAudit(chat);
+  }
+
+  function setLiveGuest(chat, value) {
+    chat.liveGuest = Boolean(value);
+    emitLiveAudit(chat);
+  }
+
+  async function startLiveAudit(chat) {
+    if (!chat.jobId || chat.liveRunning) return;
+    chat.auditMode = 'live';
+    chat.liveGuest = true;
+    chat.liveRunning = true;
+    emitLiveAudit(chat);
+    try {
+      await api(`/api/tasks/${chat.jobId}/audit/live`, {method: 'POST', body: {}});
+    } catch (error) {
+      const code = error.detail?.code || error.message || 'audit_failed';
+      emitLiveAudit(chat, {error: code});
+      say(chat, t(chat.locale,
+        `AI 现场审计未启动（${code}）；可继续使用回放已签 G2。`,
+        `Live AI audit did not start (${code}); the signed G2 replay remains available.`));
+      chat.liveRunning = false;
+      return;
+    }
+    const deadline = Date.now() + 600000;
+    while (Date.now() < deadline) {
+      await sleep(800);
+      try {
+        const data = await api(`/api/tasks/${chat.jobId}/audit`);
+        chat.audit = data;
+        emitLiveAudit(chat);
+        const status = data.live_audit?.status;
+        if (status === 'completed' || status === 'failed') break;
+      } catch { break; }
+    }
+    chat.liveRunning = false;
+  }
+
+  async function selectLivePlan(chat, runIndex) {
+    try {
+      const data = await api(`/api/tasks/${chat.jobId}/plan`, {
+        method: 'POST', body: {run_index: runIndex, live_guest: chat.liveGuest},
+      });
+      const audit = await api(`/api/tasks/${chat.jobId}/audit`);
+      chat.audit = audit;
+      emitLiveAudit(chat);
+      say(chat, t(chat.locale,
+        `已记录现场方案 run ${runIndex}，plan ${String(data.selected_plan?.canonical_sha256 || '').slice(0, 12)}…；`
+        + '确认后按该计划启动修复与现场 guest 验证。',
+        `Live plan run ${runIndex} recorded (plan ${String(data.selected_plan?.canonical_sha256 || '').slice(0, 12)}…); `
+        + 'confirm to start the repair and live guest verification.'));
+    } catch (error) {
+      say(chat, t(chat.locale,
+        `现场方案选择失败：${error.detail?.code || error.message}。`,
+        `Live plan selection failed: ${error.detail?.code || error.message}.`));
+    }
+  }
+
+  async function startLivePlan(chat) {
+    if (!chat.jobId || !chat.audit?.selected_plan) return;
+    state(chat, 'running');
+    chat.started = Date.now();
+    chat.auditMode = 'live';
+    event(chat, 'thinking', {phase: 'started'}, 'repair');
+    try {
+      const task = await api(`/api/tasks/${chat.jobId}`);
+      const digest = task.review_binding_digest;
+      await api(`/api/tasks/${chat.jobId}/approve`, {
+        method: 'POST', body: {expected_review_binding_digest: digest,
+          expected_plan_sha256: chat.audit.selected_plan.canonical_sha256,
+          reviewer_label: 'M2-G4.1'},
+      });
+      const started = await api(`/api/tasks/${chat.jobId}/start`, {
+        method: 'POST', headers: {'Idempotency-Key': 'g4-live-' + chat.jobId},
+        body: {expected_review_binding_digest: digest},
+      });
+      chat.run = started.run_id;
+      chat.execution = {run_id: started.run_id, terminal: false, status: 'queued'};
+      chat.journal = [];
+      chat.journalSeq = 0;
+      chat.plan = null;
+      chat.runEnd = null;
+      chat.auditRuns = null;
+      void follow(chat);
+    } catch (error) {
+      event(chat, 'thinking', {phase: 'finished', duration_ms: 0, summary_code: 'repair'},
+        'repair');
+      say(chat, t(chat.locale,
+        `现场修复启动失败：${error.detail?.code || error.message}。`,
+        `Live repair could not start: ${error.detail?.code || error.message}.`));
+      finish(chat, 'failed');
+    }
+  }
+
   async function decide(chat, requestId, action) {
     const request = chat.request;
     if (!request || request.request_id !== requestId) return;
+    if (chat.auditMode === 'live') {
+      say(chat, t(chat.locale, '当前处于 AI 现场审计模式；请选择现场审计方案，或切回回放已签 G2。',
+        'Live audit mode is active; select a live plan or switch back to the signed G2 replay.'));
+      return;
+    }
     const option = chat.options.find(item => item.id === action);
     if (!option || !option.feasible) return;
     chat.request = null;
@@ -471,5 +592,6 @@ export function chatTask({notify = () => {}} = {}) {
   function deactivate() {}
 
   return {chats, live: true, taskMode: true, create, send, sendFixture, decide, assistantTurn,
+    startLiveAudit, selectLivePlan, startLivePlan, setLiveMode, setLiveGuest,
     start: async () => {}, stop, seed, activate, deactivate};
 }

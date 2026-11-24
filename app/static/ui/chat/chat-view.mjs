@@ -74,6 +74,7 @@ export function transcript() {
         case 'g4_g2': put(run + ':g2', event); break;
         case 'g4_progress': put(p.id, event); break;
         case 'assistant_reply': put(p.message_id, event); break;
+        case 'g4_live_audit': put(p.id, event); break;
         case 'g4_downloads': put(p.id, event); break;
         case 'g4_actions': put(p.id, event); break;
         case 'run_end': {
@@ -326,6 +327,59 @@ function assistantActionLabel(action, t) {
   return localized === key ? (code || key) : localized;
 }
 
+function genLiveAudit(p, ctx, t) {
+  const {engine, chat} = ctx;
+  const audit = p.live_audit || {status: 'idle', runs: []};
+  const mode = p.mode || 'signed';
+  const selected = p.selected_plan;
+  const runs = audit.runs || [];
+  const status = audit.status || 'idle';
+  const statusLabel = t(status === 'idle' ? 'liveAuditIdle' : status === 'running'
+    ? 'liveAuditRunning' : status === 'completed' ? 'liveAuditCompleted' : 'liveAuditFailed');
+  const tabs = el('div', {class: 'live-mode-tabs'},
+    control(t('liveAuditSigned'), () => engine.setLiveMode?.(chat, 'signed'),
+      {tone: mode === 'signed' ? 'primary' : ''}),
+    control(t('liveAuditLive'), () => engine.startLiveAudit?.(chat),
+      {tone: mode === 'live' ? 'primary' : ''}));
+  const children = [tabs];
+  if (mode !== 'live') {
+    children.push(el('p', {class: 'gen-note'}, t('liveAuditSignedNote')));
+    return genCard('live', 'terminal', t('liveAuditTitle'), t('liveAuditSigned'), ...children);
+  }
+  children.push(el('p', {class: 'gen-note'},
+    `${t('liveAuditRuns')}: ${runs.length} / 3` + (audit.error ? ` · ${audit.error}` : '')));
+  if (status === 'completed' && runs.length) {
+    children.push(el('div', {class: 'live-plans'}, runs.map(run => {
+      const picked = selected && Number(selected.run_index) === Number(run.run_index);
+      return el('div', {class: 'live-plan' + (picked ? ' selected' : '')},
+        el('div', {class: 'live-plan-head'},
+          el('strong', {}, 'run ' + run.run_index),
+          el('span', {class: 'gen-badge'}, run.schema_valid ? t('liveAuditSchemaOk')
+            : t('liveAuditSchemaBad'))),
+        el('p', {class: 'gen-note mono'},
+          'canonical ' + shortSha(run.canonical_sha256 || run.plan_sha256)),
+        (run.critical_errors || []).length
+          ? el('p', {class: 'gen-note'}, run.critical_errors.join(' · ')) : null,
+        control(picked ? t('liveAuditSelected') : t('liveAuditSelect'),
+          () => engine.selectLivePlan?.(chat, run.run_index),
+          {tone: picked ? '' : 'primary'}));
+    })));
+  }
+  if (selected) {
+    children.push(el('div', {class: 'live-guest'},
+      el('label', {},
+        el('input', {type: 'checkbox', checked: p.live_guest,
+          onchange: event => engine.setLiveGuest?.(chat, event.target.checked)}),
+        ' ' + t('liveAuditGuest'))));
+    children.push(control(t('liveAuditStart'), () => engine.startLivePlan?.(chat),
+      {tone: 'primary', glyph: 'arrow'}));
+  }
+  if (audit.error || p.error) {
+    children.push(el('p', {class: 'gen-note'}, t('liveAuditFallback')));
+  }
+  return genCard('live', 'terminal', t('liveAuditTitle'), statusLabel, ...children);
+}
+
 export function renderItem(item, ctx) {
   const {t, locale, chat, engine} = ctx;
   const {payload: p, type, ts} = item;
@@ -365,6 +419,7 @@ export function renderItem(item, ctx) {
         el('code', {}, p.code),
         p.retry.kind === 'manual' && chat.phase === 'failed' && chat.run === item.run_id
           ? control(t('retry'), () => engine.start(chat, locale, true)) : null);
+    case 'g4_live_audit': return genLiveAudit(p, ctx, t);
     case 'assistant_reply': {
       const mode = p.mode === 'llm' ? t('assistantModeLlm')
         : p.mode === 'llm (not wired)' ? t('assistantModeNotWired')

@@ -659,3 +659,14 @@ p.activity-row { display: flex; gap: .4rem; align-items: center; color: var(--mu
 .assistant-chip[data-kind="download"], .assistant-chip[data-kind="evidence"] {
   color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
 @media (max-width: 720px) { .assistant-mode { display: none; } }
+
+/* G4.1 live mode: additive audit cards, signed replay remains default. */
+.live-mode-tabs { display: flex; gap: .35rem; flex-wrap: wrap; }
+.live-plans { display: grid; gap: .4rem; }
+.live-plan { border: 1px solid var(--line); border-radius: .6rem; padding: .5rem .6rem; }
+.live-plan.selected { border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.live-plan-head { display: flex; align-items: center; gap: .4rem; justify-content: space-between; }
+.live-guest { display: flex; align-items: center; gap: .4rem; font-size: .76rem; color: var(--muted); }
+.live-guest input { accent-color: var(--accent); }
+.mono { font-family: ui-monospace, monospace; }
