@@ -73,6 +73,7 @@ export function transcript() {
         case 'g4_analysis': put(run + ':analysis', event); break;
         case 'g4_g2': put(run + ':g2', event); break;
         case 'g4_progress': put(p.id, event); break;
+        case 'assistant_reply': put(p.message_id, event); break;
         case 'g4_downloads': put(p.id, event); break;
         case 'g4_actions': put(p.id, event); break;
         case 'run_end': {
@@ -312,6 +313,19 @@ function genOutcome(p, t) {
     ...children);
 }
 
+const ASSISTANT_ACTION_KEYS = {
+  attach: 'attachBinary', start: 'start', continue: 'continue', rerun: 'rerun',
+  change_scope: 'change_scope', download: 'download', evidence: 'evidence', retry: 'retry',
+};
+
+function assistantActionLabel(action, t) {
+  if (action.label) return action.label;
+  const code = String(action.label_code || action.kind || '').replace(/^action\./, '');
+  const key = ASSISTANT_ACTION_KEYS[action.kind] || code;
+  const localized = t(key);
+  return localized === key ? (code || key) : localized;
+}
+
 export function renderItem(item, ctx) {
   const {t, locale, chat, engine} = ctx;
   const {payload: p, type, ts} = item;
@@ -351,6 +365,20 @@ export function renderItem(item, ctx) {
         el('code', {}, p.code),
         p.retry.kind === 'manual' && chat.phase === 'failed' && chat.run === item.run_id
           ? control(t('retry'), () => engine.start(chat, locale, true)) : null);
+    case 'assistant_reply': {
+      const mode = p.mode === 'llm' ? t('assistantModeLlm')
+        : p.mode === 'llm (not wired)' ? t('assistantModeNotWired')
+          : t('assistantModeDeterministic');
+      return el('article', {class: 'message assistant assistant-reply'},
+        el('div', {class: 'assistant-reply-head'},
+          el('span', {class: 'assistant-avatar'}, icon('info', 14)),
+          el('strong', {}, t('assistant')),
+          el('span', {class: 'assistant-mode-pill', 'data-mode': p.mode || 'deterministic'}, mode)),
+        el('p', {class: 'message-body'}, p.reply),
+        (p.actions || []).length ? el('div', {class: 'assistant-actions'},
+          (p.actions || []).map(action => el('span', {class: 'assistant-chip',
+            'data-kind': action.kind}, assistantActionLabel(action, t)))) : null);
+    }
     case 'g4_analysis': return genAnalysis(p, t);
     case 'g4_g2': return genG2(p, t);
     case 'g4_progress': return genProgress(p, t);

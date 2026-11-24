@@ -633,3 +633,29 @@ p.activity-row { display: flex; gap: .4rem; align-items: center; color: var(--mu
 @media (prefers-reduced-motion: reduce) {
   .gen-card, .plan-choice, .gen-steps li[data-status="in_progress"] .gen-step-dot { animation: none; }
 }
+
+/* AI-hosted assistant: truthful mode badge and reply chips. */
+.assistant-mode { display: inline-flex; align-items: center; gap: .25rem;
+  border: 1px solid var(--line); border-radius: 999px; padding: .08rem .45rem;
+  color: var(--muted); font-size: .67rem; white-space: nowrap; max-width: 14rem;
+  overflow: hidden; text-overflow: ellipsis; }
+.assistant-mode[data-mode="llm"] { color: var(--good, #7ddc9f);
+  border-color: color-mix(in srgb, var(--good, #7ddc9f) 38%, var(--line)); }
+.assistant-mode[data-mode="not_wired"] { color: var(--warn); }
+.assistant-reply { border: 1px solid var(--line); border-radius: .8rem;
+  background: color-mix(in srgb, var(--surface) 80%, transparent); padding: .6rem .75rem; }
+.assistant-reply-head { display: flex; align-items: center; gap: .4rem; margin-bottom: .3rem;
+  font-size: .76rem; }
+.assistant-avatar { display: inline-grid; place-items: center; width: 1.35rem; height: 1.35rem;
+  border-radius: .4rem; background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent); }
+.assistant-mode-pill { margin-left: auto; border: 1px solid var(--line); border-radius: 999px;
+  padding: .03rem .4rem; color: var(--muted); font-size: .64rem; font-weight: 500; }
+.assistant-mode-pill[data-mode="llm"] { color: var(--good, #7ddc9f); }
+.assistant-reply .message-body { margin: 0; white-space: pre-wrap; }
+.assistant-actions { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .45rem; }
+.assistant-chip { border: 1px solid var(--line); border-radius: 999px; padding: .14rem .5rem;
+  color: var(--muted); font-size: .7rem; }
+.assistant-chip[data-kind="download"], .assistant-chip[data-kind="evidence"] {
+  color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+@media (max-width: 720px) { .assistant-mode { display: none; } }
