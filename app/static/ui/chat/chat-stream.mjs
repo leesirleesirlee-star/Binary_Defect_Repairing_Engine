@@ -1,4 +1,4 @@
-import {label} from './chat-copy.mjs?v=20261124q';
+import {label} from './chat-copy.mjs?v=20261124r';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const stepNames = ['review', 'inspect', 'summarize'];

@@ -27,6 +27,7 @@ FIXTURE_DIR = ROOT / "fixtures" / "stack-overflow-01"
 MODEL = "deepseek-v4-pro"
 TIMEOUT_S = 600
 _RUNNING: dict[str, Any] = {}
+_CANCELLED: set[str] = set()
 _LOCK = threading.Lock()
 
 
@@ -134,6 +135,11 @@ def _spawn(command: list[str], env: dict[str, str]) -> subprocess.Popen[bytes]:
 
 
 def _set_state(task_id: str, live: dict[str, Any], **task_updates: Any) -> None:
+    if task_id in _CANCELLED:
+        # The user switched back to the signed replay while the child was
+        # winding down; do not resurrect the cancelled live state.
+        _CANCELLED.discard(task_id)
+        return
     task = tasks.get(task_id)
     task["live_audit"] = live
     task.update(task_updates)
@@ -290,7 +296,15 @@ def start(task_id: str, *, rerun: bool = False) -> dict[str, Any]:
         raise LiveAuditError(409, "audit_unsupported")
     live = state(task_id)
     if live.get("status") == "running":
-        raise LiveAuditError(409, "audit_running")
+        with _LOCK:
+            active = task_id in _RUNNING
+        if active:
+            raise LiveAuditError(409, "audit_running")
+        # A server restart (or a dead child) can leave a persisted "running"
+        # state with no process; recover it instead of bricking live mode.
+        live.update({"status": "failed", "finished_at": _now(),
+                     "error": "audit_failed", "detail": "stale_run"})
+        _set_state(task_id, live)
     if live.get("status") == "completed" and not rerun:
         return {"status": "completed", "live_audit": live}
     key = assistant_key.load_key()
@@ -423,13 +437,23 @@ def select_plan(task_id: str, body: dict[str, Any]) -> dict[str, Any]:
 
 
 def reset_signed(task_id: str) -> dict[str, Any]:
-    """Leave live mode and restore the signed-replay starting point safely."""
+    """Leave live mode (cancelling any running audit) and restore signed replay."""
     task = tasks.get(task_id)
     execution = task.get("execution") or {}
     if execution.get("run_id"):
         raise LiveAuditError(409, "invalid_transition")
-    if state(task_id).get("status") == "running":
-        raise LiveAuditError(409, "audit_running")
+    with _LOCK:
+        process = _RUNNING.pop(task_id, None)
+    if process is not None:
+        _CANCELLED.add(task_id)
+        try:
+            process.terminate()
+            process.wait(timeout=3)
+        except Exception:
+            try:
+                process.kill()
+            except Exception:
+                pass
     task["audit_mode"] = "signed"
     task["live_audit"] = empty_state()
     task["selected_plan"] = None
