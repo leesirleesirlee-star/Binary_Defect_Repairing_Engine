@@ -136,9 +136,8 @@ def _spawn(command: list[str], env: dict[str, str]) -> subprocess.Popen[bytes]:
 
 def _set_state(task_id: str, live: dict[str, Any], **task_updates: Any) -> None:
     if task_id in _CANCELLED:
-        # The user switched back to the signed replay while the child was
-        # winding down; do not resurrect the cancelled live state.
-        _CANCELLED.discard(task_id)
+        # Stay suppressed until the next start explicitly clears the flag; a
+        # cancelled attempt may emit more than one late state write.
         return
     task = tasks.get(task_id)
     task["live_audit"] = live
@@ -333,6 +332,8 @@ def start(task_id: str, *, rerun: bool = False) -> dict[str, Any]:
     task["selected_plan"] = None
     task["live_audit"] = live
     tasks.update(task)
+    with _LOCK:
+        _CANCELLED.discard(task_id)
     env = os.environ.copy()
     env["DEEPSEEK_API_KEY"] = key
     env["DEEPSEEK_MODEL"] = MODEL
