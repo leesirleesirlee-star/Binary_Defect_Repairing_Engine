@@ -63,7 +63,7 @@ lands.
 | `corpus_update` | R | `{fixture_id, counts: {valid, invalid, poc}, total, cases_sha256}` |
 | `awaiting_user` | R | `{request_id, kind: "audit_decision", allowed: ["proceed","iterate","change_scope"], binding: {contract_revision, contract_sha256, corpus_sha256, binary_sha256}}` |
 | `user_response` | GUI | GUI-internal |
-| `file_change` | R | `{change_id, stage: "proposed"\|"applied", files: [{display_path, added, removed, diff: {text, truncated}}]}`; display paths only, never absolute host paths |
+| `file_change` | R | `{change_id, stage: "proposed"\|"applied"\|"exported", files: [{display_path, added, removed, diff: {text, truncated}}]}`; display paths only, never absolute host paths |
 | `command` | R | `{command_id, phase: "started"\|"output"\|"finished", label_code, display_cwd, exit_code: int\|null}`; `output` adds `text, truncated` |
 | `verification` | R/V | `kind: "check"`: `{level: "V0".."V4", status: "passed"\|"failed"\|"not_run", obligation_id, evidence_ids: [], reason_code: string\|null}`; `kind: "evaluation"`: `{evaluation_id, verdict: null\|six-word, generated_at}` |
 | `audit_runs` | R | `{report_sha256: hex64\|null, runs: [{run_index, schema_valid, score: int\|null, critical_errors: [], usable, notes}]}`; always three rows once emitted, invalid JSON included |
@@ -90,6 +90,22 @@ collect -> freeze -> analyze -> audit -> decision -> repair -> verify -> export
 `plan_update` carries the whole checklist every time (revision increments). A
 stage that has not started is `pending`; a stage that cannot run in the current
 gate is `skipped` with a following `error`/`not_run` record, never `completed`.
+
+Two skip reasons are part of the contract (ADR 0005):
+
+- `satisfied_by_signed_g2` — the `audit` stage. The three-run G2 audit is signed
+evidence and the runner consumes the persisted decision; it never re-runs the
+audit and never marks that step `completed`.
+- `decision_missing` / `decision_not_proceed` — no usable `proceed` decision, so
+repair, verify and export do not run.
+
+`run_end.execution = "completed"` means the stages this run was required to
+execute finished (analyze, the persisted decision, repair, verify, export) and
+the export manifest was written. A skipped `audit` is visible in the same
+journal; a run with a blocked, skipped-required or failed stage stays `failed`.
+The export stage writes `var/artifacts/<task>/export/bundle-manifest.json`
+(artifact names, sha256, sizes, verdict word and verdict hash); it never
+recomputes the verdict.
 
 ## 5. Runner CLI contract
 
