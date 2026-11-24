@@ -342,3 +342,166 @@ def test_runner_refuses_binary_digest_mismatch(tmp_path: Path) -> None:
     task["binary"]["sha256"] = "0" * 64
     assert _run(tmp_path, task, decision=None) == 2
     assert not (tmp_path / "events" / f"{TASK_ID}.jsonl").exists()
+
+# ---------------------------------------------------------------------------
+# G4.1 live mode (audit_mode=live, live_guest)
+# ---------------------------------------------------------------------------
+CANONICAL_PLAN = "6f5f3535f3103acd04665aa4e19a2e8b6075ab7f8bc9657f5f53f01a2693ae1a"
+
+
+def _live_task() -> dict:
+    task = _task()
+    task["audit_mode"] = "live"
+    task["plan"] = "docs/audit/fix-plan-v1.json"
+    task["live_audit"] = {
+        "status": "completed",
+        "model": "deepseek-v4-pro",
+        "runs": [
+            {"run_index": 1, "schema_valid": True, "plan_sha256": "a" * 64,
+             "plan_path": "var/audit/x/run-1.json", "usage": {"total_tokens": 10}},
+            {"run_index": 2, "schema_valid": True, "plan_sha256": "b" * 64,
+             "plan_path": "var/audit/x/run-2.json", "usage": {"total_tokens": 11}},
+            {"run_index": 3, "schema_valid": False, "plan_sha256": "c" * 64,
+             "plan_path": "var/audit/x/run-3.json", "usage": {"total_tokens": 12}},
+        ],
+    }
+    task["selected_plan"] = {
+        "source": "live",
+        "run_index": 2,
+        "path": "docs/audit/fix-plan-v1.json",
+        "file_sha256": "d" * 64,
+        "canonical_sha256": CANONICAL_PLAN,
+    }
+    task["approval"]["plan_sha256"] = CANONICAL_PLAN
+    return task
+
+
+def _fake_guest(tmp_path: Path, observations: dict, *, fail: bool = False) -> Path:
+    script = tmp_path / "fake_guest.py"
+    if fail:
+        script.write_text(
+            "import sys\n"
+            "sys.stderr.write('guest_unavailable: wsl.exe not found\\n')\n"
+            "sys.exit(3)\n",
+            encoding="utf-8",
+        )
+        return script
+    sidecar = tmp_path / "fake_observations.json"
+    sidecar.write_text(json.dumps(observations), encoding="utf-8")
+    script.write_text(
+        "import argparse, json, pathlib\n"
+        "parser = argparse.ArgumentParser()\n"
+        "for name in ('--original', '--candidate', '--cases', '--out-dir', '--timeout'):\n"
+        "    parser.add_argument(name)\n"
+        "args = parser.parse_args()\n"
+        "out = pathlib.Path(args.out_dir)\n"
+        "out.mkdir(parents=True, exist_ok=True)\n"
+        f"data = pathlib.Path({str(sidecar)!r}).read_text(encoding='utf-8')\n"
+        "for name in ('observations-original.json', 'observations-candidate.json'):\n"
+        "    (out / name).write_text(data, encoding='utf-8')\n"
+        "(out / 'guest-environment.json').write_text("
+        "json.dumps({'distro': 'Ubuntu', 'kernel': 'fake', 'libc': 'glibc fake'}),"
+        " encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+    return script
+
+
+def test_runner_live_audit_is_bound_from_the_task_snapshot(tmp_path: Path, capsys) -> None:
+    candidate = _seed_candidate(tmp_path)
+    capsys.readouterr()
+
+    _write_task(tmp_path, _live_task())
+    _write_decision(tmp_path)
+    observations = tmp_path / "artifacts" / TASK_ID / "observations-candidate.json"
+    observations.parent.mkdir(parents=True, exist_ok=True)
+    observations.write_text(json.dumps(_observations(candidate)), encoding="utf-8")
+    assert main(["--task", TASK_ID, "--var-root", str(tmp_path), "--repo-root", str(REPO)]) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["execution"] == "completed"
+
+    records = _journal(tmp_path)
+    steps = _steps(records)
+    assert steps["audit"] == "completed"
+    assert steps["decision"] == steps["repair"] == steps["verify"] == "completed"
+    audit_rows = [record for record in records if record["type"] == "audit_runs"]
+    assert len(audit_rows) == 1
+    assert len(audit_rows[0]["payload"]["runs"]) == 3
+    assert audit_rows[0]["payload"]["runs"][0]["run_index"] == 1
+    errors = _errors(records)
+    assert "satisfied_by_signed_g2" not in errors.values()
+
+
+def test_runner_live_audit_missing_is_honest(tmp_path: Path, capsys) -> None:
+    task = _live_task()
+    task["live_audit"]["status"] = "failed"
+    _write_task(tmp_path, task)
+    _write_decision(tmp_path)
+    assert main(["--task", TASK_ID, "--var-root", str(tmp_path), "--repo-root", str(REPO)]) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["execution"] == "failed"
+    assert summary["reason_code"] == "live_audit_failed"
+    records = _journal(tmp_path)
+    assert _steps(records)["audit"] == "failed"
+    assert _errors(records)["audit"] == "live_audit_failed"
+    assert not (tmp_path / "artifacts" / TASK_ID / "candidate.elf").exists()
+
+
+def test_runner_live_plan_needs_the_approval_binding(tmp_path: Path, capsys) -> None:
+    task = _live_task()
+    task["approval"]["plan_sha256"] = "0" * 64
+    _write_task(tmp_path, task)
+    _write_decision(tmp_path)
+    assert main(["--task", TASK_ID, "--var-root", str(tmp_path), "--repo-root", str(REPO)]) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["reason_code"] == "plan_not_approved"
+    records = _journal(tmp_path)
+    assert _steps(records)["decision"] == "failed"
+    assert _errors(records)["decision"] == "plan_not_approved"
+    assert not (tmp_path / "artifacts" / TASK_ID / "candidate.elf").exists()
+
+
+def test_runner_live_guest_uses_fresh_observations(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    candidate = _seed_candidate(tmp_path)
+    capsys.readouterr()
+    task = _live_task()
+    task["live_guest"] = True
+    _write_task(tmp_path, task)
+    _write_decision(tmp_path)
+    script = _fake_guest(tmp_path, _observations(candidate))
+    monkeypatch.setattr(run_task, "_GUEST_DRIVER", script)
+    assert main(["--task", TASK_ID, "--var-root", str(tmp_path), "--repo-root", str(REPO)]) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["execution"] == "completed"
+
+    records = _journal(tmp_path)
+    guest = [record for record in records
+             if record["type"] == "verification" and record["payload"].get("kind") == "guest"]
+    assert len(guest) == 1
+    assert guest[0]["payload"]["status"] == "passed"
+    assert guest[0]["payload"]["environment"]["kernel"] == "fake"
+    live_dir = tmp_path / "artifacts" / TASK_ID / "live-guest"
+    assert (live_dir / "observations-candidate.json").is_file()
+    assert (live_dir / "guest-environment.json").is_file()
+    verdict = json.loads((tmp_path / "artifacts" / TASK_ID / "verdict.json").read_text())
+    assert verdict["verdict"] == "verified_against_stated_criteria"
+
+
+def test_runner_live_guest_failure_is_honest(tmp_path: Path, monkeypatch, capsys) -> None:
+    task = _live_task()
+    task["live_guest"] = True
+    _write_task(tmp_path, task)
+    _write_decision(tmp_path)
+    script = _fake_guest(tmp_path, {}, fail=True)
+    monkeypatch.setattr(run_task, "_GUEST_DRIVER", script)
+    assert main(["--task", TASK_ID, "--var-root", str(tmp_path), "--repo-root", str(REPO)]) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["execution"] == "failed"
+    assert summary["reason_code"] == "guest_unavailable"
+    records = _journal(tmp_path)
+    assert _steps(records)["verify"] == "failed"
+    assert _errors(records)["verify"] == "guest_unavailable"
+    assert not (tmp_path / "artifacts" / TASK_ID / "verdict.json").exists()
+
