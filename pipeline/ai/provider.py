@@ -36,7 +36,14 @@ def load_fixplan_schema() -> dict:
     return json.loads(_FIXPLAN_SCHEMA.read_text(encoding="utf-8"))
 
 
-def call_chat(system: str, user: str, api_key: str, model: str, temperature: float = 0.0) -> dict:
+def call_chat(
+    system: str,
+    user: str,
+    api_key: str,
+    model: str,
+    temperature: float = 0.0,
+    base_url: str | None = None,
+) -> dict:
     """Send one chat completion and return the raw provider response JSON."""
     body = {
         "model": model,
@@ -49,7 +56,7 @@ def call_chat(system: str, user: str, api_key: str, model: str, temperature: flo
         "stream": False,
     }
     request = urllib.request.Request(
-        _DEEPSEEK_URL,
+        base_url or _DEEPSEEK_URL,
         data=json.dumps(body).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
@@ -110,6 +117,7 @@ def run_plan(
     fixture_id: str | None = None,
     plan_id: str | None = None,
     provider_name: str = "deepseek",
+    base_url: str | None = None,
 ) -> dict:
     """Build the prompt, call the provider, validate FixPlanV1, return a record.
 
@@ -130,7 +138,7 @@ def run_plan(
         raise ProviderError("contract_sha256 is required to bind the plan")
 
     prompt = build_prompt(contract, view, poc)
-    response = call_chat(prompt["system"], prompt["user"], api_key, model)
+    response = call_chat(prompt["system"], prompt["user"], api_key, model, base_url=base_url)
 
     try:
         content = response["choices"][0]["message"]["content"]
