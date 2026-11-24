@@ -184,6 +184,9 @@ def _first_env(names: tuple[str, ...], fallback: str = "") -> str:
 
 
 def resolve_model(requested: Any = None) -> str:
+    """An explicit UI selection wins over the provider default/env."""
+    if isinstance(requested, str) and requested.strip() and requested.strip() != "default":
+        return requested.strip()
     configured = _first_env(MODEL_ENVS)
     if configured:
         return configured
@@ -308,7 +311,7 @@ def test_connection(model: Any = None) -> dict[str, Any]:
                 {"role": "user", "content": 'Return {"ok": true}.'},
             ],
             resolved,
-            8,
+            64,
         )
     except _ProviderHTTP as error:
         error_code = (
