@@ -16,8 +16,9 @@ separation is the point of the redesign.
 > `audit-v1`, `candidate-v1` and **`v0.1.0`**. The console delivers the frozen
 > fixture end to end and renders the persisted verdict. The verdict is scoped to the
 > frozen contract and corpus: **it is not a proof of whole-program correctness or
-> security.** The additive **G4.1 live AI chain** (live three-run audit + live WSL2
-> guest) is in progress; it does not change this record.
+> security.** The additive **G4.1 live AI chain** is merged; its demo evidence is
+> **M2's macOS full-flow run**, with the WSL2 live-guest leg `not_run` — a documented
+> limitation, not a claim. It does not change this record.
 >
 > - **G1** — frozen x86-64 fixture, 9-case corpus, contract, original guest
 >   observations: [`docs/plan/evidence/G1-RECORD.md`](docs/plan/evidence/G1-RECORD.md).
@@ -67,11 +68,11 @@ default browser. Set `BINARYREPAIR_NO_BROWSER=1` to skip opening the page.
   No key, no WSL2, no network; this is the G4 acceptance path.
 - **Live AI chain (G4.1, additive).** A live three-run audit in the API host
   (provider key only in the child environment), a human choice among the three
-  plans, then a live WSL2 guest run and the same deterministic verifier. Needs a
-  provider key and WSL2 on the demo host (the on-site demo is M3's real-machine
-  run); without them the UI and the runner fail honestly (no fabricated verdict).
-  Implementation is merged; the continuous live console run is **not yet
-  recorded** — see
+  plans, then the same deterministic repair and verifier; the WSL2 live-guest
+  check is optional and runs only with the toggle on. Demo evidence: **M2's
+  macOS full-flow run** (live audit 3/3, plan selection, repair, verify/export
+  with the live guest off). The **live-guest leg is `not_run`** because macOS
+  cannot host the driver — a documented limitation, not a claim. See
   [`docs/plan/evidence/G4.1-DEMO.md`](docs/plan/evidence/G4.1-DEMO.md) for the
   evidence, the script and the fallbacks.
 

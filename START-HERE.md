@@ -226,17 +226,19 @@ Evidence: [`docs/plan/evidence/G4-RECORD.md`](docs/plan/evidence/G4-RECORD.md),
 - [x] the verdict renders only the six-word vocabulary; `not_run` verbatim; downloads resolve.
 - [x] no `pipeline.*` import in `app/`; honesty tests green; headless walkthrough captured; `v0.1.0` tagged.
 
-### G4.1 — live AI chain (additive, in progress)
+### G4.1 — live AI chain (additive, demo recorded)
 
 Merged: the live-run contract (#69/#74), the audit summary/canonical hash (#77/#78),
-the WSL2 guest driver (#72), the runner live mode (#75), verifier coverage (#79)
-and the live-audit console (#76). Evidence and the demo script are in
+the WSL2 guest driver (#72), the runner live mode (#75), verifier coverage (#79),
+the live-audit console (#76) and the UX/audit fixes (#81/#83). Evidence and the
+demo script are in
 [`docs/plan/evidence/G4.1-DEMO.md`](docs/plan/evidence/G4.1-DEMO.md).
 
-Still open: one continuous live console run (live audit -> live plan -> live WSL2
-guest -> verdict) on **M3's real machine** (WSL2 + Ubuntu + the configured
-provider key), and the M5 live-plan apply test (#66). The record lists the exact
-capture checklist.
+**Demo evidence:** M2's macOS full-flow run — live audit 3/3, plan selection,
+deterministic repair, verify/export with the live guest **off**. The **live-guest
+leg is `not_run`** because macOS cannot host the driver; a Windows + WSL2 capture
+would upgrade the demo but is optional, not a gate item. M5's live-plan unit test
+(#66) remains optional coverage.
 
 ---
 
