@@ -1,7 +1,7 @@
 import {animateDetails} from '../shared/details-anim.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
-import {stepCard} from './chat-steps.mjs?v=20261121j';
+import {stepCard} from './chat-steps.mjs?v=20261125a';
 
 export function fileDropZone({label, hint, accept = '', multiple = false, onFiles}) {
   const input = el('input', {type: 'file', hidden: true, accept, multiple,
@@ -292,12 +292,32 @@ const CHAT_STEP_KEYS = {
 const stepLabel = (code, t) => t(CHAT_STEP_KEYS[code] ?? code);
 const shortSha = value => value ? String(value).slice(0, 16) + '…' : '—';
 
+function statusMood(label) {
+  const text = String(label ?? '').toLowerCase();
+  if (!text) return 'neutral';
+  if (/运行中|进行中|running|in.?progress|progress/.test(text)) return 'running';
+  if (/失败|错误|failed|failure|error/.test(text)) return 'failed';
+  if (/完成|成功|通过|有效|completed|complete|success|passed|proceed|verified|valid/.test(text)) return 'success';
+  return 'neutral';
+}
+
+function runningDots() {
+  return el('span', {class: 'running-dots', 'aria-hidden': 'true'},
+    el('i'), el('i'), el('i'));
+}
+
+function statusBadge(label) {
+  const mood = statusMood(label);
+  return el('span', {class: 'gen-badge', 'data-mood': mood}, label,
+    mood === 'running' ? runningDots() : null);
+}
+
 function genCard(kind, glyph, title, badge, ...children) {
   return el('article', {class: 'message assistant gen-card gen-' + kind},
     el('header', {class: 'gen-head'},
       el('span', {class: 'gen-mark'}, icon(glyph, 17)),
       el('strong', {}, title),
-      badge ? el('span', {class: 'gen-badge'}, badge) : null),
+      badge ? statusBadge(badge) : null),
     el('div', {class: 'gen-body'}, ...children));
 }
 
@@ -369,6 +389,61 @@ function assistantActionLabel(action, t) {
   return localized === key ? (code || key) : localized;
 }
 
+function planReasonLabel(code, t) {
+  const raw = String(code || 'plan_not_allowed');
+  if (raw.startsWith('edit_kind_not_allowed:')) {
+    return t('liveReasonEditKind') + ' (' + raw.split(':')[1] + ')';
+  }
+  const labels = {
+    redirect_size_invalid: t('liveReasonRedirectSize'),
+    redirect_count_invalid: t('liveReasonRedirectCount'),
+    code_budget_exceeded: t('liveReasonCodeBudget'),
+    data_budget_exceeded: t('liveReasonDataBudget'),
+    edit_address_invalid: t('liveReasonAddress'),
+    plan_fixture_mismatch: t('liveReasonFixture'),
+    plan_contract_mismatch: t('liveReasonContract'),
+    plan_not_allowed: t('liveReasonPlan'),
+  };
+  return labels[raw] || raw;
+}
+
+function decodeBase64Text(value) {
+  try {
+    const bytes = Uint8Array.from(atob(String(value || '')), c => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return '';
+  }
+}
+
+function showAttachment(chat, id, t) {
+  const file = chat.attachmentFiles?.get(id);
+  if (!file) return;
+  const close = control(t('close'), () => popup.close(), {glyph: 'x', compact: true});
+  let body;
+  if (file.kind === 'case') {
+    const text = decodeBase64Text(file.base64);
+    body = el('pre', {class: 'attachment-text'}, text || t('previewUnavailable'));
+  } else {
+    const bytes = (() => {
+      try { return Uint8Array.from(atob(String(file.base64 || '')), c => c.charCodeAt(0)); }
+      catch { return new Uint8Array(); }
+    })();
+    const preview = [...bytes.slice(0, 256)].map(byte => byte.toString(16).padStart(2, '0')).join(' ');
+    const href = file.base64 ? 'data:application/octet-stream;base64,' + file.base64 : null;
+    body = el('div', {class: 'attachment-binary'},
+      el('p', {class: 'gen-note'}, `${bytes.length} bytes · ${t('binaryPreview')}`),
+      el('pre', {class: 'attachment-text'}, preview || t('previewUnavailable')),
+      href ? el('a', {class: 'control', href, download: file.name}, icon('download', 16), t('download')) : null);
+  }
+  const popup = el('dialog', {class: 'popup attachment-preview', 'aria-label': file.name},
+    el('header', {}, el('h2', {}, file.name), close),
+    el('div', {class: 'attachment-preview-body'}, body));
+  popup.addEventListener('close', () => popup.remove());
+  document.body.append(popup);
+  popup.showModal();
+}
+
 function genLiveAudit(p, ctx, t) {
   const {engine, chat} = ctx;
   const audit = p.live_audit || {status: 'idle', runs: []};
@@ -394,28 +469,39 @@ function genLiveAudit(p, ctx, t) {
     children.push(el('p', {class: 'muted live-audit-hint'}, t('liveAuditStarted')));
   }
   if (status === 'completed' && runs.length) {
-    children.push(el('div', {class: 'live-plans'}, runs.map(run => {
+    const cards = runs.map(run => {
       const picked = selected && Number(selected.run_index) === Number(run.run_index);
-      return el('div', {class: 'live-plan' + (picked ? ' selected' : '')},
+      const children = [
         el('div', {class: 'live-plan-head'},
           el('strong', {}, 'run ' + run.run_index),
-          el('span', {class: 'gen-badge'}, run.schema_valid ? t('liveAuditSchemaOk')
-            : t('liveAuditSchemaBad'))),
+          statusBadge(run.schema_valid ? t('liveAuditSchemaOk') : t('liveAuditSchemaBad'))),
         el('p', {class: 'gen-note mono'},
           'canonical ' + shortSha(run.canonical_sha256 || run.plan_sha256)),
-        (run.critical_errors || []).length
-          ? el('p', {class: 'gen-note'}, run.critical_errors.join(' · ')) : null,
-        control(picked ? t('liveAuditSelected') : t('liveAuditSelect'),
+      ];
+      if ((run.critical_errors || []).length) {
+        children.push(el('p', {class: 'gen-note'}, run.critical_errors.join(' · ')));
+      }
+      if (run.selectable === false) {
+        children.push(el('p', {class: 'gen-note plan-unavailable'}, t('livePlanUnavailable')
+          .replace('{reason}', planReasonLabel(run.select_reason, t))));
+      } else {
+        children.push(control(picked ? t('liveAuditSelected') : t('liveAuditSelect'),
           () => engine.selectLivePlan?.(chat, run.run_index),
           {tone: picked ? '' : 'primary'}));
-    })));
+      }
+      return el('div', {class: 'live-plan' + (picked ? ' selected' : '')}, ...children);
+    });
+    children.push(el('div', {class: 'live-plans'}, cards));
   }
   if (selected) {
     children.push(el('div', {class: 'live-guest'},
       el('label', {},
         el('input', {type: 'checkbox', checked: p.live_guest,
+          disabled: p.guest_available === false,
           onchange: event => engine.setLiveGuest?.(chat, event.target.checked)}),
-        ' ' + t('liveAuditGuest'))));
+        ' ' + t('liveAuditGuest')),
+      p.guest_available === false
+        ? el('p', {class: 'gen-note'}, t('liveGuestUnavailable')) : null));
     children.push(control(t('liveAuditStart'), () => engine.startLivePlan?.(chat),
       {tone: 'primary', glyph: 'arrow'}));
   }
@@ -436,7 +522,9 @@ export function renderItem(item, ctx) {
   switch (type) {
     case 'user_message':
       return el('article', {class: 'message user', 'aria-label': t('you')}, el('p', {class: 'message-body'}, p.text),
-        p.attachment_ids.map(id => el('span', {class: 'message-file'}, icon('file', 14), chat.attachmentNames.get(id) ?? id)),
+        p.attachment_ids.map(id => el('button', {type: 'button', class: 'message-file',
+          onclick: () => showAttachment(chat, id, t), title: t('previewFile')},
+        icon('file', 14), chat.attachmentNames.get(id) ?? id)),
         p.delivery === 'queued' ? chips(t('queued')) : null);
     case 'assistant_delta':
       return el('article', {class: 'message assistant', 'aria-label': t('assistant')},

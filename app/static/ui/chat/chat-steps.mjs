@@ -82,7 +82,10 @@ export function stepCard({glyph, title, status, statusLabel, time, duration, chi
     el('span', {class: 'step-icon'}, icon(glyph, 18),
       status === 'in_progress' ? el('span', {class: 'step-pulse'}) : null),
     el('span', {class: 'step-name', title}, title),
-    statusLabel ? el('span', {class: 'step-status'}, statusLabel) : null,
+    statusLabel ? el('span', {class: 'step-status'}, statusLabel,
+      status === 'in_progress' || status === 'running'
+        ? el('span', {class: 'running-dots', 'aria-hidden': 'true'}, el('i'), el('i'), el('i'))
+        : null) : null,
     duration != null ? el('span', {class: 'step-duration'}, duration) : null);
   const card = disclosure({className: 'step-card', heading},
     time ? el('div', {class: 'step-time'}, time) : null, children);

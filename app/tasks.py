@@ -42,6 +42,8 @@ def _read(task_id: str) -> dict[str, Any]:
 
 
 def _write(task: dict[str, Any]) -> dict[str, Any]:
+    if "created_at" in task:
+        task["updated_at"] = _now()
     path = _path(task["id"])
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = (json.dumps(task, indent=2, ensure_ascii=True) + "\n").encode("utf-8")
@@ -71,6 +73,7 @@ def create(*, preview: bool = False) -> dict[str, Any]:
         "phase": "preview" if preview else "draft",
         "demo": bool(preview),
         "created_at": _now(),
+        "updated_at": _now(),
         "contract": fixture["contract"],
         "contract_revision": fixture["contract_revision"],
         "contract_sha256": fixture["contract_sha256"],
@@ -94,9 +97,13 @@ def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
             task = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
+        fallback = datetime.fromtimestamp(
+            path.stat().st_mtime, UTC
+        ).isoformat().replace("+00:00", "Z")
         tasks.append(
             {key: task.get(key) for key in ("id", "fixture_id", "phase", "created_at")}
-            | {"verdict": task.get("verdict"), "demo": bool(task.get("demo"))}
+            | {"updated_at": task.get("updated_at") or fallback,
+               "verdict": task.get("verdict"), "demo": bool(task.get("demo"))}
         )
         if len(tasks) >= min(max(1, limit), 200):
             break

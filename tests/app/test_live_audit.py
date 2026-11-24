@@ -283,3 +283,27 @@ def test_reset_then_restart_clears_the_cancellation_flag(
     live = live_audit.wait_for_terminal(task_id)
     assert live["status"] == "completed"
     assert len(live["runs"]) == 3
+
+
+def test_invalid_generated_plan_reports_a_specific_reason() -> None:
+    plan = {
+        "edits": [
+            {"kind": "redirect_call", "address": "0x1", "new_bytes": "e8 00 00 00 00"},
+            {"kind": "guard_stub", "address": "0x2", "new_bytes": "90"},
+        ]
+    }
+    selectable, reason = live_audit._plan_selectability(None, plan)
+    assert selectable is False
+    assert reason == "edit_kind_not_allowed:guard_stub"
+
+
+def test_live_guest_is_disabled_off_windows(client: TestClient) -> None:
+    task_id = _upload(client)
+    if live_audit.GUEST_AVAILABLE:
+        pytest.skip("WSL2 guest is available on this host")
+    response = client.post(f"/api/tasks/{task_id}/audit/guest", json={"enabled": True})
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "guest_unavailable"
+    audit = client.get(f"/api/tasks/{task_id}/audit").json()
+    assert audit["guest_available"] is False
+    assert audit["live_guest"] is False

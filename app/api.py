@@ -306,6 +306,7 @@ def live_audit_state(task_id: str) -> dict[str, Any]:
         "live_guest": bool(task.get("live_guest")),
         "live_audit": task.get("live_audit") or live_audit.empty_state(),
         "selected_plan": task.get("selected_plan"),
+        "guest_available": live_audit.GUEST_AVAILABLE,
     }
 
 

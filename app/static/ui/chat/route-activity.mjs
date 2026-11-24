@@ -13,8 +13,8 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
 import {LANGUAGE_CODES} from '../shared/languages.mjs?v=20261120au';
-import {label as translate} from './chat-copy.mjs?v=20261124z';
-import {disclosure} from './chat-steps.mjs?v=20261121j';
+import {label as translate} from './chat-copy.mjs?v=20261125a';
+import {disclosure} from './chat-steps.mjs?v=20261125a';
 
 const STEPS = ['collect', 'freeze', 'analyze', 'audit', 'decision', 'repair', 'verify', 'export'];
 const PHASE_KEYS = {

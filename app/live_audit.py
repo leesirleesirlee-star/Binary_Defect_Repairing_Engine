@@ -26,6 +26,7 @@ AUDIT_ROOT = ROOT / "var" / "audit"
 FIXTURE_DIR = ROOT / "fixtures" / "stack-overflow-01"
 MODEL = "deepseek-v4-pro"
 TIMEOUT_S = 600
+GUEST_AVAILABLE = os.name == "nt"
 _RUNNING: dict[str, Any] = {}
 _CANCELLED: set[str] = set()
 _LOCK = threading.Lock()
@@ -74,6 +75,55 @@ def _hex_bytes(value: Any) -> int | None:
     except ValueError:
         return None
     return len(text) // 2
+
+
+def _plan_selectability(task: dict[str, Any] | None, plan: Any) -> tuple[bool, str | None]:
+    """Return whether a generated plan is inside the frozen edit budget."""
+    if not isinstance(plan, dict):
+        return False, "plan_not_allowed"
+    edits = plan.get("edits")
+    if not isinstance(edits, list) or not edits:
+        return False, "plan_not_allowed"
+    redirects = 0
+    code_bytes = 0
+    data_bytes = 0
+    for edit in edits:
+        if not isinstance(edit, dict):
+            return False, "plan_not_allowed"
+        kind = edit.get("kind")
+        size = _hex_bytes(edit.get("new_bytes", ""))
+        if size is None:
+            return False, "edit_bytes_invalid"
+        if kind == "redirect_call":
+            redirects += 1
+            if size != 5:
+                return False, "redirect_size_invalid"
+        elif kind == "code":
+            code_bytes += size
+        elif kind == "data":
+            data_bytes += size
+        else:
+            return False, f"edit_kind_not_allowed:{kind}"
+        address = edit.get("address")
+        if not isinstance(address, str) or not address.startswith("0x"):
+            return False, "edit_address_invalid"
+        try:
+            int(address, 16)
+        except ValueError:
+            return False, "edit_address_invalid"
+    if redirects != 1:
+        return False, "redirect_count_invalid"
+    if code_bytes > 256:
+        return False, "code_budget_exceeded"
+    if data_bytes > 64:
+        return False, "data_budget_exceeded"
+    if task is not None:
+        if plan.get("fixture_id") not in (None, task.get("fixture_id")):
+            return False, "plan_fixture_mismatch"
+        expected_contract = task.get("contract_sha256")
+        if plan.get("contract_sha256") not in (None, expected_contract):
+            return False, "plan_contract_mismatch"
+    return True, None
 
 
 def _allowed_plan_error(plan: Any) -> str | None:
@@ -317,6 +367,10 @@ def _watch(task_id: str, process: subprocess.Popen[bytes], summary_path: Path) -
                         clean["plan"] = json.loads(path.read_text(encoding="utf-8"))
                 except (OSError, ValueError):
                     clean["plan"] = None
+            task = tasks.get(task_id)
+            selectable, reason = _plan_selectability(task, clean["plan"])
+            clean["selectable"] = selectable
+            clean["select_reason"] = reason
             clean_runs.append(clean)
         live.update({"status": "completed", "finished_at": _now(), "error": None,
                      "model": summary.get("model") or MODEL,
@@ -520,6 +574,8 @@ def reset_signed(task_id: str) -> dict[str, Any]:
 
 def set_guest(task_id: str, enabled: Any) -> dict[str, Any]:
     """Persist the live-guest choice so the runner and UI agree."""
+    if bool(enabled) and not GUEST_AVAILABLE:
+        raise LiveAuditError(409, "guest_unavailable")
     task = tasks.get(task_id)
     if not (task.get("g4") or {}).get("supported"):
         raise LiveAuditError(409, "unsupported_binary_scope")
@@ -528,4 +584,4 @@ def set_guest(task_id: str, enabled: Any) -> dict[str, Any]:
         raise LiveAuditError(409, "audit_running")
     task["live_guest"] = bool(enabled)
     tasks.update(task)
-    return {"live_guest": task["live_guest"]}
+    return {"live_guest": task["live_guest"], "guest_available": GUEST_AVAILABLE}

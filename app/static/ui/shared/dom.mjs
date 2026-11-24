@@ -44,7 +44,7 @@ export function badge(status, t) {
 export function date(value, language) {
   const time = new Date(value);
   return value && Number.isFinite(time.valueOf()) ?
-    el('time', {datetime: time.toISOString(), class: 'muted'}, new Intl.DateTimeFormat(language, {dateStyle: 'medium'}).format(time)) :
+    el('time', {datetime: time.toISOString(), class: 'muted'}, new Intl.DateTimeFormat(language, {dateStyle: 'medium', timeStyle: 'medium'}).format(time)) :
     el('span');
 }
 

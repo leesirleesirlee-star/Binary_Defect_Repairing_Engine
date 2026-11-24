@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261124z';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261125a';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -44,6 +44,19 @@ const copy = {
   keyAliasSuffix: [" (provider-returned model)", "（服务实际返回）"],
   chooseAuditMode: ["Choose a repair path first: AI live audit (calls the model, a few minutes) or signed G2 replay (no model call).", "请先选择修复方式：AI 现场审计（调用模型，约数分钟）或回放已签 G2（不调用模型）。"],
   livePlanFirst: ["AI live audit is active; choose its fresh plan card above, not the signed replay plans.", "AI 现场审计已启动；请在上方审计卡选择现场方案，不要选择签名回放方案。"],
+  previewFile: ["Preview file", "预览文件"],
+  previewUnavailable: ["Preview unavailable.", "无法预览内容。"],
+  binaryPreview: ["hex preview of the uploaded binary (first 256 bytes)", "上传二进制的前 256 字节十六进制预览"],
+  livePlanUnavailable: ["This plan cannot be selected: {reason}", "该方案无法选择：{reason}"],
+  liveReasonEditKind: ["Contains an unapproved edit kind", "包含未批准的编辑类型"],
+  liveReasonRedirectSize: ["Redirect edit is not exactly 5 bytes", "重定向编辑不是 5 字节"],
+  liveReasonRedirectCount: ["Plan does not contain exactly one redirect", "方案没有恰好一个重定向"],
+  liveReasonCodeBudget: ["Code edit exceeds the 256-byte budget", "代码编辑超过 256 字节预算"],
+  liveReasonDataBudget: ["Data edit exceeds the 64-byte budget", "数据编辑超过 64 字节预算"],
+  liveReasonAddress: ["An edit address is malformed", "编辑地址格式非法"],
+  liveReasonFixture: ["Plan targets a different fixture", "方案对应的 fixture 不一致"],
+  liveReasonContract: ["Plan targets a different contract", "方案对应的 contract 不一致"],
+  liveReasonPlan: ["Plan is outside the frozen edit budget", "方案超出冻结编辑预算"],
   liveAuditStarted: ["Live audit started. The first model call usually takes 1–2 minutes; the run count updates as each attempt finishes.", "现场审计已启动；首次模型调用通常需要 1–2 分钟，每完成一个 run 就会更新进度。"],
   signedReplayPlanNote: ["Signed G2 replay: no model call; the signed plan is applied directly.", "回放已签 G2：不调用模型，直接应用已签名计划。"],
   binaryDrop: ["Drop the vulnerable binary here", "拖拽二进制漏洞文件到这里"],
@@ -147,6 +160,7 @@ const copy = {
   liveAuditSelect: ['Select this plan', '选择此方案'],
   liveAuditSelected: ['Selected', '已选择'],
   liveAuditStart: ['Start repair with this plan', '按此计划启动修复'],
+  liveGuestUnavailable: ["Live guest verification needs WSL2; disabled on this host.", "现场 guest 验证需要 WSL2；当前主机不可用，已禁用。"],
   liveAuditGuest: ['Live guest verification', '现场 guest 验证'],
   liveAuditFallback: ['Live audit unavailable; the signed G2 replay remains available with an honest badge.', '现场审计不可用；仍可使用回放已签 G2，状态会如实标记。'],
   routeStepBind: ['Bind signed G2 decision', '绑定已签 G2 决策'],

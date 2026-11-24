@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261124z';
+import {label} from './chat-copy.mjs?v=20261125a';
 
 const newId = () => crypto.randomUUID();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -22,7 +22,7 @@ export function chatTask({notify = () => {}} = {}) {
       run: null, started: null, ended: null, epoch: 0, locale: 'en',
       journal: [], journalSeq: 0, plan: null, runEnd: null, auditRuns: null, g2: null,
       live: true, taskMode: true, requireAscii: false, timer: null, assistantMode: null,
-      pendingBinary: null,
+      pendingBinary: null, attachmentFiles: new Map(),
     };
     chats.set(chat.id, chat);
     return chat;
@@ -138,6 +138,9 @@ export function chatTask({notify = () => {}} = {}) {
     const messageId = newId();
     const attachmentId = newId();
     chat.attachmentNames.set(attachmentId, file.name);
+    chat.attachmentFiles.set(attachmentId, {
+      name: file.name, kind: 'binary', size: file.size, base64: await readBase64(file),
+    });
     event(chat, 'user_message', {
       message_id: messageId,
       text: t(locale, `添加二进制漏洞文件：${file.name}`, `Vulnerable binary: ${file.name}`),
@@ -256,7 +259,15 @@ export function chatTask({notify = () => {}} = {}) {
     const messageId = newId();
     const attachmentIds = [newId(), ...cases.map(() => newId())];
     chat.attachmentNames.set(attachmentIds[0], payload.binaryName);
-    cases.forEach((item, index) => chat.attachmentNames.set(attachmentIds[index + 1], item.name));
+    chat.attachmentFiles.set(attachmentIds[0], {
+      name: payload.binaryName, kind: 'binary', base64: payload.binaryBase64 || '',
+    });
+    cases.forEach((item, index) => {
+      chat.attachmentNames.set(attachmentIds[index + 1], item.name);
+      chat.attachmentFiles.set(attachmentIds[index + 1], {
+        name: item.name, kind: 'case', base64: item.content_base64 || '',
+      });
+    });
     event(chat, 'user_message', {
       message_id: messageId, text: clean, attachment_ids: attachmentIds, delivery: 'accepted',
     }, null, null);
@@ -346,6 +357,7 @@ export function chatTask({notify = () => {}} = {}) {
         // audit hides these signed plans and runs the real agent audit.
         chat.auditMode = audit.audit_mode || 'signed';
         chat.liveGuest = Boolean(audit.live_guest);
+        chat.guestAvailable = audit.guest_available !== false;
         emitLiveAudit(chat);
       } catch { chat.audit = null; }
       chat.request = {
@@ -386,6 +398,7 @@ export function chatTask({notify = () => {}} = {}) {
       live_audit: audit.live_audit || {status: 'idle', runs: []},
       selected_plan: audit.selected_plan || null,
       live_guest: Boolean(chat.liveGuest),
+      guest_available: chat.guestAvailable !== false,
       ...extra,
     }, 'audit');
   }
@@ -425,6 +438,7 @@ export function chatTask({notify = () => {}} = {}) {
         method: 'POST', body: {enabled: next},
       });
       chat.liveGuest = Boolean(data.live_guest);
+      chat.guestAvailable = data.guest_available !== false;
       emitLiveAudit(chat);
     } catch (error) {
       chat.liveGuest = previous;
@@ -438,7 +452,8 @@ export function chatTask({notify = () => {}} = {}) {
   async function startLiveAudit(chat) {
     if (!chat.jobId || chat.liveRunning) return;
     chat.auditMode = 'live';
-    chat.liveGuest = true;
+    chat.liveGuest = false;
+    chat.guestAvailable = chat.audit?.guest_available !== false;
     chat.liveRunning = true;
     emitLiveAudit(chat);
     try {
