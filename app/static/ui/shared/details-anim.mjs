@@ -7,7 +7,7 @@
  * get the native instant toggle.
  */
 
-import {motionReduced} from './motion.mjs?v=20261120au';
+import {motionReduced} from './motion.mjs?v=20261125c';
 
 const EASE = 'cubic-bezier(.42, 0, .58, 1)';
 const OPEN_MS = 340;
