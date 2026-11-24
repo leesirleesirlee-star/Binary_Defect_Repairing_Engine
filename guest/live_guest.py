@@ -21,8 +21,9 @@ import subprocess
 import sys
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 Copier = Callable[[str, Path, str, float, Runner], None]
