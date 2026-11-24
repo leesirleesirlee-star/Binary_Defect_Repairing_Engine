@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261123e';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261123k';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -23,8 +23,13 @@ const copy = {
   thoughtDetail: ['Preparing the next step.', '正在准备下一步。'],
   noRun: ['Idle', '空闲'], executing: ['Running', '运行中'],
   reviewedScope: ['Repair scope', '修复范围'], routes: ['Repair routes', '修复路线'],
-  routeAMethod: ['Binary patch', '二进制补丁'],
-  routeBMethod: ['Recover and rebuild', '恢复与重构'],
+  routeAMethod: ['Contract A · trampoline guard (binary patch)', '契约 A · 尾部守卫跳板（二进制补丁）'],
+  routeASelected: ['Selected contract A: a single rel32 redirect to the signed guard stub; no function body is moved.', '已采用契约 A：仅一条 rel32 调用重定向到签名守卫桩，不移动既有函数体。'],
+  routeBNotSelected: ['Contracts B/C were offered but not implemented (code-space / behaviour-change risk).', '契约 B/C 已生成但未实施（调用点空间不足 / 改变合法输入行为风险）。'],
+  commandStarted: ['started', '开始'],
+  commandRunning: ['running', '运行中'],
+  commandFinished: ['finished', '已完成'],
+  routeBMethod: ['Alternative contracts (not used)', '备选契约（未采用）'],
   scopeReview: ['Review scope', '审阅范围'], manifestRead: ['Read evidence manifest', '读取证据清单'],
   rebuildEvidence: ['Rebuild evidence', '重构证据'], evidenceCheck: ['Verify evidence', '核验证据'],
   modelConfig: ['Model configuration', '模型配置'], modelChoice: ['Preferred model', '首选模型'],

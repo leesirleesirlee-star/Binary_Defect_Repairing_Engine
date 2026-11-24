@@ -1,14 +1,14 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
-import {control} from './chat-view.mjs?v=20261123e';
-import {createProgress} from './chat-progress.mjs?v=20261120au';
+import {control} from './chat-view.mjs?v=20261123k';
+import {createProgress} from './chat-progress.mjs?v=20261123k';
 import {createStepGroups, disclosure} from './chat-steps.mjs?v=20261121j';
 import {motionReduced} from '../shared/motion.mjs?v=20261120au';
 
 // Revision 2.2: activity rows feed the right-side event log only; errors and
 // the final run summary stay in the conversation as inline text.
 export const activityTypes = new Set(['thinking', 'plan_update', 'tool_call', 'file_change',
-  'command', 'verification']);
+  'command', 'verification', 'journal_error']);
 
 const fmtTime = seconds => Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
 const phases = {
@@ -16,6 +16,11 @@ const phases = {
   waiting_for_executor: 'waiting_for_executor',
 };
 const names = ['route_a', 'route_b'];
+const stepKeys = {
+  collect: 'stepCollect', freeze: 'stepFreeze', analyze: 'stepAnalyze', audit: 'stepAudit',
+  decision: 'stepDecision', repair: 'stepRepair', verify: 'stepVerify', export: 'stepExport',
+};
+const stepName = (code, t) => t(stepKeys[code] ?? code);
 const branchSteps = {
   route_a: ['scopeReview', 'manifestRead', 'evidenceCheck'],
   route_b: ['scopeReview', 'rebuildEvidence', 'evidenceCheck'],
@@ -98,7 +103,8 @@ export function createExecution(t, showConversation) {
     const state = chat.phase === 'idle' ? 'noRun' : phases[chat.phase] ?? chat.phase;
     const steps = plan?.payload.steps;
     const activeStep = steps?.find(step => step.status === 'in_progress');
-    phase.textContent = t(chat.phase === 'running' && activeStep ? activeStep.label_code : state);
+    phase.textContent = chat.phase === 'running' && activeStep
+      ? stepName(activeStep.label_code, t) : t(state);
     count.textContent = steps ? steps.filter(step => step.status === 'completed').length + ' / ' + steps.length : '—';
     clock.dataset.runStarted = chat.started ?? '';
     clock.dataset.runEnded = chat.ended ?? '';

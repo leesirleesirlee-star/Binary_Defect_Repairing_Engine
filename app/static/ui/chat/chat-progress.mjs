@@ -44,6 +44,15 @@ export function repairProgress(chat) {
     }
   }
 
+  const persisted = chat.verdict;
+  if (chat.execution?.terminal && persisted?.available && persisted?.finalized && persisted.verdict) {
+    states[0] = states[1] = states[2] = states[3] = 'completed';
+    return {states, detail: persisted.verdict};
+  }
+  if (chat.execution?.terminal && !persisted?.finalized) {
+    states[3] = 'failed';
+    return {states, detail: chat.execution.status || 'failed'};
+  }
   const evaluation = currentEvaluation({id: chat.jobId, execution: chat.execution}, chat.data?.evaluation);
   const outcome = evaluation?.verdict?.outcome;
   if (chat.execution?.terminal && evaluation?.finalized === true && outcome) {

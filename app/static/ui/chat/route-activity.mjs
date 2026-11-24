@@ -13,7 +13,7 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
 import {LANGUAGE_CODES} from '../shared/languages.mjs?v=20261120au';
-import {label as translate} from './chat-copy.mjs?v=20261123e';
+import {label as translate} from './chat-copy.mjs?v=20261123k';
 import {disclosure} from './chat-steps.mjs?v=20261121j';
 
 const STEPS = ['collect', 'freeze', 'analyze', 'audit', 'decision', 'repair', 'verify', 'export'];
@@ -270,7 +270,10 @@ async function refreshTasks(list, count) {
     await session();
     const all = await tasks();
     if (generation !== state.generation) return;
-    const candidates = all.filter(task => !task.demo && task.phase !== 'preview');
+    const scope = globalThis.__binaryRepairTaskId;
+    const candidates = all
+      .filter(task => !task.demo && task.phase !== 'preview')
+      .filter(task => !scope || task.id === scope);
     const visible = candidates.slice(0, 12);
     count.textContent = runCount(visible.length);
     if (!visible.length) {
@@ -371,12 +374,21 @@ function mount() {
   if (contentB && state.logB?.panel.parentElement !== contentB) contentB.append(routeBLog());
   if (!state.mounted) {
     state.mounted = true;
+    document.addEventListener('binaryrepair:task', event => {
+      if (!event.detail?.taskId) return;
+      const list = state.monitor?.querySelector('.ra-task-list');
+      const count = state.monitor?.querySelector('.ra-count');
+      if (list && count) refreshTasks(list, count);
+      const a = document.querySelectorAll('.route-slot .route-lane')[0];
+      if (a?.matches('details')) a.open = true;
+    });
     state.timer = setInterval(() => {
       const list = state.monitor?.querySelector('.ra-task-list');
       const count = state.monitor?.querySelector('.ra-count');
       if (list && count) refreshTasks(list, count);
     }, 5000);
   }
+  if (globalThis.__binaryRepairTaskId && lane.matches('details')) lane.open = true;
 }
 
 const observer = new MutationObserver(() => mount());

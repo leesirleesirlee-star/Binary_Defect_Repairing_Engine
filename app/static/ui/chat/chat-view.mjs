@@ -196,6 +196,47 @@ function summary(item, t, chat, engine) {
     el('div', {class: 'inline-actions'}, archive, refresh)));
 }
 
+const STEP_KEYS = {
+  collect: 'stepCollect', freeze: 'stepFreeze', analyze: 'stepAnalyze', audit: 'stepAudit',
+  decision: 'stepDecision', repair: 'stepRepair', verify: 'stepVerify', export: 'stepExport',
+};
+
+function activityStep(item, t) {
+  return t(STEP_KEYS[item.step_id] ?? 'activity');
+}
+
+// Revision 2.2 keeps command/file/verification rows out of the conversation;
+// they are now rendered from the task's persisted journal in the right-side
+// execution log, so the operator can follow every real runner step.
+function activityRow(item, t) {
+  const p = item.payload || {};
+  const step = activityStep(item, t);
+  if (item.type === 'command') {
+    const command = item.command || {};
+    const status = command.phase === 'started' ? t('commandStarted')
+      : command.exit_code != null ? t('commandFinished') : t('commandRunning');
+    const output = typeof command.output === 'string' ? command.output.trim() : '';
+    return el('details', {class: 'activity-row'},
+      el('summary', {},
+        el('span', {class: 'activity-kind'}, step),
+        el('span', {class: 'activity-status'}, status)),
+      output ? el('pre', {class: 'activity-output'},
+        output.length > 4000 ? output.slice(-4000) : output) : null);
+  }
+  if (item.type === 'journal_error') {
+    return el('p', {class: 'activity-row activity-error'},
+      icon('info', 13), el('span', {}, step + (p.code ? ' · ' + p.code : '')));
+  }
+  if (item.type === 'file_change') {
+    const files = (p.files || []).map(file => file.display_path).filter(Boolean);
+    return el('p', {class: 'activity-row'},
+      icon('file', 13), el('span', {}, step + (files.length ? ' · ' + files.join(', ') : '')));
+  }
+  const verdict = p.verdict || p.kind || '';
+  return el('p', {class: 'activity-row'},
+    icon('check', 13), el('span', {}, step + (verdict ? ' · ' + verdict : '')));
+}
+
 export function renderItem(item, ctx) {
   const {t, locale, chat, engine} = ctx;
   const {payload: p, type, ts} = item;
@@ -221,12 +262,13 @@ export function renderItem(item, ctx) {
       const done = steps.filter(step => step.status === 'completed').length;
       return el('p', {class: 'inline-note'}, t('stepCount') + ' ' + done + ' / ' + steps.length);
     }
-    case 'tool_call':
     case 'file_change':
     case 'command':
     case 'verification':
-      // Tool, command, file-change and verification rows stay in the event log
-      // and the evidence bundle; they never render as chat cards.
+    case 'journal_error':
+      return activityRow(item, t);
+    case 'tool_call':
+      // Tool rows stay in the evidence bundle; they never render as chat cards.
       return null;
     case 'awaiting_user': return approval(item, ctx);
     case 'error':

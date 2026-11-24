@@ -23,7 +23,7 @@ from urllib.parse import quote, unquote
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
-from app import assistant, assistant_key, g4, tasks
+from app import assistant, assistant_key, g4, journal, tasks
 from app.journal import JournalError, read_records, wait_for_records
 from app.preview_events import ensure_preview_journal
 
@@ -174,9 +174,7 @@ def assistant_key_status() -> dict[str, Any]:
     return {"key": assistant_key.key_status(), "assistant": assistant_key.assistant_status()}
 
 
-@router.post(
-    "/assistant/key", dependencies=[Depends(require_session), Depends(require_csrf)]
-)
+@router.post("/assistant/key", dependencies=[Depends(require_session), Depends(require_csrf)])
 def assistant_key_save(body: Annotated[dict[str, Any], Body()]) -> dict[str, Any]:
     candidate = body.get("key")
     if not isinstance(candidate, str) or not candidate.strip():
@@ -186,27 +184,36 @@ def assistant_key_save(body: Annotated[dict[str, Any], Body()]) -> dict[str, Any
     except assistant_key.KeyError as error:
         status = 409 if "environment" in str(error) else 422
         raise _error(status, "key_rejected", detail=str(error)) from error
-    return {"saved": saved, "key": assistant_key.key_status(),
-            "assistant": assistant_key.assistant_status()}
+    return {
+        "saved": saved,
+        "key": assistant_key.key_status(),
+        "assistant": assistant_key.assistant_status(),
+    }
 
 
-@router.post(
-    "/assistant/key/test", dependencies=[Depends(require_session), Depends(require_csrf)]
-)
+@router.post("/assistant/key/test", dependencies=[Depends(require_session), Depends(require_csrf)])
 def assistant_key_test(body: Annotated[dict[str, Any] | None, Body()] = None) -> dict[str, Any]:
     payload = body or {}
     return assistant_key.test_connection(payload.get("model"))
 
 
-@router.delete(
-    "/assistant/key", dependencies=[Depends(require_session), Depends(require_csrf)]
-)
+@router.delete("/assistant/key", dependencies=[Depends(require_session), Depends(require_csrf)])
 def assistant_key_clear() -> dict[str, Any]:
     try:
         assistant_key.clear_key()
     except assistant_key.KeyError as error:
         raise _error(409, "key_managed", detail=str(error)) from error
     return {"key": assistant_key.key_status(), "assistant": assistant_key.assistant_status()}
+
+
+@router.get("/tasks/{task_id}/journal", dependencies=[Depends(require_session)])
+def task_journal(task_id: str) -> dict[str, Any]:
+    """Persisted GUI journal for one task; read-only, newest 300 records."""
+    try:
+        tasks.get(task_id)
+    except KeyError:
+        raise _error(404, "task_not_found") from None
+    return {"records": journal.read_records(task_id)[-300:]}
 
 
 @router.get("/g4/fixture", dependencies=[Depends(require_session)])
@@ -253,6 +260,7 @@ def select_g4_option(task_id: str, body: Annotated[dict[str, Any], Body()]) -> d
         return g4.select_option(task_id, body.get("option_id"))
     except g4.G4Error as error:
         raise _error(error.status, error.code, **error.extra) from error
+
 
 @router.get("/tasks/{task_id}", dependencies=[Depends(require_session)])
 def get_task(task_id: str) -> dict[str, Any]:

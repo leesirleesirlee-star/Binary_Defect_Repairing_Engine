@@ -119,6 +119,13 @@ def test_select_contract_then_repair_end_to_end(client: TestClient) -> None:
         "c010c006b573b29a683540d128296bc94343e0d0c8bf73fc2c308b95aaa25b28"
     )
 
+    journal = client.get(f"/api/tasks/{task_id}/journal").json()["records"]
+    types = [record["type"] for record in journal]
+    assert "plan_update" in types
+    assert "command" in types and "verification" in types
+    commands = [record for record in journal if record["type"] == "command"]
+    assert any(record["payload"].get("phase") == "finished" for record in commands)
+
     artifacts = client.get(f"/api/tasks/{task_id}/artifacts").json()["artifacts"]
     names = {item["display_path"] for item in artifacts}
     assert {"candidate.elf", "edit-manifest.json", "verdict.json"} <= names

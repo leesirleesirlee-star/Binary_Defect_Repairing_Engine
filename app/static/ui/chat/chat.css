@@ -515,3 +515,17 @@ details.disclosure > summary > svg { transition: transform 320ms var(--ios-ease,
 .plan-choice p { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.45; }
 .plan-choice .control { justify-self: start; margin-top: .22rem; min-height: 1.9rem; }
 .hero-cases { border-color: var(--line); background: var(--surface); font-weight: 540; }
+
+/* G1-4: real runner journal rows in the execution log. */
+.activity-row { margin: .35rem 0; font-size: .78rem; }
+details.activity-row summary { display: flex; gap: .5rem; align-items: baseline;
+  cursor: pointer; list-style: none; color: var(--muted); }
+details.activity-row summary::-webkit-details-marker { display: none; }
+.activity-kind { color: var(--text); font-weight: 560; }
+.activity-status { margin-left: auto; color: var(--muted); font-size: .72rem; }
+.activity-output { margin: .35rem 0 0; padding: .45rem .55rem; max-height: 15rem; overflow: auto;
+  border-radius: .45rem; background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--muted); font-size: .7rem; line-height: 1.45; white-space: pre-wrap; }
+p.activity-row { display: flex; gap: .4rem; align-items: center; color: var(--muted); }
+
+.activity-error { color: color-mix(in srgb, #ff9d9d 82%, var(--muted)); }

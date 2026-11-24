@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261123e';
+import {label} from './chat-copy.mjs?v=20261123k';
 
 const newId = () => crypto.randomUUID();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -24,6 +24,14 @@ export function chatTask({notify = () => {}} = {}) {
     };
     chats.set(chat.id, chat);
     return chat;
+  }
+
+  function announceTask(taskId) {
+    if (!taskId) return;
+    globalThis.__binaryRepairTaskId = taskId;
+    try {
+      document.dispatchEvent(new CustomEvent('binaryrepair:task', {detail: {taskId}}));
+    } catch { /* no DOM in unit contexts */ }
   }
 
   function event(chat, type, payload, step = null, run = chat.run) {
@@ -179,6 +187,7 @@ export function chatTask({notify = () => {}} = {}) {
         },
       });
       chat.jobId = data.task.id;
+      announceTask(chat.jobId);
       chat.task = data.task;
       chat.g4 = data.task.g4;
       chat.options = data.plans || [];
@@ -256,6 +265,13 @@ export function chatTask({notify = () => {}} = {}) {
     event(chat, 'user_response', {request_id: requestId, decision: action}, 'report');
     planSteps(chat, {collect: 'completed', freeze: 'completed', analyze: 'completed',
       repair: 'in_progress'});
+    chat.reviewed = true;
+    chat.scope = chat.locale === 'zh-Hans'
+      ? (option.scope_zh || option.summary_zh || '')
+      : (option.scope_en || option.summary_en || '');
+    chat.routes = {route_a: ['completed', 'in_progress', 'pending'],
+      route_b: ['not_run', 'not_run', 'not_run']};
+    chat.routeNotes = {route_a: 'routeASelected', route_b: 'routeBNotSelected'};
     say(chat, t(chat.locale,
       `已选择「${option.title_zh}」，正在按契约修复：先把修复补丁写入候选程序，再验证。`,
       `Selected "${option.title_en}"; writing the repair to the candidate program, then verifying.`));
@@ -263,11 +279,11 @@ export function chatTask({notify = () => {}} = {}) {
     chat.started = Date.now();
     event(chat, 'thinking', {phase: 'started'}, 'repair');
     try {
-      chat.execution = {run_id: 'pending', terminal: false};
       const selected = await api(`/api/tasks/${chat.jobId}/g4/select`, {
         method: 'POST', body: {option_id: action},
       });
       chat.task = selected.task;
+      announceTask(chat.jobId);
       const digest = selected.task.review_binding_digest;
       await api(`/api/tasks/${chat.jobId}/approve`, {
         method: 'POST',
@@ -282,7 +298,11 @@ export function chatTask({notify = () => {}} = {}) {
         body: {expected_review_binding_digest: digest},
       });
       chat.run = started.run_id;
-      chat.execution = {run_id: started.run_id, terminal: false};
+      chat.execution = {run_id: started.run_id, terminal: false, status: 'queued'};
+      chat.routes = {route_a: ['completed', 'completed', 'in_progress'],
+        route_b: ['not_run', 'not_run', 'not_run']};
+      if (chat.scope) chat.scope += ' · ' + started.run_id.slice(0, 12);
+      void ingestJournal(chat);
       void follow(chat);
     } catch (error) {
       event(chat, 'thinking', {phase: 'finished', duration_ms: 0, summary_code: 'repair'},
@@ -294,15 +314,70 @@ export function chatTask({notify = () => {}} = {}) {
     }
   }
 
+  function emitJournal(chat, record) {
+    const type = record?.type;
+    const payload = record?.payload || {};
+    const step = record?.step_id ?? null;
+    if (type === 'plan_update') {
+      event(chat, 'plan_update', payload, step, chat.run);
+    } else if (type === 'command') {
+      const command = {...payload};
+      // Command and file-change ids can collide in the journal (`analyze-1`);
+      // keep the command row distinct in the transcript projection.
+      command.command_id = 'cmd-' + (command.command_id || step || 'run');
+      if (command.phase === 'output') command.append = command.append ?? command.text ?? '';
+      event(chat, 'command', command, step, chat.run);
+    } else if (type === 'file_change' || type === 'verification') {
+      event(chat, type, payload, step, chat.run);
+    } else if (type === 'error') {
+      // Runner-stage errors stay in the execution log; the conversation keeps
+      // the persisted verdict and downloads only.
+      event(chat, 'journal_error', payload, step, chat.run);
+    }
+  }
+
+  async function collectJournal(chat) {
+    if (!chat.run) return;
+    let records = [];
+    try {
+      const data = await api(`/api/tasks/${chat.jobId}/journal`);
+      records = Array.isArray(data.records) ? data.records : [];
+    } catch { return; }
+    for (const record of records) {
+      const seq = Number(record.seq) || 0;
+      if (seq <= (chat.journalSeq ?? 0)) continue;
+      chat.journalSeq = seq;
+      emitJournal(chat, record);
+    }
+  }
+
+  async function ingestJournal(chat) {
+    while (!chat.journalDone && !chat.execution?.terminal) {
+      await collectJournal(chat);
+      await sleep(600);
+    }
+  }
+
   async function follow(chat) {
     const deadline = Date.now() + 180_000;
     let task = null;
     while (Date.now() < deadline) {
       try { task = await api(`/api/tasks/${chat.jobId}`); } catch { task = null; }
+      if (task?.execution) {
+        chat.execution = {...chat.execution, status: task.execution.status,
+          terminal: Boolean(task.execution.terminal)};
+        if (task.execution.status === 'running' && chat.routes?.route_a) {
+          chat.routes = {route_a: ['completed', 'completed', 'in_progress'],
+            route_b: ['not_run', 'not_run', 'not_run']};
+        }
+      }
       if (task?.execution?.terminal) break;
       await sleep(700);
     }
-    event(chat, 'thinking', {phase: 'finished', duration_ms: 0, summary_code: 'repair'}, 'repair');
+    chat.journalDone = true;
+    await collectJournal(chat);
+    event(chat, 'thinking', {phase: 'finished', duration_ms: 0, summary_code: 'repair'},
+      'repair');
     planSteps(chat, {collect: 'completed', freeze: 'completed', analyze: 'completed',
       repair: 'completed', verify: 'completed'});
     let verdict = null;
@@ -317,6 +392,9 @@ export function chatTask({notify = () => {}} = {}) {
       try { verdict = await api(`/api/tasks/${chat.jobId}/verdict`); } catch { break; }
     }
     const word = verdict?.available && verdict?.finalized ? verdict.verdict : null;
+    chat.verdict = verdict;
+    chat.routes = {route_a: ['completed', 'completed', word ? 'completed' : 'failed'],
+      route_b: ['not_run', 'not_run', 'not_run']};
     if (word) {
       say(chat, t(chat.locale,
         `修复完成，验证结论：${word}。`,
@@ -357,7 +435,7 @@ export function chatTask({notify = () => {}} = {}) {
     chat.phase = execution;
     chat.ended = Date.now();
     if (chat.execution) chat.execution = {...chat.execution, terminal: true,
-      status: execution === 'completed' ? 'finished' : execution};
+      status: execution === 'completed' ? 'completed' : execution};
     event(chat, 'run_state', {status: execution, message_id: null});
   }
 
