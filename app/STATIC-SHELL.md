@@ -26,9 +26,12 @@ The shipped conversation console runs the **deterministic assistant** (Revision
 2.1 fallback): the chat asks for the binary and the inputs, narrates progress,
 offers inline action chips and ends with the honest verdict vocabulary, while
 the badge states `deterministic`. The v1.2.2 live bridge in
-`app/static/ui/chat/chat-live.mjs` still targets the legacy `/api/jobs` and
-`/api/assistant/key` endpoints, which this console does not implement (its API is
-`/api/tasks`), so it is not selected; wiring it to the task API is separate work.
+`app/static/ui/chat/chat-live.mjs` still targets the legacy `/api/jobs` endpoint,
+which this console does not implement (its API is `/api/tasks`), so the upload
+flow uses `chat-task.mjs`.  The operator provider-key dialog is wired to
+`/api/assistant/key` (store + one small real connection test in
+`app/assistant_key.py`, compatible with the reference GUI's `BRKEY0` key file);
+no verdict, score or audit result is derived from the key.
 
 ## S3+ API and event journal
 

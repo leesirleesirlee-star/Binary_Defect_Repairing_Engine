@@ -99,7 +99,9 @@
       "seat": "M3",
       "owner": "@chenfanaichifan",
       "paths": [
-        "guest/"
+        "guest/",
+        "tests/guest/",
+        "docs/guest/"
       ],
       "may_depend_on": [
         "contract",

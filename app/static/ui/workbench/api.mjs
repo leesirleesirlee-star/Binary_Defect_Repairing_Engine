@@ -26,9 +26,6 @@ async function readSession() {
     cache: 'no-store',
     headers: {Accept: 'application/json', [VERSION_HEADER]: VERSION},
   });
-  if (response.headers.get(VERSION_HEADER) !== VERSION) {
-    throw Object.assign(new Error('The server did not select contract v1.'), {status: 400});
-  }
   const body = await parse(response);
   if (body?.session !== true || typeof body.csrf_token !== 'string') {
     throw Object.assign(new Error('No local session.'), {status: 401, code: 'session_required'});
@@ -68,12 +65,6 @@ async function request(path, {method = 'GET', body, headers = {}, retry = true, 
     throw Object.assign(new Error('Network unavailable.'), {status: 0, cause: error});
   }
   if (response.status === 401) sessionPromise = null;
-  if (response.headers.get(VERSION_HEADER) !== VERSION) {
-    throw Object.assign(new Error('The server did not select contract v1.'), {
-      status: response.status,
-      code: 'unsupported_contract_version',
-    });
-  }
   return attachment && response.ok ? response : parse(response);
 }
 
@@ -115,19 +106,73 @@ async function start(id, digest) {
 
 export const reportUrl = (id, runId) => jobPath(id) + '/export' + query({run_id: runId});
 
+const taskPath = id => '/api/tasks/' + encodeURIComponent(id);
+const archivedPhase = (task, verdict) => {
+  if (verdict?.verdict === 'verified_against_stated_criteria') return 'verified';
+  if (task.phase === 'unsupported') return 'unsupported';
+  const status = task.execution?.status;
+  if (status === 'running' || status === 'queued') return 'running';
+  if (status === 'failed' || task.phase === 'failed') return 'failed';
+  if (task.phase === 'completed' || task.phase === 'done') return 'completed';
+  return 'draft';
+};
+const verdictFor = async id => {
+  try {
+    const verdict = await request(taskPath(id) + '/verdict');
+    return verdict?.available && verdict.finalized ? verdict : null;
+  } catch { return null; }
+};
+const toArchiveJob = (task, verdict = null) => ({
+  id: task.id,
+  kind: 'g4',
+  demo: Boolean(task.demo),
+  phase: archivedPhase(task, verdict),
+  defect: task.g4?.binary_name || task.fixture_id || task.id,
+  created_at: task.created_at,
+  execution: task.execution,
+  g4: task.g4 || {},
+  plan: task.plan,
+  verdict,
+});
+
 export const live = {
   demo: false,
   writable: true,
   list: async () => {
-    const data = await request('/api/jobs?limit=50');
-    return Array.isArray(data.jobs) ? data.jobs : [];
+    const data = await request('/api/tasks?limit=50');
+    const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+    return Promise.all(tasks.map(async task => toArchiveJob(task, await verdictFor(task.id))));
   },
-  job: id => request(jobPath(id)),
-  attempts: id => request(jobPath(id) + '/attempts'),
-  evaluation: (id, runId) => request(jobPath(id) + '/evaluation' + query({run_id: runId})),
+  job: async id => toArchiveJob(await request(taskPath(id)), await verdictFor(id)),
+  attempts: async () => [],
+  evaluation: async (id) => {
+    const verdict = await request(taskPath(id) + '/verdict');
+    if (!verdict?.available) return null;
+    return {
+      available: true,
+      finalized: Boolean(verdict.finalized),
+      job_id: id,
+      run_id: verdict.run_id ?? null,
+      evaluation_id: verdict.canonical_sha256 ?? null,
+      verdict: {outcome: verdict.verdict ?? null},
+      canonical_sha256: verdict.canonical_sha256 ?? null,
+      candidate_sha256: verdict.candidate_sha256 ?? null,
+      contract_sha256: verdict.contract_sha256 ?? null,
+      original_sha256: verdict.original_sha256 ?? null,
+      produced_at: verdict.produced_at ?? null,
+    };
+  },
   artifacts: async id => {
-    const data = await request(jobPath(id) + '/artifacts');
-    return Array.isArray(data.artifacts) ? data.artifacts : [];
+    const data = await request(taskPath(id) + '/artifacts');
+    return (Array.isArray(data.artifacts) ? data.artifacts : []).map(item => ({
+      id: item.artifact_id,
+      name: item.display_path,
+      kind: 'artifact',
+      role: '',
+      available: true,
+      sha256: item.sha256,
+      size_bytes: item.size_bytes,
+    }));
   },
   downloadArtifact: async (jobId, artifactId) => {
     const path = jobPath(jobId) + '/artifacts/' + encodeURIComponent(artifactId) + '/download';
@@ -144,10 +189,10 @@ export const live = {
     }
     return {file: await response.blob(), filename};
   },
-  comparison: (id, runId) => request(jobPath(id) + '/comparison' + query({run_id: runId})),
+  comparison: async () => null,
   provider: async () => {
     const data = await request('/api/assistant/key');
-    return typeof data.configured === 'boolean' ? data.configured : null;
+    return Boolean(data.key?.configured);
   },
   create: async ({defect, file}) => {
     const form = new FormData();

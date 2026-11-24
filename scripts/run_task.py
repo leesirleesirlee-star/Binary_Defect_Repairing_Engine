@@ -22,6 +22,12 @@ hash-manifest of the run's artifacts and never recomputes the verdict. A run end
 `completed` only when analysis, the signed decision, repair, verify and export
 all actually finished; any skipped or failed gate leaves `execution = "failed"`
 with its reason code (ADR 0005).
+
+The additive G4.1 live mode (ADR 0006, `live-ai-run-v1`): with
+`audit_mode = "live"` the `audit` step is `completed` from the task's persisted
+three-run `live_audit` record (this process never calls a model or reads a key);
+with `live_guest` the `verify` stage first runs `guest/live_guest.py` to produce
+fresh WSL2 observations and binds the candidate hash before the verifier runs.
 """
 
 from __future__ import annotations
@@ -50,6 +56,9 @@ _CANCELLED_STATUSES = frozenset({"cancelling", "cancelled"})
 _DECISIONS = frozenset({"proceed", "iterate", "change_scope"})
 _OBSERVATIONS_FILE = "observations-candidate.json"
 _VERDICT_FILE = "verdict.json"
+_GUEST_DRIVER = "guest/live_guest.py"
+_GUEST_TIMEOUT_S = 300
+_LIVE_GUEST_DIR = "live-guest"
 _DEFAULT_PLAN = "docs/audit/fix-plan-v1.json"
 _VERIFIED = "verified_against_stated_criteria"
 #: The frozen six-word VerdictV1 vocabulary; the runner adds and infers nothing.
@@ -496,13 +505,152 @@ def _stage_repair(
     return StageOutcome(files=len(files))
 
 
+def _stage_audit(
+    journal: Journal, plan: Plan, task: dict[str, Any], decision: str | None
+) -> StageOutcome:
+    """Signed evidence is skipped; a live audit is bound from the task snapshot.
+
+    The runner never calls a model: the API host already produced the live
+    three-run record (live-ai-run-v1). This step records it, verbatim.
+    """
+    plan.update("audit", "in_progress")
+    if task.get("audit_mode") != "live":
+        reason = "satisfied_by_signed_g2" if decision is not None else "decision_missing"
+        _skipped_stage(journal, plan, "audit", reason)
+        return StageOutcome()
+    live = task.get("live_audit") or {}
+    runs = live.get("runs") if isinstance(live, dict) else None
+    if live.get("status") != "completed" or not isinstance(runs, list) or len(runs) != 3:
+        code = "live_audit_failed" if live.get("status") == "failed" else "live_audit_missing"
+        _failed_stage(journal, plan, "audit", code)
+        return StageOutcome(code)
+    rows = []
+    for run in runs:
+        if not isinstance(run, dict):
+            _failed_stage(journal, plan, "audit", "live_audit_missing")
+            return StageOutcome("live_audit_missing")
+        rows.append(
+            {
+                "run_index": run.get("run_index"),
+                "schema_valid": bool(run.get("schema_valid")),
+                "score": run.get("score") if isinstance(run.get("score"), int) else None,
+                "critical_errors": run.get("critical_errors") or [],
+                "usable": run.get("usable") if isinstance(run.get("usable"), bool) else None,
+                "notes": str(run.get("notes") or ""),
+            }
+        )
+    journal.append(
+        "audit_runs",
+        {"report_sha256": live.get("report_sha256"), "runs": rows},
+        step_id="audit",
+    )
+    plan.update("audit", "completed")
+    return StageOutcome()
+
+
+def _live_plan_binding(task: dict[str, Any]) -> str | None:
+    """Live mode requires a selected plan bound by the human approval."""
+    if task.get("audit_mode") != "live":
+        return None
+    selected = task.get("selected_plan") or {}
+    if not isinstance(selected, dict):
+        return "plan_not_selected"
+    canonical = selected.get("canonical_sha256")
+    if not isinstance(selected.get("path"), str) or not _is_sha256(canonical):
+        return "plan_not_selected"
+    approval = task.get("approval") or {}
+    if approval.get("plan_sha256") != canonical:
+        return "plan_not_approved"
+    return None
+
+
+def _stage_live_guest(
+    journal: Journal, plan: Plan, task: dict[str, Any], binary: Path,
+    artifacts: Path, repo_root: Path, should_cancel: Callable[[], bool],
+) -> tuple[Path | None, str | None]:
+    """Run the WSL2 driver for original vs candidate; return the candidate observations."""
+    driver = repo_root / _GUEST_DRIVER
+    if not driver.is_file():
+        return None, "guest_unavailable"
+    candidate = artifacts / "candidate.elf"
+    fixture = repo_root / "fixtures" / str(task["fixture_id"])
+    cases = fixture / "cases" / "cases.json"
+    out_dir = artifacts / _LIVE_GUEST_DIR
+    command = [
+        sys.executable,
+        str(driver),
+        "--original",
+        str(binary),
+        "--candidate",
+        str(candidate),
+        "--cases",
+        str(cases),
+        "--out-dir",
+        str(out_dir),
+        "--timeout",
+        str(_GUEST_TIMEOUT_S),
+    ]
+    try:
+        result = _run_cli_process(
+            command, repo_root=repo_root, timeout=_GUEST_TIMEOUT_S + 30,
+            should_cancel=should_cancel,
+        )
+    except subprocess.TimeoutExpired:
+        return None, "guest_timeout"
+    if result.returncode != 0:
+        text = (result.stderr or result.stdout or "").strip()
+        head = text.split(":", 1)[0].strip() if text else ""
+        if head in {"guest_timeout", "guest_unavailable", "guest_observations_invalid"}:
+            return None, head
+        if result.returncode == 2:
+            return None, "guest_observations_invalid"
+        return None, "guest_unavailable"
+    observations = out_dir / _OBSERVATIONS_FILE
+    if not observations.is_file():
+        return None, "guest_observations_invalid"
+    try:
+        payload = json.loads(observations.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None, "guest_observations_invalid"
+    expected = _sha256_file(candidate)
+    if not isinstance(payload, dict) or payload.get("binary", {}).get("sha256") != expected:
+        return None, "observations_candidate_mismatch"
+    environment: dict[str, Any] = {}
+    env_path = out_dir / "guest-environment.json"
+    if env_path.is_file():
+        try:
+            loaded = json.loads(env_path.read_text(encoding="utf-8"))
+            environment = loaded if isinstance(loaded, dict) else {}
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            environment = {}
+    journal.append(
+        "verification",
+        {
+            "kind": "guest",
+            "status": "passed",
+            "environment": environment,
+            "observations_sha256": _sha256_file(observations),
+        },
+        step_id="verify",
+    )
+    return observations, None
+
+
 def _stage_verify(
     journal: Journal, plan: Plan, task: dict[str, Any], binary: Path,
     artifacts: Path, repo_root: Path, should_cancel: Callable[[], bool],
 ) -> StageOutcome:
     plan.update("verify", "in_progress")
     observations = artifacts / _OBSERVATIONS_FILE
-    if not observations.is_file():
+    if task.get("live_guest"):
+        live_observations, guest_reason = _stage_live_guest(
+            journal, plan, task, binary, artifacts, repo_root, should_cancel
+        )
+        if guest_reason is not None:
+            _failed_stage(journal, plan, "verify", guest_reason)
+            return StageOutcome(guest_reason)
+        observations = live_observations
+    if observations is None or not observations.is_file():
         _skipped_stage(journal, plan, "verify", "verify_observations_missing")
         return StageOutcome("verify_observations_missing")
     fixture = repo_root / "fixtures" / str(task["fixture_id"])
@@ -660,20 +808,29 @@ def run_task(task_id: str, *, var_root: Path, repo_root: Path) -> dict[str, Any]
                 _skipped_stage(journal, plan, step, reason_code)
         else:
             decision = _persisted_decision(task, journal)
-            if decision is None:
+            audit = _stage_audit(journal, plan, task, decision)
+            if audit.reason is not None:
+                reason_code = audit.reason
+                for step in ("decision", "repair", "verify", "export"):
+                    _skipped_stage(journal, plan, step, reason_code)
+            elif decision is None:
                 reason_code = "decision_missing"
-                for step in ("audit", "decision", "repair", "verify", "export"):
+                for step in ("decision", "repair", "verify", "export"):
+                    _skipped_stage(journal, plan, step, reason_code)
+            elif decision != "proceed":
+                plan.update("decision", "completed")
+                reason_code = "decision_not_proceed"
+                for step in ("repair", "verify", "export"):
                     _skipped_stage(journal, plan, step, reason_code)
             else:
-                # The three-run audit is signed evidence (G2); this run binds it
-                # instead of repeating it, and says so in the step status.
-                _skipped_stage(journal, plan, "audit", "satisfied_by_signed_g2")
-                plan.update("decision", "completed")
-                if decision != "proceed":
-                    reason_code = "decision_not_proceed"
+                binding = _live_plan_binding(task)
+                if binding is not None:
+                    reason_code = binding
+                    _failed_stage(journal, plan, "decision", binding)
                     for step in ("repair", "verify", "export"):
-                        _skipped_stage(journal, plan, step, reason_code)
+                        _skipped_stage(journal, plan, step, binding)
                 else:
+                    plan.update("decision", "completed")
                     repair = _stage_repair(journal, plan, task, binary, plan_path,
                                            artifacts, repo_root, should_cancel)
                     files_changed += repair.files

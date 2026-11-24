@@ -1,29 +1,33 @@
 import {saveLanguage} from '../shared/handoff.mjs?v=20261120au';
 import {LANGUAGE_CODES} from '../shared/languages.mjs?v=20261120au';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {live, shouldPoll} from './api.mjs?v=20261120au';
+import {live, shouldPoll} from './api.mjs?v=20261124e';
 import {button, el, notice, taskHref} from '../shared/dom.mjs?v=20261120au';
-import {translate} from './labels.mjs?v=20261120au';
+import {translate} from './labels.mjs?v=20261124b';
 import {taskView} from './task.mjs?v=20261120au';
+import {g4TaskView} from './g4task.mjs?v=20261124f';
 import {pageSlideActive} from '../shared/page-slide.mjs?v=20261120au';
 import {motionReduced} from '../shared/motion.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSidebarSpring} from '../chat/chat-spring.mjs?v=20261120au';
-import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261121z';
-import {createDialog, languageDialog, searchDialog, settingsDialog, shell, tasksView} from './views.mjs?v=20261121z';
+import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
+import {createDialog, languageDialog, searchDialog, settingsDialog, shell, tasksView} from './views.mjs?v=20261124d';
 
 // The archive opens on its synthetic fixture immediately. The legacy live API
 // remains available explicitly with ?live=1, but the archive must never present
 // an empty "task service unavailable" dead end before showing its content.
 const archiveQuery = new URLSearchParams(location.search);
-const previewMode = archiveQuery.get('preview') === '1' || archiveQuery.get('live') !== '1';
+const previewMode = archiveQuery.get('preview') === '1';
 const api = previewMode ? (await import('./preview.mjs?v=20261120au')).preview : {...live, lifecycle: false};
 const app = document.querySelector('#app');
 const preferences = {language: 'en', density: 'comfortable'};
 const preferenceValues = {language: LANGUAGE_CODES, density: ['comfortable', 'compact']};
 for (const [key, choices] of Object.entries(preferenceValues)) {
   try {
-    const saved = localStorage.getItem('binaryrepair.ui.' + key);
+    const saved = key === 'language'
+      ? (localStorage.getItem('binaryrepair.ui.language') ||
+        localStorage.getItem('binaryrepair.chat.language'))
+      : localStorage.getItem('binaryrepair.ui.' + key);
     if (choices.includes(saved)) preferences[key] = saved;
   } catch {
     // The UI works if browser storage is unavailable.
@@ -128,7 +132,8 @@ function render({focus = false, mainOnly = false} = {}) {
     },
   };
   ctx.content = !state.id ? tasksView(ctx) : state.job ? el('div', {class: 'page'},
-    api.writable ? null : notice(t('readOnly')), taskView(ctx)) :
+    api.writable ? null : notice(t('readOnly')),
+    state.job.kind === 'g4' ? g4TaskView(ctx) : taskView(ctx)) :
     state.error ? el('div', {class: 'page'}, notice(t(state.error), 'error'),
       el('div', {class: 'actions'}, button(t('retry'), () => readTask(state.generation)))) :
       el('p', {role: 'status'}, t('taskLoading'));
