@@ -8,6 +8,7 @@ ELF or call wsl.exe.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -65,9 +66,11 @@ def _run_fixture(tmp_path: Path, recorder: _Recorder | None = None):
         out_dir=tmp_path / "out",
         runner=recorder or _Recorder(),
         copier=_fake_copier,
+        path_mapper=lambda path: path.as_posix(),
     )
 
 
+@pytest.mark.skipif(os.name != "nt", reason="WSL path mapping is Windows-only")
 def test_wsl_path_maps_windows_drive() -> None:
     assert live_guest._wsl_path(Path("C:/Users/a b/x.elf")) == "/mnt/c/Users/a b/x.elf"
 
@@ -111,7 +114,7 @@ def test_success_uses_argv_and_returns_hashes(tmp_path: Path) -> None:
     assert commands
     assert all(isinstance(call, list) for call in commands)
     assert any(
-        call[4:6] == ["cp", live_guest._wsl_path(FIXTURE / "vuln.elf")]
+        call[4:6] == ["cp", (FIXTURE / "vuln.elf").as_posix()]
         for call in commands
     )
     assert all(call[0] == "wsl.exe" for call in commands)

@@ -27,6 +27,7 @@ from typing import Any
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 Copier = Callable[[str, Path, str, float, Runner], None]
+PathMapper = Callable[[Path], str]
 
 
 class GuestFailure(Exception):
@@ -101,10 +102,11 @@ def _copy_in(
     distro: str,
     timeout: float,
     runner: Runner,
+    path_mapper: PathMapper = _wsl_path,
 ) -> None:
     _run(
         distro,
-        ["cp", _wsl_path(source), destination],
+        ["cp", path_mapper(source), destination],
         timeout,
         runner,
     )
@@ -176,6 +178,7 @@ def run_live_guest(
     keep: bool = False,
     runner: Runner = subprocess.run,
     copier: Copier = _copy_out,
+    path_mapper: PathMapper = _wsl_path,
 ) -> dict[str, Any]:
     """Run both ELFs in the guest and return the evidence summary."""
     for label, path in (("original", original), ("candidate", candidate)):
@@ -202,17 +205,45 @@ def run_live_guest(
         _run(distro, ["mkdir", "-p", f"{guest_dir}/original/cases"], timeout, runner)
         _run(distro, ["mkdir", "-p", f"{guest_dir}/candidate/cases"], timeout, runner)
 
-        _copy_in(original, f"{guest_dir}/original/vuln.elf", distro, timeout, runner)
-        _copy_in(candidate, f"{guest_dir}/candidate/vuln.elf", distro, timeout, runner)
-        _copy_in(cases, f"{guest_dir}/original/cases/cases.json", distro, timeout, runner)
-        _copy_in(cases, f"{guest_dir}/candidate/cases/cases.json", distro, timeout, runner)
+        _copy_in(original, f"{guest_dir}/original/vuln.elf", distro, timeout, runner, path_mapper)
+        _copy_in(candidate, f"{guest_dir}/candidate/vuln.elf", distro, timeout, runner, path_mapper)
+        _copy_in(
+            cases,
+            f"{guest_dir}/original/cases/cases.json",
+            distro,
+            timeout,
+            runner,
+            path_mapper,
+        )
+        _copy_in(
+            cases,
+            f"{guest_dir}/candidate/cases/cases.json",
+            distro,
+            timeout,
+            runner,
+            path_mapper,
+        )
         poc = cases.parent / "poc.txt"
         if poc.is_file():
-            _copy_in(poc, f"{guest_dir}/original/cases/poc.txt", distro, timeout, runner)
-            _copy_in(poc, f"{guest_dir}/candidate/cases/poc.txt", distro, timeout, runner)
+            _copy_in(
+                poc,
+                f"{guest_dir}/original/cases/poc.txt",
+                distro,
+                timeout,
+                runner,
+                path_mapper,
+            )
+            _copy_in(
+                poc,
+                f"{guest_dir}/candidate/cases/poc.txt",
+                distro,
+                timeout,
+                runner,
+                path_mapper,
+            )
 
         runner_script = Path(__file__).with_name("run_cases.py")
-        _copy_in(runner_script, f"{guest_dir}/run_cases.py", distro, timeout, runner)
+        _copy_in(runner_script, f"{guest_dir}/run_cases.py", distro, timeout, runner, path_mapper)
         _run(
             distro,
             [
