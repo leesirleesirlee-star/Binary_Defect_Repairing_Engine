@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261124t';
+import {label} from './chat-copy.mjs?v=20261124u';
 
 const newId = () => crypto.randomUUID();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -271,7 +271,10 @@ export function chatTask({notify = () => {}} = {}) {
       try {
         const audit = await api(`/api/tasks/${chat.jobId}/audit`);
         chat.audit = audit;
-        chat.auditMode = audit.audit_mode || 'signed';
+        // Agent-first choice: do not expose signed plans until the operator
+        // explicitly chooses the deterministic replay. The live audit is the
+        // path that actually calls the model and produces a fresh plan.
+        chat.auditMode = 'choose';
         chat.liveGuest = Boolean(audit.live_guest);
         emitLiveAudit(chat);
       } catch { chat.audit = null; }
