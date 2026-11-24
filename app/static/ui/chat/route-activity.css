@@ -101,3 +101,7 @@
 .ra-event > summary > strong,
 .ra-event > summary > .ra-chip { white-space: nowrap; }
 .ra-event-summary { min-width: 0; white-space: normal; }
+
+.ra-refresh.is-spinning svg { animation: ra-spin-once .7s cubic-bezier(.4,0,.2,1); }
+@keyframes ra-spin-once { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ra-refresh.is-spinning svg { animation: none; } }

@@ -1,7 +1,7 @@
 import {animateDetails} from '../shared/details-anim.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
-import {stepCard} from './chat-steps.mjs?v=20261125a';
+import {stepCard} from './chat-steps.mjs?v=20261125b';
 
 export function fileDropZone({label, hint, accept = '', multiple = false, onFiles}) {
   const input = el('input', {type: 'file', hidden: true, accept, multiple,
@@ -296,7 +296,7 @@ function statusMood(label) {
   const text = String(label ?? '').toLowerCase();
   if (!text) return 'neutral';
   if (/运行中|进行中|running|in.?progress|progress/.test(text)) return 'running';
-  if (/失败|错误|failed|failure|error/.test(text)) return 'failed';
+  if (/失败|错误|拒绝|未通过|failed|failure|error|rejected|unverified|unsupported/.test(text)) return 'failed';
   if (/完成|成功|通过|有效|completed|complete|success|passed|proceed|verified|valid/.test(text)) return 'success';
   return 'neutral';
 }
@@ -363,17 +363,22 @@ function genProgress(p, t) {
 
 function genOutcome(p, t) {
   const links = [p.candidate, p.manifest, p.verdict_file].filter(Boolean);
+  const rejected = ['rejected', 'unverified', 'unsupported', 'error'].includes(p.verdict_word);
   const children = [];
   if (p.candidate_sha256) {
     children.push(el('p', {class: 'gen-note mono'},
       'candidate ' + shortSha(p.candidate_sha256)));
   }
+  if (rejected && (p.verdict_reason || (p.failed_criteria || []).length)) {
+    children.push(el('p', {class: 'gen-note verdict-reason'},
+      t('verdictRejectedReason') + ' ' + (p.verdict_reason || (p.failed_criteria || []).join(' · '))));
+  }
   children.push(el('div', {class: 'gen-downloads'}, links.map(link =>
     el('a', {class: 'gen-download', href: link.href, download: '',
       title: link.sha256 ? 'sha256: ' + link.sha256 : null},
     icon('download', 16), el('span', {}, link.label)))));
-  return genCard('outcome', 'check', t('repairComplete'), p.verdict_word || t('noVerdict'),
-    ...children);
+  return genCard('outcome', 'check', rejected ? t('repairNotAccepted') : t('repairComplete'),
+    p.verdict_word || t('noVerdict'), ...children);
 }
 
 const ASSISTANT_ACTION_KEYS = {
@@ -494,6 +499,9 @@ function genLiveAudit(p, ctx, t) {
     children.push(el('div', {class: 'live-plans'}, cards));
   }
   if (selected) {
+    if (p.guest_available === false) {
+      children.push(el('p', {class: 'gen-note verdict-reason'}, t('liveGuestRequired')));
+    }
     children.push(el('div', {class: 'live-guest'},
       el('label', {},
         el('input', {type: 'checkbox', checked: p.live_guest,

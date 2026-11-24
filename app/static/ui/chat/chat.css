@@ -746,3 +746,8 @@ p.activity-row { display: flex; gap: .4rem; align-items: center; color: var(--mu
 .attachment-preview-body { display: grid; gap: 10px; }
 .attachment-text { max-height: 52vh; overflow: auto; white-space: pre-wrap; word-break: break-all;
   font: 0.74rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* "Latest message" is a transient scroll affordance, not a permanent pill. */
+.latest { opacity: 1; transition: opacity 260ms ease, transform 260ms ease; }
+.latest.latest-dim { opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(5px); }
+@media (prefers-reduced-motion: reduce) { .latest { transition: none; } }

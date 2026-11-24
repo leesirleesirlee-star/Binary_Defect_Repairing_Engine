@@ -20,7 +20,7 @@ const archiveQuery = new URLSearchParams(location.search);
 const previewMode = archiveQuery.get('preview') === '1';
 const api = previewMode ? (await import('./preview.mjs?v=20261125c')).preview : {...live, lifecycle: false};
 const app = document.querySelector('#app');
-const preferences = {language: 'en', density: 'comfortable'};
+const preferences = {language: 'zh-Hans', density: 'comfortable'};
 const preferenceValues = {language: LANGUAGE_CODES, density: ['comfortable', 'compact']};
 for (const [key, choices] of Object.entries(preferenceValues)) {
   try {

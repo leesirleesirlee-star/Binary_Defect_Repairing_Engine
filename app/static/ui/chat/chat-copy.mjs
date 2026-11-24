@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261125a';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261125b';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -139,6 +139,8 @@ const copy = {
   caseScopeNote: ['Uploaded cases are task evidence only; verification uses the frozen contract/corpus and M3 guest observations. The host never executes the uploaded ELF.', '上传用例仅作为任务证据登记；验证使用冻结 contract/corpus 与 M3 guest observations，宿主机不会执行上传的 ELF。'],
   bindingNote: ['Choosing a contract binds the signed G2 decision; no audit re-run, no new vote.', '选择此契约 = 绑定已签 G2 决策；不重跑审计，不重新投票。'],
   repairRun: ['Repair run', '修复运行'],
+  repairNotAccepted: ["Repair not accepted", "修复未通过验收"],
+  verdictRejectedReason: ["Verdict reason:", "拒绝原因："],
   repairComplete: ['Repair complete', '修复完成'],
   noVerdict: ['No persisted verdict', '无持久化结论'],
   analysisTitleShort: ['Analysis', '分析'],
@@ -160,6 +162,7 @@ const copy = {
   liveAuditSelect: ['Select this plan', '选择此方案'],
   liveAuditSelected: ['Selected', '已选择'],
   liveAuditStart: ['Start repair with this plan', '按此计划启动修复'],
+  liveGuestRequired: ["This live plan needs the WSL2 live-guest check for an accepted verdict; this host cannot run it, so verification will be rejected.", "现场方案需要 WSL2 现场 guest 才能通过验收；当前主机无法运行，直接启动会得到拒绝结论。"],
   liveGuestUnavailable: ["Live guest verification needs WSL2; disabled on this host.", "现场 guest 验证需要 WSL2；当前主机不可用，已禁用。"],
   liveAuditGuest: ['Live guest verification', '现场 guest 验证'],
   liveAuditFallback: ['Live audit unavailable; the signed G2 replay remains available with an honest badge.', '现场审计不可用；仍可使用回放已签 G2，状态会如实标记。'],

@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125a';
+import {label} from './chat-copy.mjs?v=20261125b';
 
 const newId = () => crypto.randomUUID();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -673,6 +673,10 @@ export function chatTask({notify = () => {}} = {}) {
     event(chat, 'g4_downloads', {
       id: 'g4-downloads-' + taskId,
       verdict_word: verdictWord || null,
+      verdict_reason: (verdictPayload?.limitations || []).find(line =>
+        /fail|not_run|missing|unavailable/i.test(String(line))) || null,
+      failed_criteria: (verdictPayload?.criteria || []).filter(item =>
+        item.required && ['fail', 'not_run'].includes(item.status)).map(item => item.id),
       candidate_sha256: verdictPayload?.candidate_sha256 ?? null,
       candidate: candidate && {...candidate, label: t(locale, '下载修复后的程序 (.elf)',
         'Download repaired program (.elf)')},
