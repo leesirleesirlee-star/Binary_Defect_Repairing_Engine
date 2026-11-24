@@ -321,6 +321,7 @@ def test_connection(model: Any = None) -> dict[str, Any]:
         return {"ok": False, "error": str(error)}
     return {
         "ok": True,
+        "requested_model": resolved,
         "model": result.get("model"),
         "request_id": result.get("request_id"),
         "usage": result.get("usage"),

@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261124r';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261124s';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -41,6 +41,7 @@ const copy = {
   keySaved: ["Key saved. Testing the connection…", "密钥已保存，正在测试连接…"],
   keyTesting: ["Testing connection…", "正在测试连接…"],
   keyPassed: ["Connection works.", "连接成功。"],
+  keyAliasSuffix: [" (provider-returned model)", "（服务实际返回）"],
   keyFailed: ["Connection failed: {detail}", "连接失败：{detail}"],
   keyRequired: ["Enter an API key first.", "请先输入 API 密钥。"],
   keyCleared: ["Key cleared.", "已清除密钥。"],

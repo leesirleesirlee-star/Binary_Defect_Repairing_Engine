@@ -4,7 +4,7 @@ import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261124b';
 import {modelLabel, modelPicker} from '../shared/model-picker.mjs?v=20261120au';
 import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {control, displayTitle} from './chat-view.mjs?v=20261124r';
+import {control, displayTitle} from './chat-view.mjs?v=20261124s';
 
 function dialog(title, content, t) {
   const trigger = document.activeElement;
@@ -74,10 +74,14 @@ export function openModel({t, model, preference}) {
 
   function testResult(outcome) {
     if (!outcome?.ok) return t('keyFailed').replace('{detail}', outcome?.error || 'unknown');
-    const requested = modelLabel(selectedModel, t('managedModel'));
+    const requestedId = selectedModel === 'default' ? null : selectedModel;
+    const requested = requestedId ? modelLabel(requestedId, t('managedModel')) : null;
     const actual = typeof outcome.model === 'string' ? outcome.model : '';
-    return t('keyPassed') + ' · ' + requested +
-      (actual && actual.toLowerCase() !== selectedModel.toLowerCase() ? ' (' + actual + ')' : '');
+    if (requestedId && actual && actual.toLowerCase() !== requestedId.toLowerCase()) {
+      return t('keyPassed') + ' · ' + requested + ' → ' + actual
+        + (t('keyAliasSuffix') || ' (provider-returned model)');
+    }
+    return t('keyPassed') + ' · ' + (requested || actual || '—');
   }
 
   function render(payload) {

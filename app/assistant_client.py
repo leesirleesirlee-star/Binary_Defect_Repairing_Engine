@@ -21,7 +21,7 @@ class AssistantUnavailable(RuntimeError):
     """Stable, non-secret reason the provider call could not be used."""
 
 
-def complete(messages: Sequence[Mapping[str, str]]) -> str:
+def complete(messages: Sequence[Mapping[str, str]], model: str | None = None) -> str:
     """Return one provider reply for the validated assistant message list."""
     if not assistant_key.load_key():
         raise AssistantUnavailable("no_key")
@@ -29,6 +29,7 @@ def complete(messages: Sequence[Mapping[str, str]]) -> str:
         result = assistant_key.chat_completion(
             [{"role": str(item.get("role", "user")), "content": str(item.get("content", ""))}
              for item in messages],
+            model=model,
             max_tokens=1600,
         )
     except assistant_key.KeyError as error:

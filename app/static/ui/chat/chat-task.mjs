@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261124r';
+import {label} from './chat-copy.mjs?v=20261124s';
 
 const newId = () => crypto.randomUUID();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -134,7 +134,7 @@ export function chatTask({notify = () => {}} = {}) {
     await submitPayload(chat, payload, text, locale);
   }
 
-  async function assistantTurn(chat, text, locale) {
+  async function assistantTurn(chat, text, locale, model = null) {
     if (!chat.jobId) return;
     chat.locale = locale;
     chat.assistantMode = chat.assistantMode ?? 'deterministic';
@@ -144,7 +144,7 @@ export function chatTask({notify = () => {}} = {}) {
     try {
       const data = await api(`/api/tasks/${chat.jobId}/assistant`, {
         method: 'POST',
-        body: {message: text, locale},
+        body: {message: text, locale, model: model || undefined},
       });
       chat.assistantMode = data.mode || 'deterministic';
       event(chat, 'assistant_reply', {
