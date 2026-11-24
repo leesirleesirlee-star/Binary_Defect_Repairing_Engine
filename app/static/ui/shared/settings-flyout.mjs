@@ -8,15 +8,15 @@
  * - model configuration and API-key status are part of the Model & API key
  *   preview; the existing model dialog remains available unchanged
  */
-import {assistantKey} from './assistant-key.mjs?v=20261120au';
-import {el} from './dom.mjs?v=20261120au';
-import {icon} from './icons.mjs?v=20261120au';
-import {LANGUAGES} from './languages.mjs?v=20261120au';
-import {modelPicker} from './model-picker.mjs?v=20261120au';
-import {settingsCopy} from './settings-copy.mjs?v=20261124b';
+import {assistantKey} from './assistant-key.mjs?v=20261125c';
+import {el} from './dom.mjs?v=20261125c';
+import {icon} from './icons.mjs?v=20261125c';
+import {LANGUAGES} from './languages.mjs?v=20261125c';
+import {modelPicker} from './model-picker.mjs?v=20261125c';
+import {settingsCopy} from './settings-copy.mjs?v=20261125c';
 import {
   getSetting, getSettings, importSettings, resetSettings, setSetting,
-} from './settings-preferences.mjs?v=20261120au';
+} from './settings-preferences.mjs?v=20261125c';
 
 const BUILD = new URL(import.meta.url).searchParams.get('v') || 'dev';
 

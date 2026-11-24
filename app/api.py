@@ -254,6 +254,22 @@ def upload_task(body: Annotated[dict[str, Any] | None, Body()] = None) -> dict[s
         raise _error(error.status, error.code, **error.extra) from error
 
 
+@router.post(
+    "/tasks/probe",
+    dependencies=[Depends(require_session), Depends(require_csrf)],
+)
+def probe_binary(body: Annotated[dict[str, Any] | None, Body()] = None) -> dict[str, Any]:
+    """Recognize an uploaded ELF first; case files are requested afterwards."""
+    payload = body or {}
+    try:
+        return g4.probe_binary(
+            binary_name=payload.get("binary_name"),
+            binary_base64=payload.get("binary_base64"),
+        )
+    except g4.G4Error as error:
+        raise _error(error.status, error.code, **error.extra) from error
+
+
 @router.get("/tasks/{task_id}/g4", dependencies=[Depends(require_session)])
 def task_g4(task_id: str) -> dict[str, Any]:
     _task(task_id)
@@ -290,6 +306,7 @@ def live_audit_state(task_id: str) -> dict[str, Any]:
         "live_guest": bool(task.get("live_guest")),
         "live_audit": task.get("live_audit") or live_audit.empty_state(),
         "selected_plan": task.get("selected_plan"),
+        "guest_available": live_audit.GUEST_AVAILABLE,
     }
 
 

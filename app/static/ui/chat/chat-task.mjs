@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261124u';
+import {label} from './chat-copy.mjs?v=20261125b';
 
 const newId = () => crypto.randomUUID();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -22,6 +22,7 @@ export function chatTask({notify = () => {}} = {}) {
       run: null, started: null, ended: null, epoch: 0, locale: 'en',
       journal: [], journalSeq: 0, plan: null, runEnd: null, auditRuns: null, g2: null,
       live: true, taskMode: true, requireAscii: false, timer: null, assistantMode: null,
+      pendingBinary: null, attachmentFiles: new Map(),
     };
     chats.set(chat.id, chat);
     return chat;
@@ -106,33 +107,105 @@ export function chatTask({notify = () => {}} = {}) {
 
   async function send(chat, text, locale, attachment, file, cases = []) {
     chat.locale = locale;
-    if (!file) {
-      if (chat.jobId && String(text || '').trim()) {
-        await assistantTurn(chat, String(text).trim(), locale);
-        return;
+    if (file) {
+      await probeBinary(chat, file, locale);
+      if (cases.length) await submitCases(chat, cases, locale);
+      return;
+    }
+    if (chat.pendingBinary) {
+      if (cases.length) {
+        await submitCases(chat, cases, locale);
+      } else {
+        say(chat, t(locale,
+          '已识别二进制文件。请再添加正确用例与错误用例（PoC）文件，或直接拖入下方的用例拖拽区域。',
+          'Binary recognized. Add the valid and PoC case files, or drop them into the case '
+          + 'area below.'));
       }
+      return;
+    }
+    if (chat.jobId && String(text || '').trim()) {
+      await assistantTurn(chat, String(text).trim(), locale);
+      return;
+    }
+    say(chat, t(locale,
+      '请先添加需要修复的 .elf 二进制漏洞文件；识别成功后再添加用例文件。',
+      'Add the vulnerable .elf binary first; case files are requested after it is recognized.'));
+  }
+
+  async function probeBinary(chat, file, locale) {
+    if (['running', 'awaiting_user', 'cancel_requested'].includes(chat.phase)) return;
+    chat.locale = locale;
+    const messageId = newId();
+    const attachmentId = newId();
+    chat.attachmentNames.set(attachmentId, file.name);
+    chat.attachmentFiles.set(attachmentId, {
+      name: file.name, kind: 'binary', size: file.size, base64: await readBase64(file),
+    });
+    event(chat, 'user_message', {
+      message_id: messageId,
+      text: t(locale, `添加二进制漏洞文件：${file.name}`, `Vulnerable binary: ${file.name}`),
+      attachment_ids: [attachmentId], delivery: 'accepted',
+    }, null, null);
+    try {
+      const binaryBase64 = await readBase64(file);
+      const data = await api('/api/tasks/probe', {
+        method: 'POST',
+        body: {binary_name: file.name, binary_base64: binaryBase64},
+      });
+      chat.pendingBinary = {name: file.name, base64: binaryBase64, probe: data};
+      chat.title ||= file.name;
+      chat.kind = 'repair';
+      event(chat, 'binary_ready', {
+        id: 'binary-' + newId(),
+        binary_name: data.binary_name || file.name,
+        binary_sha256: data.binary_sha256 || '',
+        supported: Boolean(data.supported),
+        analysis_status: data.analysis_status || 'ok',
+        finding: data.finding || {},
+        unsupported_detail: data.unsupported_detail || null,
+      }, 'collect');
+      event(chat, 'case_prompt', {
+        id: 'cases-' + newId(),
+        binary_name: data.binary_name || file.name,
+      }, 'collect');
+      state(chat, 'awaiting_cases');
+    } catch (error) {
       say(chat, t(locale,
-        '请先添加需要修复的 .elf 二进制文件，以及对应正确用例与错误用例（PoC）文件。',
-        'Attach the .elf binary plus its valid and PoC case files first.'));
+        `二进制识别失败：${error.detail?.code || error.message}。请确认它是可读取的 ELF 文件。`,
+        `Binary recognition failed: ${error.detail?.code || error.message}. Confirm it is a '
+        + 'readable ELF file.`));
+      state(chat, 'failed');
+    }
+  }
+
+  async function submitCases(chat, cases, locale) {
+    if (!chat.pendingBinary) {
+      say(chat, t(locale, '请先添加二进制漏洞文件。', 'Add the vulnerable binary first.'));
       return;
     }
     if (!cases.length) {
-      say(chat, t(locale,
-        '已收到二进制文件。请再添加正确用例与错误用例文件（可多选），我会一起分析并生成修复契约。',
-        'Binary received. Add the valid and PoC case files (multi-select) so I can analyze and '
-        + 'derive the repair contracts.'));
+      say(chat, t(locale, '请选择正确用例与错误用例文件。',
+        'Choose the valid and PoC case files.'));
       return;
     }
     const payload = {
-      binaryName: file.name,
-      binaryBase64: await readBase64(file),
+      binaryName: chat.pendingBinary.name,
+      binaryBase64: chat.pendingBinary.base64,
       caseFiles: [],
     };
     for (const item of cases) {
       payload.caseFiles.push({name: item.name, content_base64: await readBase64(item)});
     }
-    await submitPayload(chat, payload, text, locale);
+    event(chat, 'case_received', {
+      id: 'cases-done-' + newId(), count: cases.length,
+      names: cases.map(item => item.name),
+    }, 'collect');
+    chat.pendingBinary = null;
+    await submitPayload(chat, payload,
+      t(locale, '用例已就绪，请分析并生成修复方案', 'Cases ready; analyze and propose repair plans'),
+      locale);
   }
+
 
   async function assistantTurn(chat, text, locale, model = null) {
     if (!chat.jobId) return;
@@ -186,7 +259,15 @@ export function chatTask({notify = () => {}} = {}) {
     const messageId = newId();
     const attachmentIds = [newId(), ...cases.map(() => newId())];
     chat.attachmentNames.set(attachmentIds[0], payload.binaryName);
-    cases.forEach((item, index) => chat.attachmentNames.set(attachmentIds[index + 1], item.name));
+    chat.attachmentFiles.set(attachmentIds[0], {
+      name: payload.binaryName, kind: 'binary', base64: payload.binaryBase64 || '',
+    });
+    cases.forEach((item, index) => {
+      chat.attachmentNames.set(attachmentIds[index + 1], item.name);
+      chat.attachmentFiles.set(attachmentIds[index + 1], {
+        name: item.name, kind: 'case', base64: item.content_base64 || '',
+      });
+    });
     event(chat, 'user_message', {
       message_id: messageId, text: clean, attachment_ids: attachmentIds, delivery: 'accepted',
     }, null, null);
@@ -271,11 +352,12 @@ export function chatTask({notify = () => {}} = {}) {
       try {
         const audit = await api(`/api/tasks/${chat.jobId}/audit`);
         chat.audit = audit;
-        // Agent-first choice: do not expose signed plans until the operator
-        // explicitly chooses the deterministic replay. The live audit is the
-        // path that actually calls the model and produces a fresh plan.
-        chat.auditMode = 'choose';
+        // Signed replay stays the default/acceptance path; the mode card and
+        // its replay note make clear that no model is called. Choosing live
+        // audit hides these signed plans and runs the real agent audit.
+        chat.auditMode = audit.audit_mode || 'signed';
         chat.liveGuest = Boolean(audit.live_guest);
+        chat.guestAvailable = audit.guest_available !== false;
         emitLiveAudit(chat);
       } catch { chat.audit = null; }
       chat.request = {
@@ -316,6 +398,7 @@ export function chatTask({notify = () => {}} = {}) {
       live_audit: audit.live_audit || {status: 'idle', runs: []},
       selected_plan: audit.selected_plan || null,
       live_guest: Boolean(chat.liveGuest),
+      guest_available: chat.guestAvailable !== false,
       ...extra,
     }, 'audit');
   }
@@ -355,6 +438,7 @@ export function chatTask({notify = () => {}} = {}) {
         method: 'POST', body: {enabled: next},
       });
       chat.liveGuest = Boolean(data.live_guest);
+      chat.guestAvailable = data.guest_available !== false;
       emitLiveAudit(chat);
     } catch (error) {
       chat.liveGuest = previous;
@@ -368,7 +452,8 @@ export function chatTask({notify = () => {}} = {}) {
   async function startLiveAudit(chat) {
     if (!chat.jobId || chat.liveRunning) return;
     chat.auditMode = 'live';
-    chat.liveGuest = true;
+    chat.liveGuest = false;
+    chat.guestAvailable = chat.audit?.guest_available !== false;
     chat.liveRunning = true;
     emitLiveAudit(chat);
     try {
@@ -588,6 +673,10 @@ export function chatTask({notify = () => {}} = {}) {
     event(chat, 'g4_downloads', {
       id: 'g4-downloads-' + taskId,
       verdict_word: verdictWord || null,
+      verdict_reason: (verdictPayload?.limitations || []).find(line =>
+        /fail|not_run|missing|unavailable/i.test(String(line))) || null,
+      failed_criteria: (verdictPayload?.criteria || []).filter(item =>
+        item.required && ['fail', 'not_run'].includes(item.status)).map(item => item.id),
       candidate_sha256: verdictPayload?.candidate_sha256 ?? null,
       candidate: candidate && {...candidate, label: t(locale, '下载修复后的程序 (.elf)',
         'Download repaired program (.elf)')},
@@ -632,6 +721,7 @@ export function chatTask({notify = () => {}} = {}) {
   function deactivate() {}
 
   return {chats, live: true, taskMode: true, create, send, sendFixture, decide, assistantTurn,
+    probeBinary, submitCases,
     startLiveAudit, selectLivePlan, startLivePlan, setLiveMode, setLiveGuest,
     start: async () => {}, stop, seed, activate, deactivate};
 }

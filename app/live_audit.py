@@ -26,6 +26,7 @@ AUDIT_ROOT = ROOT / "var" / "audit"
 FIXTURE_DIR = ROOT / "fixtures" / "stack-overflow-01"
 MODEL = "deepseek-v4-pro"
 TIMEOUT_S = 600
+GUEST_AVAILABLE = os.name == "nt"
 _RUNNING: dict[str, Any] = {}
 _CANCELLED: set[str] = set()
 _LOCK = threading.Lock()
@@ -74,6 +75,55 @@ def _hex_bytes(value: Any) -> int | None:
     except ValueError:
         return None
     return len(text) // 2
+
+
+def _plan_selectability(task: dict[str, Any] | None, plan: Any) -> tuple[bool, str | None]:
+    """Return whether a generated plan is inside the frozen edit budget."""
+    if not isinstance(plan, dict):
+        return False, "plan_not_allowed"
+    edits = plan.get("edits")
+    if not isinstance(edits, list) or not edits:
+        return False, "plan_not_allowed"
+    redirects = 0
+    code_bytes = 0
+    data_bytes = 0
+    for edit in edits:
+        if not isinstance(edit, dict):
+            return False, "plan_not_allowed"
+        kind = edit.get("kind")
+        size = _hex_bytes(edit.get("new_bytes", ""))
+        if size is None:
+            return False, "edit_bytes_invalid"
+        if kind == "redirect_call":
+            redirects += 1
+            if size != 5:
+                return False, "redirect_size_invalid"
+        elif kind == "code":
+            code_bytes += size
+        elif kind == "data":
+            data_bytes += size
+        else:
+            return False, f"edit_kind_not_allowed:{kind}"
+        address = edit.get("address")
+        if not isinstance(address, str) or not address.startswith("0x"):
+            return False, "edit_address_invalid"
+        try:
+            int(address, 16)
+        except ValueError:
+            return False, "edit_address_invalid"
+    if redirects != 1:
+        return False, "redirect_count_invalid"
+    if code_bytes > 256:
+        return False, "code_budget_exceeded"
+    if data_bytes > 64:
+        return False, "data_budget_exceeded"
+    if task is not None:
+        if plan.get("fixture_id") not in (None, task.get("fixture_id")):
+            return False, "plan_fixture_mismatch"
+        expected_contract = task.get("contract_sha256")
+        if plan.get("contract_sha256") not in (None, expected_contract):
+            return False, "plan_contract_mismatch"
+    return True, None
 
 
 def _allowed_plan_error(plan: Any) -> str | None:
@@ -153,22 +203,72 @@ def _audit_plan_path(value: str) -> Path | None:
     return None
 
 
+def _clean_run_for_state(run: dict[str, Any], index: int) -> dict[str, Any]:
+    plan = run.get("plan") if isinstance(run.get("plan"), dict) else None
+    plan_path = run.get("plan_path") or run.get("path")
+    if plan is None and isinstance(plan_path, str):
+        path = _audit_plan_path(plan_path)
+        if path is not None:
+            try:
+                plan = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                plan = None
+    return {
+        "run_index": run.get("run_index") or index,
+        "schema_valid": bool(run.get("schema_valid")),
+        "plan_sha256": run.get("plan_sha256"),
+        "plan_path": plan_path,
+        "plan": plan,
+        "usage": run.get("usage") if isinstance(run.get("usage"), dict) else {},
+        "critical_errors": run.get("critical_errors") or [],
+        "score": run.get("score"),
+        "canonical_sha256": (canonical_plan_sha256(plan)
+                             if isinstance(plan, dict) else None),
+    }
+
+
+def _set_progress(task_id: str, rows: list[dict[str, Any]]) -> None:
+    live = state(task_id)
+    if live.get("status") != "running":
+        return
+    live = dict(live)
+    live["runs"] = [_clean_run_for_state(row, index)
+                    for index, row in enumerate(rows, start=1)]
+    _set_state(task_id, live)
+
+
 class _Fanout:
     """Wait for three independent audit CLI runs and combine their summaries."""
 
     def __init__(self, processes: list[subprocess.Popen[bytes]],
-                 summaries: list[Path], final_summary: Path) -> None:
+                 summaries: list[Path], final_summary: Path,
+                 progress: Any = None) -> None:
         self.processes = processes
         self.summaries = summaries
         self.final_summary = final_summary
+        self.progress = progress
 
     def wait(self, timeout: float | None = None) -> int:
         deadline = time.time() + (timeout or TIMEOUT_S)
-        for process in self.processes:
+        rows: list[dict[str, Any]] = []
+        for index, (process, path) in enumerate(
+                zip(self.processes, self.summaries, strict=True), start=1):
             remaining = max(1.0, deadline - time.time())
             returncode = process.wait(timeout=remaining)
             if returncode != 0:
                 return returncode
+            try:
+                summary = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return 1
+            row = (summary.get("runs") or [None])[0]
+            if not isinstance(row, dict):
+                return 1
+            row = dict(row)
+            row["run_index"] = index
+            rows.append(row)
+            if self.progress is not None:
+                self.progress(rows)
         prompt_sha = contract_sha = None
         model = MODEL
         runs: list[dict[str, Any]] = []
@@ -267,6 +367,10 @@ def _watch(task_id: str, process: subprocess.Popen[bytes], summary_path: Path) -
                         clean["plan"] = json.loads(path.read_text(encoding="utf-8"))
                 except (OSError, ValueError):
                     clean["plan"] = None
+            task = tasks.get(task_id)
+            selectable, reason = _plan_selectability(task, clean["plan"])
+            clean["selectable"] = selectable
+            clean["select_reason"] = reason
             clean_runs.append(clean)
         live.update({"status": "completed", "finished_at": _now(), "error": None,
                      "model": summary.get("model") or MODEL,
@@ -362,7 +466,8 @@ def start(task_id: str, *, rerun: bool = False) -> dict[str, Any]:
         live.update({"status": "failed", "finished_at": _now(), "error": "audit_failed"})
         _set_state(task_id, live)
         raise LiveAuditError(409, "audit_failed") from error
-    fanout = _Fanout(processes, summaries, summary_path)
+    fanout = _Fanout(processes, summaries, summary_path,
+                     progress=lambda rows: _set_progress(task_id, rows))
     with _LOCK:
         _RUNNING[task_id] = fanout
     threading.Thread(target=_watch, args=(task_id, fanout, summary_path),
@@ -469,6 +574,8 @@ def reset_signed(task_id: str) -> dict[str, Any]:
 
 def set_guest(task_id: str, enabled: Any) -> dict[str, Any]:
     """Persist the live-guest choice so the runner and UI agree."""
+    if bool(enabled) and not GUEST_AVAILABLE:
+        raise LiveAuditError(409, "guest_unavailable")
     task = tasks.get(task_id)
     if not (task.get("g4") or {}).get("supported"):
         raise LiveAuditError(409, "unsupported_binary_scope")
@@ -477,4 +584,4 @@ def set_guest(task_id: str, enabled: Any) -> dict[str, Any]:
         raise LiveAuditError(409, "audit_running")
     task["live_guest"] = bool(enabled)
     tasks.update(task)
-    return {"live_guest": task["live_guest"]}
+    return {"live_guest": task["live_guest"], "guest_available": GUEST_AVAILABLE}
