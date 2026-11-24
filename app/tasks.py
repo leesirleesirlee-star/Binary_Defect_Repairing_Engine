@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import secrets
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -42,7 +44,21 @@ def _read(task_id: str) -> dict[str, Any]:
 def _write(task: dict[str, Any]) -> dict[str, Any]:
     path = _path(task["id"])
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(task, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    payload = (json.dumps(task, indent=2, ensure_ascii=True) + "\n").encode("utf-8")
+    fd, name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+    temporary = Path(name)
+    try:
+        try:
+            os.write(fd, payload)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.replace(temporary, path)
+    finally:
+        try:
+            temporary.unlink()
+        except OSError:
+            pass
     return task
 
 
@@ -96,7 +112,8 @@ def update(task: dict[str, Any]) -> dict[str, Any]:
 
 
 def approve(
-    task_id: str, expected_binding_digest: str, reviewer_label: str = "M2"
+    task_id: str, expected_binding_digest: str, reviewer_label: str = "M2",
+    plan_sha256: str | None = None,
 ) -> dict[str, Any]:
     task = _read(task_id)
     if expected_binding_digest != task["review_binding_digest"]:
@@ -109,6 +126,8 @@ def approve(
         "reviewer_label": reviewer_label or "M2",
         "binding_digest": task["review_binding_digest"],
     }
+    if plan_sha256:
+        task["approval"]["plan_sha256"] = plan_sha256
     _write(task)
     return task["approval"]
 

@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261124p';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261124q';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -121,6 +121,19 @@ const copy = {
   assistantModeLlm: ['AI assistant · llm', 'AI 助手 · llm'],
   assistantModeDeterministic: ['Deterministic fallback', '确定性回退'],
   assistantModeNotWired: ['AI not wired', 'AI 未接线'],
+  liveAuditTitle: ['AI live audit / signed replay', 'AI 现场审计 / 回放已签 G2'],
+  liveAuditSigned: ['Replay signed G2', '回放已签 G2'],
+  liveAuditLive: ['AI live audit', 'AI 现场审计'],
+  liveAuditSignedNote: ['Signed G2 replay is the default and remains the acceptance path. Live audit is additive evidence.', '回放已签 G2 是默认与验收路径；现场审计是附加证据。'],
+  liveAuditIdle: ['Idle', '空闲'], liveAuditRunning: ['Running', '运行中'],
+  liveAuditCompleted: ['Completed', '已完成'], liveAuditFailed: ['Failed', '失败'],
+  liveAuditRuns: ['Audit runs', '审计运行'], liveAuditSchemaOk: ['schema valid', 'schema 有效'],
+  liveAuditSchemaBad: ['schema invalid', 'schema 无效'],
+  liveAuditSelect: ['Select this plan', '选择此方案'],
+  liveAuditSelected: ['Selected', '已选择'],
+  liveAuditStart: ['Start repair with this plan', '按此计划启动修复'],
+  liveAuditGuest: ['Live guest verification', '现场 guest 验证'],
+  liveAuditFallback: ['Live audit unavailable; the signed G2 replay remains available with an honest badge.', '现场审计不可用；仍可使用回放已签 G2，状态会如实标记。'],
   routeStepBind: ['Bind signed G2 decision', '绑定已签 G2 决策'],
   routeStepRun: ['Repair & verify under the contract', '按契约修复与验证'],
   routeStepEvidence: ['Persist verdict & evidence', '写结论与证据'],

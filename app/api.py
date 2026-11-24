@@ -23,7 +23,7 @@ from urllib.parse import quote, unquote
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
-from app import assistant, assistant_client, assistant_key, g4, journal, tasks
+from app import assistant, assistant_client, assistant_key, g4, journal, live_audit, tasks
 from app.journal import JournalError, read_records, wait_for_records
 from app.preview_events import ensure_preview_journal
 
@@ -280,6 +280,80 @@ def get_task(task_id: str) -> dict[str, Any]:
     return task
 
 
+@router.get("/tasks/{task_id}/audit", dependencies=[Depends(require_session)])
+def live_audit_state(task_id: str) -> dict[str, Any]:
+    task = _task(task_id)
+    return {
+        "audit_mode": task.get("audit_mode") or "signed",
+        "live_guest": bool(task.get("live_guest")),
+        "live_audit": task.get("live_audit") or live_audit.empty_state(),
+        "selected_plan": task.get("selected_plan"),
+    }
+
+
+@router.post(
+    "/tasks/{task_id}/audit/live",
+    dependencies=[Depends(require_session), Depends(require_csrf)],
+)
+def start_live_audit(task_id: str, body: Annotated[dict[str, Any] | None, Body()] = None) -> Any:
+    _task(task_id)
+    try:
+        result = live_audit.start(task_id, rerun=bool((body or {}).get("rerun")))
+    except live_audit.LiveAuditError as error:
+        raise _error(error.status, error.code, **error.extra) from error
+    return JSONResponse(status_code=202, content=result)
+
+
+@router.post(
+    "/tasks/{task_id}/audit/signed",
+    dependencies=[Depends(require_session), Depends(require_csrf)],
+)
+def reset_live_audit(task_id: str) -> dict[str, Any]:
+    _task(task_id)
+    try:
+        return live_audit.reset_signed(task_id)
+    except live_audit.LiveAuditError as error:
+        raise _error(error.status, error.code, **error.extra) from error
+
+
+@router.post(
+    "/tasks/{task_id}/audit/guest",
+    dependencies=[Depends(require_session), Depends(require_csrf)],
+)
+def set_live_guest(task_id: str, body: Annotated[dict[str, Any], Body()]) -> dict[str, Any]:
+    _task(task_id)
+    try:
+        return live_audit.set_guest(task_id, bool((body or {}).get("enabled")))
+    except live_audit.LiveAuditError as error:
+        raise _error(error.status, error.code, **error.extra) from error
+
+
+@router.post(
+    "/tasks/{task_id}/plan",
+    dependencies=[Depends(require_session), Depends(require_csrf)],
+)
+def select_live_plan(task_id: str, body: Annotated[dict[str, Any], Body()]) -> dict[str, Any]:
+    _task(task_id)
+    try:
+        result = live_audit.select_plan(task_id, body)
+    except live_audit.LiveAuditError as error:
+        raise _error(error.status, error.code, **error.extra) from error
+    task = _task(task_id)
+    selected = result["selected_plan"]
+    decision = {
+        "decision": "proceed",
+        "decided_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "binding_digest": task.get("review_binding_digest"),
+        "selected_plan_sha256": selected["canonical_sha256"],
+    }
+    task["decision"] = decision
+    tasks.update(task)
+    append_gui_event(task_id, "user_response", {
+        "request_id": "live-plan", "kind": "plan_selection", **selected,
+    })
+    return {"selected_plan": selected, "decision": decision}
+
+
 @router.get("/tasks/{task_id}/contract", dependencies=[Depends(require_session)])
 def get_contract(task_id: str) -> dict[str, Any]:
     task = _task(task_id)
@@ -304,12 +378,19 @@ def update_contract(task_id: str, body: Annotated[dict[str, Any], Body()]) -> No
     "/tasks/{task_id}/approve", dependencies=[Depends(require_session), Depends(require_csrf)]
 )
 def approve_task(task_id: str, body: Annotated[dict[str, Any], Body()]) -> dict[str, Any]:
-    _task(task_id)
+    task = _task(task_id)
+    selected = task.get("selected_plan") or {}
+    expected_plan = str(body.get("expected_plan_sha256") or "")
+    if selected:
+        if expected_plan != selected.get("canonical_sha256"):
+            raise _error(409, "plan_not_approved",
+                         expected_plan_sha256=selected.get("canonical_sha256"))
     try:
         approval = tasks.approve(
             task_id,
             str(body.get("expected_review_binding_digest") or ""),
             str(body.get("reviewer_label") or "M2"),
+            plan_sha256=selected.get("canonical_sha256"),
         )
     except ValueError as error:
         raise _error(
@@ -370,6 +451,10 @@ def start_task(
         raise _error(409, "preview_only")
     if not idempotency_key:
         raise _error(400, "idempotency_key_required")
+    selected = task.get("selected_plan") or {}
+    if selected and (task.get("approval") or {}).get("plan_sha256") != selected.get(
+            "canonical_sha256"):
+        raise _error(409, "plan_not_approved")
     previous = dict(task.get("idempotency") or {})
     try:
         acknowledgement = tasks.begin_start(

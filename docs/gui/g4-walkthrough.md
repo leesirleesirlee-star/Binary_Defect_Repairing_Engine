@@ -72,6 +72,38 @@ animation; reduced-motion preference disables the animation.  The
 one current-run card, all eight steps with `审计 已跳过`, and the full journal on
 demand.  Legacy preview data is still available under `?preview=1`.
 
+## G4.1 live AI audit (additive)
+
+The signed G2 replay remains the default.  A new mode switch in the chat offers
+**回放已签 G2 / AI 现场审计**:
+
+- `POST /api/tasks/{id}/audit/live` spawns the merged `python -m pipeline.audit`
+  CLI in the API host with the provider key only in the child environment
+  (10-minute timeout, idempotent; `409 audit_no_provider` / `audit_running` /
+  `audit_unsupported`). The CLI runs `--runs 3` sequentially, writes the
+  contract `summary.json` (including `prompt_sha256`) and the raw records.
+- `POST /api/tasks/{id}/audit/signed` leaves live mode and resets the task to
+  the signed-replay starting point before any run; a started run is refused.
+- `POST /api/tasks/{id}/audit/guest` persists `{"enabled": bool}` so the UI
+  checkbox and the runner share the same `live_guest` value.
+- `GET /api/tasks/{id}/audit` returns the mode, live status and the three run
+  records; no key/provider data is stored in the snapshot, journal or UI;
+- `POST /api/tasks/{id}/plan` records `selected_plan` (path, file/canonical
+  SHA-256, source/run index) and appends the human `user_response` with
+  `kind: plan_selection` (no new event type).  It validates the plan against the
+  frozen edit budget and rejects unknown plans/unsupported binaries.  Approval then binds `approval.plan_sha256`; a missing binding is
+  refused with `plan_not_approved`;
+- the UI shows 1/3…3/3 progress, three plan cards (schema/critical errors/
+  canonical hash), selection, a **现场 guest 验证** toggle and the truthful
+  fallback badge.  It never computes a plan or verdict client-side.
+
+`docs/gui/screenshots/g4-live-audit.png` shows the mode switch;
+`g4-live-audit-fallback.png` shows the honest no-provider/child failure path and
+the retained signed replay.  The live plan cards are covered by fake-child
+backend tests.  Actual live end-to-end execution depends on the audit CLI
+summary flags (#61) and the runner/live-guest stages (#64); until those land the
+UI reports the stable failure code and keeps the signed replay available.
+
 ## AI-hosted assistant (G4)
 
 The chat is now AI-hosted by a real DeepSeek-compatible client injected in the
