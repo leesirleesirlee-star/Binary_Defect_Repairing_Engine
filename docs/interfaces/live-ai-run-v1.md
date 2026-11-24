@@ -73,6 +73,9 @@ Body: `{"run_index": 2}` or `{"plan_path": "var/audit/<task>/run-2.json"}`.
 - Writes `selected_plan`: copies the chosen plan to
   `var/audit/<task>/selected-plan.json` and records `source`, `run_index`, the file
   sha256 and the canonical sha256 (section 6).
+- Appends a `user_response` journal record (existing event type) with
+  `kind: "plan_selection"` and the same fields, so the console can replay the
+  human's choice; the runner reads the task snapshot.
 - 409 `plan_unknown` / `plan_not_allowed` (outside the frozen `allowed_edits`) /
   `unsupported_binary_scope`; 422 malformed.
 - Does not start the run and does not approve anything.
@@ -91,7 +94,7 @@ The runner never reads a provider key and never calls a model.
 | Step | signed | live |
 |---|---|---|
 | audit | `skipped`, `satisfied_by_signed_g2` | `completed` from `live_audit.runs` (exactly 3 rows) and emits `audit_runs`; `failed` with `live_audit_missing` / `live_audit_failed` otherwise |
-| decision | `completed` by persisted decision | `completed`; emits `plan_selected` from `selected_plan` and checks `approval.plan_sha256` |
+| decision | `completed` by persisted decision | `completed`; reads `selected_plan` and checks `approval.plan_sha256` (the human's choice is the API's `user_response` with `kind: "plan_selection"`) |
 | repair | frozen plan | `selected_plan.path` (inside the repo; `resolve_plan` unchanged) |
 | verify | recorded observations | `live_guest`: driver first (section 4), then the verifier with the fresh file |
 
@@ -161,8 +164,10 @@ Test vector: `docs/audit/fix-plan-v1.json` ->
 
 - `audit_runs` (existing type) — in live mode `score` is `null` unless a machine
   rubric produced one; `notes` carry the machine checks. Three rows always.
-- `plan_selected` (new) — `{run_index, source, plan_path, file_sha256,
-  canonical_sha256}`.
+- `user_response` with `kind: "plan_selection"` (existing event type) —
+  `{run_index, source, plan_path, file_sha256, canonical_sha256}`; written by the
+  API when the human selects, replayable like any GUI record. No new event type is
+  introduced, so `app/journal.py` keeps its current vocabulary.
 - `verification` kind `guest` — `{status: "passed"|"failed", environment,
   observations_sha256}`.
 - `verification` kind `reproduction` (optional) — `{selected_plan_sha256,
