@@ -50,6 +50,8 @@ SYSTEM_PROMPT = (
     "they are present in the context. Your reply is chat text; it is never evidence and never an "
     "audit input. Answer in the requested locale. Return JSON only: "
     '{"reply": string, "actions": [{"id": string, "label_code": string, "kind": string}]}'
+    "The only allowed action kinds are: attach, start, continue, rerun, change_scope, download, "
+    "evidence, retry."
 )
 
 _TEXTS: dict[str, dict[str, str]] = {
@@ -299,8 +301,9 @@ def _context(task: Mapping[str, Any], records: Sequence[Mapping[str, Any]],
         "verdict": verdict,
         "steps": steps,
         "error_code": _error_code(task, records),
-        "artifacts": [str(item.get("path")) for item in _artifacts(task, artifacts)
-                      if item.get("path")],
+        "artifacts": [str(item.get("path") or item.get("display_path"))
+                      for item in _artifacts(task, artifacts)
+                      if item.get("path") or item.get("display_path")],
     }
     values = _corpus_reply_values(corpus) if corpus is not None else None
     if values is not None:

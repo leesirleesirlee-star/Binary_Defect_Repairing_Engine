@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app import assistant
+from app import api, assistant
 from app.main import app
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -259,7 +259,8 @@ def test_english_locale_is_offered() -> None:
 
 
 @pytest.fixture()
-def client() -> TestClient:
+def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    monkeypatch.setattr(api, "ASSISTANT_CLIENT", None)
     with TestClient(app) as test_client:
         session = test_client.get("/api/session")
         assert session.status_code == 200
@@ -285,3 +286,61 @@ def test_assistant_endpoint_rejects_empty_messages(client: TestClient) -> None:
     task_id = client.post("/api/tasks", json={"preview": True}).json()["id"]
     response = client.post(f"/api/tasks/{task_id}/assistant", json={"message": ""})
     assert response.status_code in {401, 403, 422}
+
+
+def test_injected_client_is_used_and_marked_llm(client: TestClient,
+                                                monkeypatch: pytest.MonkeyPatch) -> None:
+    task_id = client.post("/api/tasks", json={"preview": True}).json()["id"]
+
+    def fake(messages: Any) -> str:
+        assert messages[0]["role"] == "system"
+        return json.dumps({"reply": "已从持久化任务事实回答。",
+                           "actions": [{"id": "evidence", "label_code": "evidence",
+                                        "kind": "evidence"}]})
+
+    monkeypatch.setattr(api, "ASSISTANT_CLIENT", fake)
+    body = client.post(f"/api/tasks/{task_id}/assistant",
+                       json={"message": "现在进度？", "locale": "zh-Hans"}).json()
+    assert body["mode"] == assistant.MODE_LLM
+    assert body["reply"] == "已从持久化任务事实回答。"
+    assert body["actions"][0]["kind"] == "evidence"
+
+
+def test_broken_client_falls_back_without_provider_text(client: TestClient,
+                                                        monkeypatch: pytest.MonkeyPatch) -> None:
+    task_id = client.post("/api/tasks", json={"preview": True}).json()["id"]
+
+    def broken(messages: Any) -> str:
+        raise RuntimeError("provider-secret-123")
+
+    monkeypatch.setattr(api, "ASSISTANT_CLIENT", broken)
+    body = client.post(f"/api/tasks/{task_id}/assistant",
+                       json={"message": "进度", "locale": "zh-Hans"}).json()
+    assert body["mode"] == assistant.MODE_DETERMINISTIC
+    assert body["fallback_code"] == "assistant_fallback"
+    assert "provider-secret-123" not in body["reply"]
+
+
+def test_invalid_model_actions_fall_back(client: TestClient,
+                                         monkeypatch: pytest.MonkeyPatch) -> None:
+    task_id = client.post("/api/tasks", json={"preview": True}).json()["id"]
+    monkeypatch.setattr(api, "ASSISTANT_CLIENT", lambda messages: json.dumps(
+        {"reply": "delete everything", "actions": [{"id": "x", "label_code": "x",
+                                                    "kind": "delete_everything"}]}))
+    body = client.post(f"/api/tasks/{task_id}/assistant",
+                       json={"message": "进度", "locale": "zh-Hans"}).json()
+    assert body["mode"] == assistant.MODE_DETERMINISTIC
+    assert "delete everything" not in body["reply"]
+
+
+def test_assistant_client_module_is_injected() -> None:
+    assert api.ASSISTANT_CLIENT is not None
+
+
+def test_assistant_context_uses_artifact_display_paths() -> None:
+    context = assistant._context(
+        {"id": "tsk_1", "phase": "ended", "verdict": SUCCESS},
+        [],
+        [{"display_path": "candidate.elf"}, {"display_path": "verdict.json"}],
+    )
+    assert context["artifacts"] == ["candidate.elf", "verdict.json"]

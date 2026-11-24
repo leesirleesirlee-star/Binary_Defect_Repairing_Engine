@@ -23,16 +23,16 @@ from urllib.parse import quote, unquote
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
-from app import assistant, assistant_key, g4, journal, tasks
+from app import assistant, assistant_client, assistant_key, g4, journal, tasks
 from app.journal import JournalError, read_records, wait_for_records
 from app.preview_events import ensure_preview_journal
 
 SESSION_COOKIE = "br_session"
 CSRF_HEADER = "x-csrf-token"
 
-# M1 infrastructure injects the real provider client into this seam; until then
-# the assistant runs its deterministic fallback and the badge says so.
-ASSISTANT_CLIENT: assistant.Client | None = None
+# The real provider client is injected here.  Without a key/provider the assistant
+# returns its deterministic fallback and the UI badge says so.
+ASSISTANT_CLIENT: assistant.Client | None = assistant_client.complete
 _BASE = Path(__file__).resolve().parent.parent
 _SESSION_FILE = _BASE / "var" / "session.token"
 

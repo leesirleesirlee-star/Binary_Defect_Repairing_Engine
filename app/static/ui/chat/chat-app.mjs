@@ -6,15 +6,15 @@ import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261124n';
-import {chatPreview} from './chat-stream.mjs?v=20261124n';
-import {chatTask} from './chat-task.mjs?v=20261124n';
+import {label} from './chat-copy.mjs?v=20261124p';
+import {chatPreview} from './chat-stream.mjs?v=20261124p';
+import {chatTask} from './chat-task.mjs?v=20261124p';
 import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261121z';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261124b';
 import {bindSidebarSpring} from './chat-spring.mjs?v=20261120au';
 import {refreshStepCard} from './chat-steps.mjs?v=20261121j';
-import {control, displayTitle, renderItem, transcript} from './chat-view.mjs?v=20261124n';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261124n';
+import {control, displayTitle, renderItem, transcript} from './chat-view.mjs?v=20261124p';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261124p';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -31,6 +31,7 @@ function readPreference(key, allowed, fallback) {
 
 let locale = readPreference('language', LANGUAGE_CODES, 'en');
 let model = readPreference('model', ['default', 'deepseek-flash', 'deepseek-v4-pro'], 'default');
+let assistantMode = 'deterministic';
 let stopSpring = () => {};
 let stopFlyout = () => {};
 const t = (key, count) => label(locale, key, count);
@@ -76,6 +77,15 @@ if (!requestedJob) {
   if (text) drafts.set(selected.id, {text, attachment: '', file: null, cases: []});
 }
 const media = matchMedia('(max-width: 720px)');
+fetch('/api/assistant/key', {credentials: 'same-origin', cache: 'no-store'})
+  .then(response => response.ok ? response.json() : null)
+  .then(data => {
+    if (!data) return;
+    const mode = data.assistant?.mode;
+    assistantMode = mode === 'llm' ? 'llm' : mode === 'llm (not wired)' ? 'not_wired' : 'deterministic';
+    if (nodes) requestPaint();
+  })
+  .catch(() => {});
 
 const currentDraft = () => drafts.get(selected.id) ?? {text: '', attachment: '', file: null, cases: []};
 const setDraft = updates => drafts.set(selected.id, {...currentDraft(), ...updates});
@@ -131,6 +141,17 @@ function send(text) {
     return;
   }
   if (engine.taskMode && !file) {
+    if (selected.jobId && text.trim() && !busy(selected)) {
+      nodes.composerFeedback.textContent = '';
+      engine.assistantTurn(selected, text.trim(), locale);
+      setDraft({text: '', attachment: '', file: null, cases: []});
+      nodes.input.value = '';
+      resize();
+      paint();
+      jump();
+      nodes.input.focus({preventScroll: true});
+      return;
+    }
     nodes.composerFeedback.textContent = t('needFile');
     return;
   }
@@ -207,12 +228,13 @@ function mount() {
     () => openLanguage({t, locale, choose: value => preference('language', value)}),
     {lang: locale, 'aria-label': t('language') + ': ' + languageName(locale)});
   const title = el('h1', {class: 'chat-title'});
+  const modeBadge = el('span', {class: 'assistant-mode', 'data-mode': assistantMode});
   const openExecution = control(t('execution'), () => changePane(true), {glyph: 'terminal', tone: 'compact-only',
     'aria-controls': 'execution-pane'});
   const execution = createExecution(t, () => changePane(false), Boolean(engine.taskMode));
   const header = el('header', {class: 'chat-header'}, openNav, title,
     el('span', {class: 'preview-label'}, el('span', {'aria-hidden': 'true'}),
-      t(engine.live ? 'liveLabel' : 'preview')), openExecution, language);
+      t(engine.live ? 'liveLabel' : 'preview')), modeBadge, openExecution, language);
   const heroAttach = control(t('attachBinary'), () => file.click(),
     {glyph: 'file', tone: 'primary hero-attach'});
   const heroCases = control(t('attachCases'), () => casesInput.click(),
@@ -305,7 +327,7 @@ function mount() {
       openSection: openSettingsAt,
     },
   });
-  nodes = {rows: new Map(), list, mobileList, title, hero, heroAttach, heroCases, log, scroll, input, composerFeedback,
+  nodes = {rows: new Map(), list, mobileList, title, modeBadge, hero, heroAttach, heroCases, log, scroll, input, composerFeedback,
     latest, attach, casesControl, attached, stop, sendButton, queue, language, navDialog, execution};
   nodes.workspace = workspace;
   navStamp = null;
@@ -356,6 +378,11 @@ function paint() {
   selectionChanged = false;
   navStamp = paintSidebar({chats: engine.chats, selected, lists: [nodes.list, nodes.mobileList], navStamp, t, select});
   nodes.title.textContent = displayTitle(selected, t);
+  const mode = selected.assistantMode || assistantMode;
+  nodes.modeBadge.dataset.mode = mode;
+  nodes.modeBadge.textContent = t(mode === 'llm' ? 'assistantModeLlm'
+    : mode === 'llm (not wired)' || mode === 'not_wired' ? 'assistantModeNotWired'
+      : 'assistantModeDeterministic');
   nodes.hero.hidden = selected.events.length > 0;
   const beforeRun = selected.live ? !selected.execution?.run_id : selected.kind !== 'repair';
   nodes.workspace.classList.toggle('before-run', beforeRun);

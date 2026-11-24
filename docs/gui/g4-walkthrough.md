@@ -72,6 +72,29 @@ animation; reduced-motion preference disables the animation.  The
 one current-run card, all eight steps with `审计 已跳过`, and the full journal on
 demand.  Legacy preview data is still available under `?preview=1`.
 
+## AI-hosted assistant (G4)
+
+The chat is now AI-hosted by a real DeepSeek-compatible client injected in the
+API host (`app/assistant_client.py` -> `app.api.ASSISTANT_CLIENT`):
+
+- the provider key is loaded inside the host process; the client uses the same
+  curl config-file path as the key test, so the key is never in argv, the task
+  snapshot, the journal, logs or the browser;
+- user follow-ups after a task exists call
+  `POST /api/tasks/{id}/assistant` with the persisted task/journal context and
+  render the validated reply plus only the allowed action chips;
+- the header badge states the truth: **AI 助手 · llm** when the provider reply is
+  accepted, **确定性回退** when the key is missing or the provider/JSON fails, and
+  **AI 未接线** when no client is injected;
+- the assistant is chat text only: it never starts/approves/decides, never writes
+  a plan or a verdict, and its text is never evidence; the deterministic engine
+  still owns every action and the runner remains authoritative.
+
+The real provider path was exercised live (header `AI 助手 · llm`, follow-up
+answered from persisted task facts); without a key or on provider failure the
+same flow completes with the deterministic badge.  Screenshot:
+`screenshots/g4-ai-chat.png`.
+
 ## What is real in the demo
 
 - The repair starts from the signed G2 plan (`docs/audit/fix-plan-v1.json`) and

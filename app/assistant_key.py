@@ -284,6 +284,18 @@ class _ProviderHTTP(RuntimeError):
         self.status = status
 
 
+def chat_completion(messages: list[dict[str, str]], model: Any = None,
+                    max_tokens: int = 1600) -> dict[str, Any]:
+    """One chat-completions call for the assistant client seam.
+
+    The key travels only in a 0600 curl config file; the returned dict never
+    contains the key.  Exceptions are stable codes from ``_curl_chat``.
+    """
+    if not load_key():
+        raise KeyError("no_key")
+    return _curl_chat(messages, resolve_model(model), max_tokens)
+
+
 def test_connection(model: Any = None) -> dict[str, Any]:
     """Make one tiny real provider call and return only non-secret diagnostics."""
     if not load_key():

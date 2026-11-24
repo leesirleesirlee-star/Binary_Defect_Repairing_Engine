@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261124n';
+import {label} from './chat-copy.mjs?v=20261124p';
 
 const newId = () => crypto.randomUUID();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -21,7 +21,7 @@ export function chatTask({notify = () => {}} = {}) {
       jobId: null, task: null, g4: null, options: [], request: null,
       run: null, started: null, ended: null, epoch: 0, locale: 'en',
       journal: [], journalSeq: 0, plan: null, runEnd: null, auditRuns: null, g2: null,
-      live: true, taskMode: true, requireAscii: false, timer: null,
+      live: true, taskMode: true, requireAscii: false, timer: null, assistantMode: null,
     };
     chats.set(chat.id, chat);
     return chat;
@@ -107,6 +107,10 @@ export function chatTask({notify = () => {}} = {}) {
   async function send(chat, text, locale, attachment, file, cases = []) {
     chat.locale = locale;
     if (!file) {
+      if (chat.jobId && String(text || '').trim()) {
+        await assistantTurn(chat, String(text).trim(), locale);
+        return;
+      }
       say(chat, t(locale,
         '请先添加需要修复的 .elf 二进制文件，以及对应正确用例与错误用例（PoC）文件。',
         'Attach the .elf binary plus its valid and PoC case files first.'));
@@ -128,6 +132,35 @@ export function chatTask({notify = () => {}} = {}) {
       payload.caseFiles.push({name: item.name, content_base64: await readBase64(item)});
     }
     await submitPayload(chat, payload, text, locale);
+  }
+
+  async function assistantTurn(chat, text, locale) {
+    if (!chat.jobId) return;
+    chat.locale = locale;
+    chat.assistantMode = chat.assistantMode ?? 'deterministic';
+    const messageId = newId();
+    event(chat, 'user_message', {message_id: messageId, text, attachment_ids: [],
+      delivery: 'accepted'}, null, null);
+    try {
+      const data = await api(`/api/tasks/${chat.jobId}/assistant`, {
+        method: 'POST',
+        body: {message: text, locale},
+      });
+      chat.assistantMode = data.mode || 'deterministic';
+      event(chat, 'assistant_reply', {
+        message_id: newId(),
+        reply: data.reply || '',
+        actions: Array.isArray(data.actions) ? data.actions : [],
+        mode: chat.assistantMode,
+        fallback_code: data.fallback_code || null,
+      }, null, null);
+    } catch {
+      chat.assistantMode = 'deterministic';
+      say(chat, t(locale,
+        'AI 助手暂时不可用，已使用本地确定性回复；任务状态仍以持久化 journal 为准。',
+        'The AI assistant is unavailable; the local deterministic reply is used. Task state '
+        + 'still comes only from the persisted journal.'));
+    }
   }
 
   async function sendFixture(chat, locale = chat.locale) {
@@ -437,6 +470,6 @@ export function chatTask({notify = () => {}} = {}) {
 
   function deactivate() {}
 
-  return {chats, live: true, taskMode: true, create, send, sendFixture, decide,
+  return {chats, live: true, taskMode: true, create, send, sendFixture, decide, assistantTurn,
     start: async () => {}, stop, seed, activate, deactivate};
 }

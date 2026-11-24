@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261124n';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261124p';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -118,6 +118,9 @@ const copy = {
   awaitingBinding: ['Waiting for contract binding…', '等待绑定契约…'],
   g2Bound: ['G2 decision bound', '已绑定 G2 决策'],
   onlineNow: ['Online now', '在线'],
+  assistantModeLlm: ['AI assistant · llm', 'AI 助手 · llm'],
+  assistantModeDeterministic: ['Deterministic fallback', '确定性回退'],
+  assistantModeNotWired: ['AI not wired', 'AI 未接线'],
   routeStepBind: ['Bind signed G2 decision', '绑定已签 G2 决策'],
   routeStepRun: ['Repair & verify under the contract', '按契约修复与验证'],
   routeStepEvidence: ['Persist verdict & evidence', '写结论与证据'],
@@ -150,6 +153,8 @@ const copy = {
   reason: ['The verification bundle is unavailable.', '验证证据包不可用。'],
   retry: ['Retry', '重试'], retrying: ['Retry scheduled', '已安排重试'],
   details: ['Details', '详情'], checks: ['Checks', '检查项'], evidence: ['Evidence', '证据'],
+  download: ['Download', '下载'], rerun: ['Rerun', '重跑'],
+  continue: ['Continue', '继续'], change_scope: ['Change scope', '修改范围'],
   route_a: ['Route A', '路线 A'], route_b: ['Route B', '路线 B'],
   not_run: ['Not run', '未运行'], unknown: ['Unknown', '未知'],
   draft: ['Draft', '草稿'], notStarted: ['Not started', '未开始'],
