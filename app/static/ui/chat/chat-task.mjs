@@ -317,14 +317,49 @@ export function chatTask({notify = () => {}} = {}) {
     }, 'audit');
   }
 
-  function setLiveMode(chat, mode) {
-    chat.auditMode = mode === 'live' ? 'live' : 'signed';
+  async function setLiveMode(chat, mode) {
+    const target = mode === 'live' ? 'live' : 'signed';
+    const current = chat.audit?.audit_mode || chat.auditMode || 'signed';
+    if (target === 'signed' && current === 'live' && chat.jobId) {
+      try {
+        await api(`/api/tasks/${chat.jobId}/audit/signed`, {method: 'POST', body: {}});
+        const audit = await api(`/api/tasks/${chat.jobId}/audit`);
+        chat.audit = audit;
+        chat.auditMode = audit.audit_mode || 'signed';
+        chat.liveGuest = Boolean(audit.live_guest);
+        chat.liveRunning = false;
+        emitLiveAudit(chat);
+        return;
+      } catch (error) {
+        say(chat, t(chat.locale,
+          `无法切回回放已签 G2：${error.detail?.code || error.message}。`,
+          `Could not switch back to the signed G2 replay: ${error.detail?.code || error.message}.`));
+        return;
+      }
+    }
+    chat.auditMode = target;
     emitLiveAudit(chat);
   }
 
-  function setLiveGuest(chat, value) {
-    chat.liveGuest = Boolean(value);
+  async function setLiveGuest(chat, value) {
+    const next = Boolean(value);
+    const previous = Boolean(chat.liveGuest);
+    chat.liveGuest = next;
     emitLiveAudit(chat);
+    if (!chat.jobId) return;
+    try {
+      const data = await api(`/api/tasks/${chat.jobId}/audit/guest`, {
+        method: 'POST', body: {enabled: next},
+      });
+      chat.liveGuest = Boolean(data.live_guest);
+      emitLiveAudit(chat);
+    } catch (error) {
+      chat.liveGuest = previous;
+      emitLiveAudit(chat);
+      say(chat, t(chat.locale,
+        `现场 guest 设置未保存：${error.detail?.code || error.message}。`,
+        `Live guest setting was not saved: ${error.detail?.code || error.message}.`));
+    }
   }
 
   async function startLiveAudit(chat) {

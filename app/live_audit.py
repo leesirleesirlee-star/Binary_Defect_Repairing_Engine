@@ -140,6 +140,14 @@ def _set_state(task_id: str, live: dict[str, Any], **task_updates: Any) -> None:
     tasks.update(task)
 
 
+def _audit_plan_path(value: str) -> Path | None:
+    """Resolve a summary plan path only inside this module's audit directory."""
+    path = (ROOT / value).resolve()
+    if path.is_file() and AUDIT_ROOT.resolve() in path.parents:
+        return path
+    return None
+
+
 def _watch(task_id: str, process: subprocess.Popen[bytes], summary_path: Path) -> None:
     try:
         try:
@@ -193,14 +201,17 @@ def _watch(task_id: str, process: subprocess.Popen[bytes], summary_path: Path) -
             }
             if clean["plan"] is None and isinstance(plan_path, str):
                 try:
-                    path = (ROOT / plan_path).resolve()
-                    if path.is_file() and (AUDIT_ROOT.resolve() in path.parents):
+                    path = _audit_plan_path(plan_path)
+                    if path is not None and path.is_file():
                         clean["plan"] = json.loads(path.read_text(encoding="utf-8"))
                 except (OSError, ValueError):
                     clean["plan"] = None
             clean_runs.append(clean)
         live.update({"status": "completed", "finished_at": _now(), "error": None,
-                     "model": summary.get("model") or MODEL, "runs": clean_runs})
+                     "model": summary.get("model") or MODEL,
+                     "prompt_sha256": summary.get("prompt_sha256"),
+                     "contract_sha256": summary.get("contract_sha256"),
+                     "runs": clean_runs})
         _set_state(task_id, live)
     except LiveAuditError as error:
         live = state(task_id)
@@ -253,7 +264,7 @@ def start(task_id: str, *, rerun: bool = False) -> dict[str, Any]:
     task["live_audit"] = live
     tasks.update(task)
     command = [
-        sys.executable, "-m", "app.live_audit_child",
+        sys.executable, "-m", "pipeline.audit",
         "--fixture-dir", str(FIXTURE_DIR.relative_to(ROOT)),
         "--runs", "3",
         "--raw-dir", str(raw_dir.relative_to(ROOT)),
@@ -309,9 +320,9 @@ def select_plan(task_id: str, body: dict[str, Any]) -> dict[str, Any]:
         raise LiveAuditError(409, "plan_unknown")
     plan = run.get("plan")
     if not isinstance(plan, dict) and isinstance(run.get("plan_path"), str):
-        path = (ROOT / run["plan_path"]).resolve()
         try:
-            plan = json.loads(path.read_text(encoding="utf-8"))
+            path = _audit_plan_path(run["plan_path"])
+            plan = json.loads(path.read_text(encoding="utf-8")) if path is not None else None
         except (OSError, ValueError):
             plan = None
     if not isinstance(plan, dict):
@@ -340,3 +351,37 @@ def select_plan(task_id: str, body: dict[str, Any]) -> dict[str, Any]:
         task["live_guest"] = bool(body.get("live_guest"))
     tasks.update(task)
     return {"selected_plan": selected}
+
+
+
+def reset_signed(task_id: str) -> dict[str, Any]:
+    """Leave live mode and restore the signed-replay starting point safely."""
+    task = tasks.get(task_id)
+    execution = task.get("execution") or {}
+    if execution.get("run_id"):
+        raise LiveAuditError(409, "invalid_transition")
+    if state(task_id).get("status") == "running":
+        raise LiveAuditError(409, "audit_running")
+    task["audit_mode"] = "signed"
+    task["live_audit"] = empty_state()
+    task["selected_plan"] = None
+    task["plan"] = None
+    task["decision"] = None
+    task["approval"] = {"approved": False}
+    task["phase"] = "plans_ready"
+    tasks.update(task)
+    return {"audit_mode": "signed", "live_audit": task["live_audit"],
+            "live_guest": bool(task.get("live_guest")), "selected_plan": None}
+
+
+def set_guest(task_id: str, enabled: Any) -> dict[str, Any]:
+    """Persist the live-guest choice so the runner and UI agree."""
+    task = tasks.get(task_id)
+    if not (task.get("g4") or {}).get("supported"):
+        raise LiveAuditError(409, "unsupported_binary_scope")
+    execution = task.get("execution") or {}
+    if execution.get("run_id") and not execution.get("terminal"):
+        raise LiveAuditError(409, "audit_running")
+    task["live_guest"] = bool(enabled)
+    tasks.update(task)
+    return {"live_guest": task["live_guest"]}

@@ -305,6 +305,30 @@ def start_live_audit(task_id: str, body: Annotated[dict[str, Any] | None, Body()
 
 
 @router.post(
+    "/tasks/{task_id}/audit/signed",
+    dependencies=[Depends(require_session), Depends(require_csrf)],
+)
+def reset_live_audit(task_id: str) -> dict[str, Any]:
+    _task(task_id)
+    try:
+        return live_audit.reset_signed(task_id)
+    except live_audit.LiveAuditError as error:
+        raise _error(error.status, error.code, **error.extra) from error
+
+
+@router.post(
+    "/tasks/{task_id}/audit/guest",
+    dependencies=[Depends(require_session), Depends(require_csrf)],
+)
+def set_live_guest(task_id: str, body: Annotated[dict[str, Any], Body()]) -> dict[str, Any]:
+    _task(task_id)
+    try:
+        return live_audit.set_guest(task_id, bool((body or {}).get("enabled")))
+    except live_audit.LiveAuditError as error:
+        raise _error(error.status, error.code, **error.extra) from error
+
+
+@router.post(
     "/tasks/{task_id}/plan",
     dependencies=[Depends(require_session), Depends(require_csrf)],
 )

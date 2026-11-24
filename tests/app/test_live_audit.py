@@ -58,6 +58,8 @@ def _upload(client: TestClient) -> str:
 
 def _fake_spawn(returncode: int = 0):
     def spawn(command: list[str], env: dict[str, str]) -> FakeProcess:
+        assert command[1:3] == ["-m", "pipeline.audit"]
+        assert "--runs" in command and command[command.index("--runs") + 1] == "3"
         assert "--model" in command and "deepseek-v4-pro" in command
         assert env["DEEPSEEK_API_KEY"] == "sk-test-live-1234567890"
         summary_index = command.index("--summary-out") + 1
@@ -73,8 +75,12 @@ def _fake_spawn(returncode: int = 0):
                 "usage": {"total_tokens": 100 + index},
             })
         summary_path.parent.mkdir(parents=True, exist_ok=True)
-        summary_path.write_text(json.dumps({"model": "deepseek-v4-pro", "runs": runs}),
-                                encoding="utf-8")
+        summary_path.write_text(json.dumps({
+            "model": "deepseek-v4-pro",
+            "prompt_sha256": "a" * 64,
+            "contract_sha256": "b" * 64,
+            "runs": runs,
+        }), encoding="utf-8")
         return FakeProcess(returncode)
     return spawn
 
@@ -94,8 +100,10 @@ def test_fake_child_records_three_runs_and_no_key(client: TestClient,
     live = _start(client, task_id, monkeypatch)
     assert live["status"] == "completed"
     assert len(live["runs"]) == 3
+    assert live["prompt_sha256"] == "a" * 64
     body = client.get(f"/api/tasks/{task_id}/audit").json()
     assert body["audit_mode"] == "live"
+    assert body["live_audit"]["prompt_sha256"] == "a" * 64
     assert len(body["live_audit"]["runs"]) == 3
     stored = json.dumps(tasks.get(task_id))
     assert "sk-test-live-1234567890" not in stored
@@ -150,3 +158,29 @@ def test_failed_child_marks_failed(client: TestClient,
     live = _start(client, task_id, monkeypatch, _fake_spawn(returncode=2))
     assert live["status"] == "failed"
     assert live["error"] == "audit_failed"
+
+
+def test_live_guest_choice_is_persisted(client: TestClient,
+                                       monkeypatch: pytest.MonkeyPatch) -> None:
+    task_id = _upload(client)
+    _start(client, task_id, monkeypatch)
+    response = client.post(f"/api/tasks/{task_id}/audit/guest", json={"enabled": False})
+    assert response.status_code == 200
+    assert response.json()["live_guest"] is False
+    assert client.get(f"/api/tasks/{task_id}/audit").json()["live_guest"] is False
+
+
+def test_switch_back_to_signed_resets_live_selection(client: TestClient,
+                                                    monkeypatch: pytest.MonkeyPatch) -> None:
+    task_id = _upload(client)
+    _start(client, task_id, monkeypatch)
+    selected = client.post(f"/api/tasks/{task_id}/plan", json={"run_index": 1})
+    assert selected.status_code == 200
+    response = client.post(f"/api/tasks/{task_id}/audit/signed")
+    assert response.status_code == 200, response.text
+    state = client.get(f"/api/tasks/{task_id}/audit").json()
+    assert state["audit_mode"] == "signed"
+    assert state["selected_plan"] is None
+    task = tasks.get(task_id)
+    assert task["approval"].get("approved") is False
+    assert task["phase"] == "plans_ready"
