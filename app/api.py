@@ -324,9 +324,8 @@ def select_live_plan(task_id: str, body: Annotated[dict[str, Any], Body()]) -> d
     }
     task["decision"] = decision
     tasks.update(task)
-    append_gui_event(task_id, "plan_selected", selected)
     append_gui_event(task_id, "user_response", {
-        "request_id": "live-plan", "kind": "plan_selection", **decision,
+        "request_id": "live-plan", "kind": "plan_selection", **selected,
     })
     return {"selected_plan": selected, "decision": decision}
 

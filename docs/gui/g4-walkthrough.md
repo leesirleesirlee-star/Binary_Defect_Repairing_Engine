@@ -83,9 +83,9 @@ The signed G2 replay remains the default.  A new mode switch in the chat offers
 - `GET /api/tasks/{id}/audit` returns the mode, live status and the three run
   records; no key/provider data is stored in the snapshot, journal or UI;
 - `POST /api/tasks/{id}/plan` records `selected_plan` (path, file/canonical
-  SHA-256, source/run index) and the human `proceed` decision; it validates the
-  plan against the frozen edit budget and rejects unknown plans/unsupported
-  binaries.  Approval then binds `approval.plan_sha256`; a missing binding is
+  SHA-256, source/run index) and appends the human `user_response` with
+  `kind: plan_selection` (no new event type).  It validates the plan against the
+  frozen edit budget and rejects unknown plans/unsupported binaries.  Approval then binds `approval.plan_sha256`; a missing binding is
   refused with `plan_not_approved`;
 - the UI shows 1/3…3/3 progress, three plan cards (schema/critical errors/
   canonical hash), selection, a **现场 guest 验证** toggle and the truthful

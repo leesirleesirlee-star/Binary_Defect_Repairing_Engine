@@ -27,7 +27,7 @@ EVENT_TYPES = {
     "tool_call",
     "tool_result",
     "run_state",
-    "plan_update", "plan_selected",
+    "plan_update",
     "corpus_update",
     "awaiting_user",
     "user_response",
