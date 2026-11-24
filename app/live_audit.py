@@ -253,7 +253,7 @@ def start(task_id: str, *, rerun: bool = False) -> dict[str, Any]:
     task["live_audit"] = live
     tasks.update(task)
     command = [
-        sys.executable, "-m", "pipeline.audit",
+        sys.executable, "-m", "app.live_audit_child",
         "--fixture-dir", str(FIXTURE_DIR.relative_to(ROOT)),
         "--runs", "3",
         "--raw-dir", str(raw_dir.relative_to(ROOT)),

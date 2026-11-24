@@ -77,9 +77,14 @@ demand.  Legacy preview data is still available under `?preview=1`.
 The signed G2 replay remains the default.  A new mode switch in the chat offers
 **回放已签 G2 / AI 现场审计**:
 
-- `POST /api/tasks/{id}/audit/live` spawns the audit CLI in the API host with the
-  provider key only in the child environment (10-minute timeout, idempotent;
-  `409 audit_no_provider` / `audit_running` / `audit_unsupported`);
+- `POST /api/tasks/{id}/audit/live` spawns `app.live_audit_child` in the API host
+  with the provider key only in the child environment (10-minute timeout,
+  idempotent; `409 audit_no_provider` / `audit_running` / `audit_unsupported`).
+  The child calls the same frozen `pipeline.audit.harness.run_audit` and writes
+  the contract `summary.json` / raw records; this compatibility seam exists until
+  the audit CLI's `--summary-out` / `--model` flags (#61) merge.  The three
+  independent attempts run concurrently so the 10-minute budget covers real
+  provider calls, with `run_index` 1..3 in the summary.
 - `GET /api/tasks/{id}/audit` returns the mode, live status and the three run
   records; no key/provider data is stored in the snapshot, journal or UI;
 - `POST /api/tasks/{id}/plan` records `selected_plan` (path, file/canonical
