@@ -390,6 +390,9 @@ function genLiveAudit(p, ctx, t) {
   }
   children.push(el('p', {class: 'gen-note'},
     `${t('liveAuditRuns')}: ${runs.length} / 3` + (audit.error ? ` · ${audit.error}` : '')));
+  if (status === 'running' && !runs.length) {
+    children.push(el('p', {class: 'muted live-audit-hint'}, t('liveAuditStarted')));
+  }
   if (status === 'completed' && runs.length) {
     children.push(el('div', {class: 'live-plans'}, runs.map(run => {
       const picked = selected && Number(selected.run_index) === Number(run.run_index);

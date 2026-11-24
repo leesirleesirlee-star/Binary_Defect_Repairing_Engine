@@ -1,7 +1,7 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
-import {control} from './chat-view.mjs?v=20261124y';
-import {createProgress} from './chat-progress.mjs?v=20261124y';
+import {control} from './chat-view.mjs?v=20261124z';
+import {createProgress} from './chat-progress.mjs?v=20261124z';
 import {createStepGroups, disclosure} from './chat-steps.mjs?v=20261121j';
 import {motionReduced} from '../shared/motion.mjs?v=20261120au';
 

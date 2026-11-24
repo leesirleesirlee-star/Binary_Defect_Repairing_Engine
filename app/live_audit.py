@@ -153,22 +153,72 @@ def _audit_plan_path(value: str) -> Path | None:
     return None
 
 
+def _clean_run_for_state(run: dict[str, Any], index: int) -> dict[str, Any]:
+    plan = run.get("plan") if isinstance(run.get("plan"), dict) else None
+    plan_path = run.get("plan_path") or run.get("path")
+    if plan is None and isinstance(plan_path, str):
+        path = _audit_plan_path(plan_path)
+        if path is not None:
+            try:
+                plan = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                plan = None
+    return {
+        "run_index": run.get("run_index") or index,
+        "schema_valid": bool(run.get("schema_valid")),
+        "plan_sha256": run.get("plan_sha256"),
+        "plan_path": plan_path,
+        "plan": plan,
+        "usage": run.get("usage") if isinstance(run.get("usage"), dict) else {},
+        "critical_errors": run.get("critical_errors") or [],
+        "score": run.get("score"),
+        "canonical_sha256": (canonical_plan_sha256(plan)
+                             if isinstance(plan, dict) else None),
+    }
+
+
+def _set_progress(task_id: str, rows: list[dict[str, Any]]) -> None:
+    live = state(task_id)
+    if live.get("status") != "running":
+        return
+    live = dict(live)
+    live["runs"] = [_clean_run_for_state(row, index)
+                    for index, row in enumerate(rows, start=1)]
+    _set_state(task_id, live)
+
+
 class _Fanout:
     """Wait for three independent audit CLI runs and combine their summaries."""
 
     def __init__(self, processes: list[subprocess.Popen[bytes]],
-                 summaries: list[Path], final_summary: Path) -> None:
+                 summaries: list[Path], final_summary: Path,
+                 progress: Any = None) -> None:
         self.processes = processes
         self.summaries = summaries
         self.final_summary = final_summary
+        self.progress = progress
 
     def wait(self, timeout: float | None = None) -> int:
         deadline = time.time() + (timeout or TIMEOUT_S)
-        for process in self.processes:
+        rows: list[dict[str, Any]] = []
+        for index, (process, path) in enumerate(
+                zip(self.processes, self.summaries, strict=True), start=1):
             remaining = max(1.0, deadline - time.time())
             returncode = process.wait(timeout=remaining)
             if returncode != 0:
                 return returncode
+            try:
+                summary = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return 1
+            row = (summary.get("runs") or [None])[0]
+            if not isinstance(row, dict):
+                return 1
+            row = dict(row)
+            row["run_index"] = index
+            rows.append(row)
+            if self.progress is not None:
+                self.progress(rows)
         prompt_sha = contract_sha = None
         model = MODEL
         runs: list[dict[str, Any]] = []
@@ -362,7 +412,8 @@ def start(task_id: str, *, rerun: bool = False) -> dict[str, Any]:
         live.update({"status": "failed", "finished_at": _now(), "error": "audit_failed"})
         _set_state(task_id, live)
         raise LiveAuditError(409, "audit_failed") from error
-    fanout = _Fanout(processes, summaries, summary_path)
+    fanout = _Fanout(processes, summaries, summary_path,
+                     progress=lambda rows: _set_progress(task_id, rows))
     with _LOCK:
         _RUNNING[task_id] = fanout
     threading.Thread(target=_watch, args=(task_id, fanout, summary_path),
