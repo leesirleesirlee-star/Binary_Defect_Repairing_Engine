@@ -4,7 +4,7 @@ import {saveDraft, saveLanguage} from '../shared/handoff.mjs?v=20261120au';
 import {LANGUAGES, LANGUAGE_CODES, detectLanguage, isLanguage, languageName} from '../shared/languages.mjs?v=20261120au';
 import '../shared/theme.mjs?v=20261120au';
 import {playExit} from '../shared/warp.mjs?v=20261121y';
-import {welcomeCopy} from './welcome-copy.mjs?v=20261121z';
+import {welcomeCopy} from './welcome-copy.mjs?v=20261124b';
 
 const form = document.querySelector('.composer-card');
 const draft = document.querySelector('#draft');
@@ -36,7 +36,7 @@ function apply(language) {
   }
   button.textContent = languageName(language);
   button.setAttribute('aria-label', copy(language, 'welcome.languageButton', 'Switch language'));
-  draft.placeholder = copy(language, 'welcome.placeholder', 'Describe the defect…');
+  draft.placeholder = copy(language, 'welcome.placeholder', 'Add the binary and case files…');
   draft.setAttribute('aria-label', draft.placeholder);
   document.title = copy(language, 'welcome.title', 'BinaryRepair · Verifiable binary repair');
   saveLanguage(language);

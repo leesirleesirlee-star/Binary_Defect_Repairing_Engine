@@ -98,3 +98,20 @@ OK: every changed file matches the declared module
   `chat-app.mjs` (binary + case-file inputs, auto-start), `chat-view.mjs`
   (contract choice rows, download links), `chat-copy.mjs`, `chat.css`.
 - tests/docs: `tests/app/test_g4.py`, this walkthrough, two screenshots.
+
+
+## Archive and settings (G1–G4 alignment)
+
+- The archive (`/ui/`) now defaults to the live console task store (synthetic
+  data remains available with `?preview=1`).  Every repair run is listed with
+  its real status (`已验证` / `范围外` / `失败` / `草稿`) and opens a G4 detail
+  view with the persisted `VerdictV1`, contract/original/candidate hashes, the
+  selected repair contract, case counts and every downloadable artifact plus the
+  run journal.
+- The hero is reduced to the three file actions (no explanatory paragraph), all
+  prompts now say 添加二进制文件与用例文件, and intermediate runner narration is
+  removed from the conversation (the execution details/right panel carries the
+  process).
+- Settings now show `BinaryRepair · MVP2` / capability stage `G1–G4`, the live
+  DeepSeek provider state and current local-only note; the outdated legacy-entry
+  links were removed.

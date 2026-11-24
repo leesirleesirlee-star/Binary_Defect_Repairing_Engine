@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261123k';
+import {label} from './chat-copy.mjs?v=20261124b';
 
 const newId = () => crypto.randomUUID();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -172,10 +172,6 @@ export function chatTask({notify = () => {}} = {}) {
     state(chat, 'running');
     planSteps(chat, {collect: 'in_progress'});
     event(chat, 'thinking', {phase: 'started'}, 'collect');
-    say(chat, t(locale,
-      `已收到 ${payload.binaryName} 与 ${cases.length} 个用例文件，正在分析漏洞并生成多种修复契约…`,
-      'Received ' + payload.binaryName + ' and ' + cases.length + ' case file(s); analyzing '
-      + 'the defect and deriving the repair contracts…'));
     try {
       const data = await api('/api/tasks/upload', {
         method: 'POST',
@@ -272,9 +268,6 @@ export function chatTask({notify = () => {}} = {}) {
     chat.routes = {route_a: ['completed', 'in_progress', 'pending'],
       route_b: ['not_run', 'not_run', 'not_run']};
     chat.routeNotes = {route_a: 'routeASelected', route_b: 'routeBNotSelected'};
-    say(chat, t(chat.locale,
-      `已选择「${option.title_zh}」，正在按契约修复：先把修复补丁写入候选程序，再验证。`,
-      `Selected "${option.title_en}"; writing the repair to the candidate program, then verifying.`));
     state(chat, 'running');
     chat.started = Date.now();
     event(chat, 'thinking', {phase: 'started'}, 'repair');

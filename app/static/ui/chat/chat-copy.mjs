@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261123k';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261124b';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -51,13 +51,13 @@ const copy = {
   managedModel: ['Provider default', '服务默认模型'],
   preview: ['Deterministic assistant', '确定性助手'],
   empty: ['Start a repair', '开始修复'],
-  help: ['Describe the defect or attach the binary and its case files.', '描述缺陷，或添加二进制文件与用例文件。'],
+  help: ['Add the binary and case files.', '添加二进制文件与用例文件。'],
   sample: ['Review a sample contract', '审阅示例契约'],
   helpLive: ['Upload the .elf binary plus its valid and PoC case files; the AI analyzes the defect, offers repair contracts, and outputs the repaired file.', '上传需要修复的 .elf 二进制、正确用例与错误用例（PoC）文件；AI 分析漏洞并给出多种修复契约，选择后自动修复并输出修复后的文件。'],
   samplePrompt: ['Review the contract for incomplete records.', '审阅处理不完整记录的契约。'],
   archived: ['Header validation', '标头校验'],
   archivedPrompt: ['Summarize the header validation evidence.', '总结标头校验的证据。'],
-  placeholder: ['Describe the defect, or attach the .elf and case files…', '描述缺陷，或直接上传 .elf 与用例文件…'],
+  placeholder: ['Add the .elf and case files…', '添加二进制文件与用例文件…'],
   followup: ['Ask a follow-up…', '继续提问…'],
   waitingTurn: ['Wait for the run to finish…', '等待运行结束…'],
   approvalTurn: ['Review and approve the contract above…', '请审阅并批准上方契约…'],
@@ -135,7 +135,6 @@ const copy = {
   liveLabel: ['Live repair console', '实时修复控制台'],
   connection: ['Local service unavailable', '本地服务不可用'],
   needFile: ['Attach a binary to send the first message.', '\u6dfb\u52a0\u4e8c\u8fdb\u5236\u6587\u4ef6\u540e\uff0c\u5373\u53ef\u53d1\u9001\u7b2c\u4e00\u6761\u6d88\u606f\u3002'],
-  asciiDefect: ['The defect description must use ASCII characters; the backend rejects other text.', '缺陷描述必须使用 ASCII 字符，后端会拒绝其他文本。'],
   jobCreated: ['Draft {id} created. Review the contract below.', '已创建草稿 {id}，请审阅下方契约。'],
   loadedTerminal: ['Run finished with {outcome}. Checks and evidence are in the archive.', '运行已结束，结论为 {outcome}。检查与证据已归档。'],
   loadedActive: ['The run is {status}. I am watching it; the archive will hold the final evidence.', '运行状态为 {status}，正在观察；最终证据会归档。'],

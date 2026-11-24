@@ -4,13 +4,13 @@ import {icon} from '../shared/icons.mjs?v=20261120au';
 import {LANGUAGE_CODES, languageName} from '../shared/languages.mjs?v=20261120au';
 import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
-import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261121z';
+import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261123k';
+import {label} from './chat-copy.mjs?v=20261124b';
 import {chatPreview} from './chat-stream.mjs?v=20261123k';
-import {chatTask} from './chat-task.mjs?v=20261123k';
+import {chatTask} from './chat-task.mjs?v=20261124b';
 import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261121z';
-import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261121z';
+import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261124b';
 import {bindSidebarSpring} from './chat-spring.mjs?v=20261120au';
 import {refreshStepCard} from './chat-steps.mjs?v=20261121j';
 import {control, displayTitle, renderItem, transcript} from './chat-view.mjs?v=20261123k';
@@ -127,7 +127,7 @@ function send(text) {
   if ((!text.trim() && !hasFiles) || busy(selected)) return;
   const {attachment, file, cases} = draft;
   if (engine.live && !engine.taskMode && !selected.jobId && (!file || !isAscii(text.trim()))) {
-    nodes.composerFeedback.textContent = t(file ? 'asciiDefect' : 'needFile');
+    nodes.composerFeedback.textContent = t('needFile');
     return;
   }
   if (engine.taskMode && !file) {
@@ -219,7 +219,6 @@ function mount() {
     {glyph: 'file', tone: 'sample hero-cases'});
   const hero = el('section', {class: 'empty-chat'},
     appMark('hero-mark'), el('h2', {}, t('empty')),
-    el('p', {}, t(engine.taskMode ? 'helpLive' : engine.live ? 'helpLive' : 'help')),
     el('div', {class: 'hero-actions'}, heroAttach, heroCases,
       engine.sendFixture
         ? control(t('useFixture'), () => engine.sendFixture(selected, locale),

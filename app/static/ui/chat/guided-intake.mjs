@@ -119,7 +119,7 @@ function dialogMarkup(data) {
 
   const intake = section('输入 Intake',
     el('p', {class: 'guided-help'}, '缺陷描述（ASCII，冻结样例只读）'),
-    el('pre', {class: 'guided-defect'}, data.defect || '(no defect description)'),
+    el('pre', {class: 'guided-defect'}, data.defect || '(none)'),
     el('div', {class: 'guided-case-head'}, el('strong', {}, '正常输入'), badge(String(valid.length) + ' valid', 'on')),
     el('ul', {class: 'guided-list'}, valid.map(item => el('li', {}, el('code', {}, item.id), ' · ', caseText(item)))),
     el('div', {class: 'guided-case-head'}, el('strong', {}, '崩溃输入 / PoC'), badge('crash_or_undefined', 'warn')),

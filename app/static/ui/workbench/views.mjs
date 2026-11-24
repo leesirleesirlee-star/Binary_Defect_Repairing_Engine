@@ -1,7 +1,7 @@
 import {badge, button, date, el, isAscii, notice, taskHref} from '../shared/dom.mjs?v=20261120au';
 import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261120au';
 import {LANGUAGES, languageName} from '../shared/languages.mjs?v=20261120au';
-import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261121z';
+import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261124b';
 import {icon} from '../shared/icons.mjs?v=20261120au';
 
 export function shell(ctx) {
@@ -46,7 +46,7 @@ export function shell(ctx) {
 }
 
 const inProgress = new Set(['queued', 'screening', 'repair', 'verification', 'running', 'waiting_for_executor']);
-const finished = new Set(['done', 'completed', 'failed', 'cancelled']);
+const finished = new Set(['done', 'completed', 'failed', 'cancelled', 'verified', 'unsupported']);
 const phase = job => job.execution?.status === 'waiting_for_executor' ? job.execution.status : job.phase;
 const listFilter = (jobs, filter, text) => jobs.filter(job =>
   (filter === 'all' || (filter === 'active' ? inProgress : finished).has(job.phase)) &&

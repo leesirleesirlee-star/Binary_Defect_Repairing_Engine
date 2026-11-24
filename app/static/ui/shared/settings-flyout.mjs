@@ -13,7 +13,7 @@ import {el} from './dom.mjs?v=20261120au';
 import {icon} from './icons.mjs?v=20261120au';
 import {LANGUAGES} from './languages.mjs?v=20261120au';
 import {modelPicker} from './model-picker.mjs?v=20261120au';
-import {settingsCopy} from './settings-copy.mjs?v=20261121z';
+import {settingsCopy} from './settings-copy.mjs?v=20261124b';
 import {
   getSetting, getSettings, importSettings, resetSettings, setSetting,
 } from './settings-preferences.mjs?v=20261120au';
@@ -327,16 +327,15 @@ export function bindSettingsFlyout(trigger, options = {}) {
         provider.textContent = payload.key?.configured ? 'DeepSeek' : (assistant.mode === 'llm' ? 'DeepSeek' : '—');
         model.textContent = payload.key?.model || assistant.model || '—';
       }).catch(() => {});
-      body.push(row(t('aboutVersion'), null, el('span', {class: 'settings-value'}, 'BinaryRepair')),
-        row(t('aboutBuild'), null, el('span', {class: 'settings-value'}, BUILD)),
+      body.push(row(t('aboutVersion'), null, el('span', {class: 'settings-value'}, 'BinaryRepair · MVP2')),
+        row(t('aboutBuild'), null, el('span', {class: 'settings-value'}, 'G1–G4')),
         row(t('aboutBackend'), null, backend),
         row(t('aboutSession'), null, el('span', {class: 'settings-value'}, t('sessionLocal'))),
         row(t('aboutProvider'), null, provider),
         row(t('aboutModel'), null, model),
         el('div', {class: 'settings-links'},
           el('a', {class: 'settings-button', href: '/welcome'}, t('aboutWelcome')),
-          el('a', {class: 'settings-button', href: '/legacy'}, t('aboutLegacy')),
-          el('a', {class: 'settings-button', href: '/ui/chat/'}, t('aboutConversation')),
+            el('a', {class: 'settings-button', href: '/ui/chat/'}, t('aboutConversation')),
           el('a', {class: 'settings-button', href: '/ui/'}, t('aboutArchive'))),
         el('p', {class: 'settings-note'}, t('aboutLocalOnly')));
     }

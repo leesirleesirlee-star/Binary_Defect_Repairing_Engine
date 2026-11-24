@@ -1,4 +1,4 @@
-import {extraLabels} from './labels-extra.mjs?v=20261120au';
+import {extraLabels} from './labels-extra.mjs?v=20261124b';
 
 // Pair each display string with its Simplified Chinese translation.
 const labels = {
@@ -46,7 +46,7 @@ const labels = {
   unconfigured: ['Not configured', '未配置'],
   providerUnknown: ['Status unavailable', '状态不可用'],
   defect: ['Defect description', '缺陷描述'],
-  defectPlaceholder: ['Describe the defect in ASCII.', '请使用 ASCII 字符描述缺陷。'],
+  defectPlaceholder: ['Attach the binary and case files.', '添加二进制文件与用例文件。'],
   binary: ['Binary file', '二进制文件'],
   fileRequired: ['Choose a non-empty file.', '请选择非空文件。'],
   ascii: ['Use ASCII characters.', '请使用 ASCII 字符。'],
@@ -88,6 +88,8 @@ const labels = {
   cancelledJob: ['This job was cancelled. Create a new job to run again.', '此任务已取消，请新建任务后再运行。'],
   noChecks: ['No checks recorded for this route.', '此路线暂无检查记录。'],
   verdict: ['Verdict', '结论'],
+  verified: ['Verified', '已验证'],
+  unsupported: ['Scope refused', '范围外'],
   serverVerdict: ['Reported by the acceptance engine. The interface does not compute it.', '由验收引擎给出，界面不进行计算。'],
   evaluationPending: ['Execution has ended but the evaluation is not finalized yet. Retry the read; success is not assumed.', '执行已结束，但评估尚未完成。请重试读取，不预设成功。'],
   comparisonInvalid: ['The comparison record is invalid and cannot be shown.', '对比记录无效，无法显示。'],
