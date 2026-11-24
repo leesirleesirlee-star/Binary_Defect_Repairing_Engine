@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261124u';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261124x';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -45,6 +45,16 @@ const copy = {
   chooseAuditMode: ["Choose a repair path first: AI live audit (calls the model, a few minutes) or signed G2 replay (no model call).", "请先选择修复方式：AI 现场审计（调用模型，约数分钟）或回放已签 G2（不调用模型）。"],
   livePlanFirst: ["AI live audit is active; choose its fresh plan card above, not the signed replay plans.", "AI 现场审计已启动；请在上方审计卡选择现场方案，不要选择签名回放方案。"],
   signedReplayPlanNote: ["Signed G2 replay: no model call; the signed plan is applied directly.", "回放已签 G2：不调用模型，直接应用已签名计划。"],
+  binaryDrop: ["Drop the vulnerable binary here", "拖拽二进制漏洞文件到这里"],
+  binaryDropHint: ["or click to choose an .elf file", "或点击选择 .elf 文件"],
+  binaryRecognized: ["Binary recognized", "二进制文件已识别"],
+  binarySupported: ["Supported MVP2 finding: {function} at {address} ({cwe}).", "识别到 MVP2 支持的模式：{function} @ {address}（{cwe}）。"],
+  binaryUnsupported: ["The ELF was analyzed but no supported stack-overflow finding was detected.", "已完成 ELF 分析，但未检测到支持的栈溢出模式。"],
+  addCasesNow: ["Now add the valid and PoC case files. They are analyzed together with the binary.", "现在请添加正确用例与错误用例（PoC）文件；它们会和二进制一起分析。"],
+  caseDrop: ["Drop valid / PoC case files here", "拖拽正确用例 / 错误用例文件到这里"],
+  caseDropHint: ["JSON files; multiple selection supported", "支持 JSON 文件，可多选"],
+  casesAccepted: ["Case files accepted.", "用例文件已接收。"],
+  casesReceived: ["Case files received: {count}.", "已收到用例文件：{count} 个。"],
   keyFailed: ["Connection failed: {detail}", "连接失败：{detail}"],
   keyRequired: ["Enter an API key first.", "请先输入 API 密钥。"],
   keyCleared: ["Key cleared.", "已清除密钥。"],

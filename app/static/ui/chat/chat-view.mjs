@@ -3,6 +3,41 @@ import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
 import {stepCard} from './chat-steps.mjs?v=20261121j';
 
+export function fileDropZone({label, hint, accept = '', multiple = false, onFiles}) {
+  const input = el('input', {type: 'file', hidden: true, accept, multiple,
+    onchange: () => {
+      const files = [...input.files];
+      input.value = '';
+      if (files.length) onFiles(files);
+    }});
+  const zone = el('div', {class: 'drop-zone', role: 'button', tabindex: '0',
+    'aria-label': label},
+    el('span', {class: 'drop-zone-icon'}, icon('file', 20)),
+    el('strong', {}, label),
+    el('span', {class: 'drop-zone-hint'}, hint),
+    input);
+  const open = () => input.click();
+  zone.addEventListener('click', open);
+  zone.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      open();
+    }
+  });
+  zone.addEventListener('dragover', event => {
+    event.preventDefault();
+    zone.classList.add('dragging');
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragging'));
+  zone.addEventListener('drop', event => {
+    event.preventDefault();
+    zone.classList.remove('dragging');
+    const files = [...event.dataTransfer.files];
+    if (files.length) onFiles(multiple ? files : files.slice(0, 1));
+  });
+  return zone;
+}
+
 export function control(text, onClick, {glyph, compact = false, tone = '', ...attrs} = {}) {
   return el('button', {type: 'button', class: 'control ' + tone + (compact ? ' icon-only' : ''),
     onclick: onClick, 'aria-label': compact ? text : null, title: compact ? text : null, ...attrs},
@@ -75,6 +110,9 @@ export function transcript() {
         case 'g4_progress': put(p.id, event); break;
         case 'assistant_reply': put(p.message_id, event); break;
         case 'g4_live_audit': put(p.id, event); break;
+        case 'binary_ready': put(p.id, event); break;
+        case 'case_prompt': put(p.id, event); break;
+        case 'case_received': put(p.id, event); break;
         case 'g4_downloads': put(p.id, event); break;
         case 'g4_actions': put(p.id, event); break;
         case 'run_end': {
@@ -425,6 +463,27 @@ export function renderItem(item, ctx) {
         p.retry.kind === 'manual' && chat.phase === 'failed' && chat.run === item.run_id
           ? control(t('retry'), () => engine.start(chat, locale, true)) : null);
     case 'g4_live_audit': return genLiveAudit(p, ctx, t);
+    case 'binary_ready': {
+      const f = p.finding || {};
+      return el('article', {class: 'message assistant binary-ready'},
+        el('div', {class: 'binary-ready-head'}, icon('check', 16),
+          el('strong', {}, t('binaryRecognized')),
+          el('span', {class: 'muted'}, p.binary_name)),
+        el('p', {class: 'message-body'}, p.supported
+          ? t('binarySupported').replace('{function}', f.function || '—')
+            .replace('{address}', f.address || '—').replace('{cwe}', f.cwe || '—')
+          : t('binaryUnsupported')),
+        el('code', {class: 'sha-line'}, (p.binary_sha256 || '').slice(0, 24) + '…'));
+    }
+    case 'case_prompt':
+      if (!chat.pendingBinary) return el('p', {class: 'inline-note'}, t('casesAccepted'));
+      return el('div', {class: 'message assistant case-ready'},
+        el('p', {class: 'inline-note'}, t('addCasesNow')),
+        fileDropZone({label: t('caseDrop'), hint: t('caseDropHint'),
+          accept: '.json', multiple: true,
+          onFiles: files => engine.submitCases?.(chat, files, chat.locale)}));
+    case 'case_received': return el('p', {class: 'inline-note'},
+      t('casesReceived').replace('{count}', String(p.count || 0)));
     case 'assistant_reply': {
       const mode = p.mode === 'llm' ? t('assistantModeLlm')
         : p.mode === 'llm (not wired)' ? t('assistantModeNotWired')
