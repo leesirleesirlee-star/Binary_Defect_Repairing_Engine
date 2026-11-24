@@ -23,7 +23,7 @@ from urllib.parse import quote, unquote
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
-from app import assistant, tasks
+from app import assistant, assistant_key, g4, journal, tasks
 from app.journal import JournalError, read_records, wait_for_records
 from app.preview_events import ensure_preview_journal
 
@@ -166,6 +166,111 @@ def create_task(body: Annotated[dict[str, Any] | None, Body()] = None) -> dict[s
         tasks.update(task)
         ensure_preview_journal(task["id"])
     return {"id": task["id"], "phase": task["phase"]}
+
+
+@router.get("/assistant/key", dependencies=[Depends(require_session)])
+def assistant_key_status() -> dict[str, Any]:
+    """Masked provider-key status; the key itself never crosses this boundary."""
+    return {"key": assistant_key.key_status(), "assistant": assistant_key.assistant_status()}
+
+
+@router.post("/assistant/key", dependencies=[Depends(require_session), Depends(require_csrf)])
+def assistant_key_save(body: Annotated[dict[str, Any], Body()]) -> dict[str, Any]:
+    candidate = body.get("key")
+    if not isinstance(candidate, str) or not candidate.strip():
+        raise _error(422, "key_required")
+    try:
+        saved = assistant_key.save_key(candidate)
+    except assistant_key.KeyError as error:
+        status = 409 if "environment" in str(error) else 422
+        raise _error(status, "key_rejected", detail=str(error)) from error
+    return {
+        "saved": saved,
+        "key": assistant_key.key_status(),
+        "assistant": assistant_key.assistant_status(),
+    }
+
+
+@router.post("/assistant/key/test", dependencies=[Depends(require_session), Depends(require_csrf)])
+def assistant_key_test(body: Annotated[dict[str, Any] | None, Body()] = None) -> dict[str, Any]:
+    payload = body or {}
+    return assistant_key.test_connection(payload.get("model"))
+
+
+@router.delete("/assistant/key", dependencies=[Depends(require_session), Depends(require_csrf)])
+def assistant_key_clear() -> dict[str, Any]:
+    try:
+        assistant_key.clear_key()
+    except assistant_key.KeyError as error:
+        raise _error(409, "key_managed", detail=str(error)) from error
+    return {"key": assistant_key.key_status(), "assistant": assistant_key.assistant_status()}
+
+
+@router.get("/tasks/{task_id}/journal", dependencies=[Depends(require_session)])
+def task_journal(task_id: str, after_seq: int | None = None) -> dict[str, Any]:
+    """Persisted GUI journal for one task; read-only and replayable by seq."""
+    try:
+        tasks.get(task_id)
+    except KeyError:
+        raise _error(404, "task_not_found") from None
+    records = journal.read_records(task_id)
+    if after_seq is None:
+        records = records[-300:]
+    else:
+        records = [record for record in records if record.get("seq", 0) > after_seq]
+    return {"records": records, "last_seq": records[-1]["seq"] if records else (after_seq or 0)}
+
+
+@router.get("/g4/g2", dependencies=[Depends(require_session)])
+def g4_g2() -> dict[str, Any]:
+    """Read-only signed G2 audit, decision and selected plan (no re-vote)."""
+    return g4.g2_payload()
+
+
+@router.get("/g4/fixture", dependencies=[Depends(require_session)])
+def g4_fixture() -> dict[str, Any]:
+    """Frozen demo binary + oracle cases for the console's one-click demo."""
+    return g4.fixture_payload()
+
+
+@router.post(
+    "/tasks/upload",
+    status_code=201,
+    dependencies=[Depends(require_session), Depends(require_csrf)],
+)
+def upload_task(body: Annotated[dict[str, Any] | None, Body()] = None) -> dict[str, Any]:
+    """Upload an ELF plus its cases; analyze it and offer repair contracts."""
+    payload = body or {}
+    try:
+        return g4.create_task(
+            binary_name=payload.get("binary_name"),
+            binary_base64=payload.get("binary_base64"),
+            case_files=payload.get("case_files"),
+            defect=payload.get("defect"),
+        )
+    except g4.G4Error as error:
+        raise _error(error.status, error.code, **error.extra) from error
+
+
+@router.get("/tasks/{task_id}/g4", dependencies=[Depends(require_session)])
+def task_g4(task_id: str) -> dict[str, Any]:
+    _task(task_id)
+    try:
+        return g4.get_task_g4(task_id)
+    except g4.G4Error as error:
+        raise _error(error.status, error.code, **error.extra) from error
+
+
+@router.post(
+    "/tasks/{task_id}/g4/select",
+    dependencies=[Depends(require_session), Depends(require_csrf)],
+)
+def select_g4_option(task_id: str, body: Annotated[dict[str, Any], Body()]) -> dict[str, Any]:
+    _task(task_id)
+    try:
+        return g4.select_option(task_id, body.get("option_id"))
+    except g4.G4Error as error:
+        raise _error(error.status, error.code, **error.extra) from error
 
 
 @router.get("/tasks/{task_id}", dependencies=[Depends(require_session)])

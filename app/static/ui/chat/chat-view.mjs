@@ -70,6 +70,11 @@ export function transcript() {
           else evaluations.set(run, p);
           put(run + ':verification', event, {checks: checks.get(run) ?? [], evaluation: evaluations.get(run)});
           break;
+        case 'g4_analysis': put(run + ':analysis', event); break;
+        case 'g4_g2': put(run + ':g2', event); break;
+        case 'g4_progress': put(p.id, event); break;
+        case 'g4_downloads': put(p.id, event); break;
+        case 'g4_actions': put(p.id, event); break;
         case 'run_end': {
           if (active && items.get(active)?.run_id === run) {
             put(active, items.get(active), {decision: p.execution});
@@ -138,6 +143,23 @@ function approval(item, ctx) {
   const {t, chat, engine, locale} = ctx;
   const p = item.payload;
   const status = item.decision;
+  if (p.kind === 'repair_plan') {
+    const options = p.options ?? [];
+    if (status) {
+      const chosen = options.find(option => option.id === status);
+      return el('div', {class: 'inline-actions'}, icon('check', 15),
+        el('span', {}, t('planChosen') + (chosen ? ' · ' + chosen.title : '')));
+    }
+    return el('div', {class: 'plan-choices', role: 'group', 'aria-label': t('approval')},
+      p.note ? el('p', {class: 'inline-note'}, p.note) : null,
+      options.map(option => el('div', {class: 'plan-choice'},
+        el('strong', {}, option.title),
+        el('p', {}, option.summary),
+        option.feasible
+          ? control(t('selectPlan'), () => engine.decide(chat, p.request_id, option.id),
+            {tone: 'primary'})
+          : el('span', {class: 'muted'}, option.reason || t('planUnavailable')))));
+  }
   const complete = Boolean(chat.contract?.review_binding_digest &&
     chat.contract?.review_binding?.original_sha256 && chat.contract?.review_binding?.test_manifest_sha256);
   if (status === 'approve') {
@@ -178,6 +200,118 @@ function summary(item, t, chat, engine) {
     el('div', {class: 'inline-actions'}, archive, refresh)));
 }
 
+const STEP_KEYS = {
+  collect: 'stepCollect', freeze: 'stepFreeze', analyze: 'stepAnalyze', audit: 'stepAudit',
+  decision: 'stepDecision', repair: 'stepRepair', verify: 'stepVerify', export: 'stepExport',
+};
+
+function activityStep(item, t) {
+  return t(STEP_KEYS[item.step_id] ?? 'activity');
+}
+
+// Revision 2.2 keeps command/file/verification rows out of the conversation;
+// they are now rendered from the task's persisted journal in the right-side
+// execution log, so the operator can follow every real runner step.
+function activityRow(item, t) {
+  const p = item.payload || {};
+  const step = activityStep(item, t);
+  if (item.type === 'command') {
+    const command = item.command || {};
+    const status = command.phase === 'started' ? t('commandStarted')
+      : command.exit_code != null ? t('commandFinished') : t('commandRunning');
+    const output = typeof command.output === 'string' ? command.output.trim() : '';
+    return el('details', {class: 'activity-row'},
+      el('summary', {},
+        el('span', {class: 'activity-kind'}, step),
+        el('span', {class: 'activity-status'}, status)),
+      output ? el('pre', {class: 'activity-output'},
+        output.length > 4000 ? output.slice(-4000) : output) : null);
+  }
+  if (item.type === 'journal_error') {
+    return el('p', {class: 'activity-row activity-error'},
+      icon('info', 13), el('span', {}, step + (p.code ? ' · ' + p.code : '')));
+  }
+  if (item.type === 'file_change') {
+    const files = (p.files || []).map(file => file.display_path).filter(Boolean);
+    return el('p', {class: 'activity-row'},
+      icon('file', 13), el('span', {}, step + (files.length ? ' · ' + files.join(', ') : '')));
+  }
+  const verdict = p.verdict || p.kind || '';
+  return el('p', {class: 'activity-row'},
+    icon('check', 13), el('span', {}, step + (verdict ? ' · ' + verdict : '')));
+}
+
+const CHAT_STEP_KEYS = {
+  collect: 'stepCollect', freeze: 'stepFreeze', analyze: 'stepAnalyze', audit: 'stepAudit',
+  decision: 'stepDecision', repair: 'stepRepair', verify: 'stepVerify', export: 'stepExport',
+};
+const stepLabel = (code, t) => t(CHAT_STEP_KEYS[code] ?? code);
+const shortSha = value => value ? String(value).slice(0, 16) + '…' : '—';
+
+function genCard(kind, glyph, title, badge, ...children) {
+  return el('article', {class: 'message assistant gen-card gen-' + kind},
+    el('header', {class: 'gen-head'},
+      el('span', {class: 'gen-mark'}, icon(glyph, 17)),
+      el('strong', {}, title),
+      badge ? el('span', {class: 'gen-badge'}, badge) : null),
+    el('div', {class: 'gen-body'}, ...children));
+}
+
+function genRows(rows) {
+  return el('div', {class: 'gen-rows'}, rows.map(([name, value]) =>
+    el('div', {class: 'gen-row'}, el('span', {}, name), el('strong', {}, value ?? '—'))));
+}
+
+function genAnalysis(p, t) {
+  return genCard('analysis', 'file', t('analysisTitle'), p.cwe,
+    genRows([
+      [t('analysisFunction'), p.function],
+      [t('analysisAddress'), p.address],
+      [t('analysisInstruction'), p.instruction],
+      [t('analysisCases'), (p.counts?.valid ?? 0) + ' valid · ' + (p.counts?.poc ?? 0) + ' PoC'],
+    ]),
+    el('p', {class: 'gen-note'}, t('caseScopeNote')));
+}
+
+function genG2(p, t) {
+  return genCard('g2', 'info', t('g2Record'), p.decision,
+    genRows([
+      [t('g2Audit'), p.report_id + ' · ' + p.runs + ' runs · schema ' + (p.schema_valid ? 'valid' : 'invalid')
+        + ' · M1 ' + (p.score_m1 ?? '—')],
+      [t('g2Decision'), p.decision + ' · signed ' + shortSha(p.record_sha256)],
+      [t('g2Plan'), p.plan_id + ' · ' + p.strategy + ' · contract ' + shortSha(p.contract_sha256)],
+    ]),
+    el('p', {class: 'gen-note'}, t('bindingNote')));
+}
+
+function genProgress(p, t) {
+  const steps = p.steps || [];
+  const done = steps.filter(step => step.status === 'completed').length;
+  return genCard('progress', 'terminal', t('repairRun'),
+    p.execution ? t(p.execution) : t('running'),
+    el('div', {class: 'gen-progress-meta'}, el('strong', {}, done + ' / ' + steps.length)),
+    el('ol', {class: 'gen-steps'}, steps.map(step =>
+      el('li', {'data-status': step.status},
+        el('span', {class: 'gen-step-dot'}),
+        el('span', {}, stepLabel(step.label_code, t)),
+        el('span', {class: 'gen-step-state'}, t(step.status) + ' · ' + step.status)))));
+}
+
+function genOutcome(p, t) {
+  const links = [p.candidate, p.manifest, p.verdict_file].filter(Boolean);
+  const children = [];
+  if (p.candidate_sha256) {
+    children.push(el('p', {class: 'gen-note mono'},
+      'candidate ' + shortSha(p.candidate_sha256)));
+  }
+  children.push(el('div', {class: 'gen-downloads'}, links.map(link =>
+    el('a', {class: 'gen-download', href: link.href, download: '',
+      title: link.sha256 ? 'sha256: ' + link.sha256 : null},
+    icon('download', 16), el('span', {}, link.label)))));
+  return genCard('outcome', 'check', t('repairComplete'), p.verdict_word || t('noVerdict'),
+    ...children);
+}
+
 export function renderItem(item, ctx) {
   const {t, locale, chat, engine} = ctx;
   const {payload: p, type, ts} = item;
@@ -203,12 +337,13 @@ export function renderItem(item, ctx) {
       const done = steps.filter(step => step.status === 'completed').length;
       return el('p', {class: 'inline-note'}, t('stepCount') + ' ' + done + ' / ' + steps.length);
     }
-    case 'tool_call':
     case 'file_change':
     case 'command':
     case 'verification':
-      // Tool, command, file-change and verification rows stay in the event log
-      // and the evidence bundle; they never render as chat cards.
+    case 'journal_error':
+      return activityRow(item, t);
+    case 'tool_call':
+      // Tool rows stay in the evidence bundle; they never render as chat cards.
       return null;
     case 'awaiting_user': return approval(item, ctx);
     case 'error':
@@ -216,6 +351,17 @@ export function renderItem(item, ctx) {
         el('code', {}, p.code),
         p.retry.kind === 'manual' && chat.phase === 'failed' && chat.run === item.run_id
           ? control(t('retry'), () => engine.start(chat, locale, true)) : null);
+    case 'g4_analysis': return genAnalysis(p, t);
+    case 'g4_g2': return genG2(p, t);
+    case 'g4_progress': return genProgress(p, t);
+    case 'g4_downloads': return genOutcome(p, t);
+    case 'g4_actions': {
+      const actions = p.actions ?? [];
+      return el('article', {class: 'message assistant'}, el('div', {class: 'reply-body'},
+        el('div', {class: 'inline-actions'}, actions.map(action =>
+          control(action.label, () => engine.sendFixture?.(chat, chat.locale),
+            {tone: 'primary', glyph: 'arrow'})))));
+    }
     case 'run_end': return summary(item, t, chat, engine);
   }
 }

@@ -13,7 +13,7 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
 import {LANGUAGE_CODES} from '../shared/languages.mjs?v=20261120au';
-import {label as translate} from './chat-copy.mjs?v=20261122h';
+import {label as translate} from './chat-copy.mjs?v=20261124n';
 import {disclosure} from './chat-steps.mjs?v=20261121j';
 
 const STEPS = ['collect', 'freeze', 'analyze', 'audit', 'decision', 'repair', 'verify', 'export'];
@@ -81,7 +81,7 @@ function buildEventLog(route, empty = t('noRunEvents')) {
   const body = el('div', {class: 'ra-log-body'}, el('p', {class: 'ra-muted'}, empty));
   const heading = el('span', {class: 'ra-heading'},
     el('span', {class: 'ra-title'}, icon('terminal', 15), t(route) + ' · ' + t('activity')), count);
-  const panel = disclosure({className: 'ra-monitor ra-event-log', heading, open: true}, body);
+  const panel = disclosure({className: 'ra-monitor ra-event-log', heading, open: false}, body);
   return {panel, body, count, groups: 0};
 }
 
@@ -112,7 +112,7 @@ function taskCard(task, index) {
     state.logA.count.textContent = runCount(state.logA.groups);
   }
   const api = {task, card, logGroup, logRows, logStatus, steps, status, artifacts, target,
-    labelText, phase: task.phase, live: LIVE_PHASES.has(task.phase), lastSeq: 0, source: null, ended: false};
+    labelText, phase: task.phase, live: LIVE_PHASES.has(task.phase), lastSeq: 0, timer: null, polling: false, ended: false};
   state.cards.set(id, api);
   connect(api);
   return card;
@@ -158,8 +158,7 @@ function appendEvent(api, record) {
   if (record.type === 'run_end') {
     api.status.textContent = stateLabel(record.payload?.execution);
     api.logStatus.textContent = stateLabel(record.payload?.execution);
-    api.ended = true;
-    api.source?.close();
+    stopPolling(api);
     loadArtifacts(api);
   }
   const row = el('details', {class: 'ra-event', 'data-type': record.type},
@@ -174,43 +173,47 @@ function appendEvent(api, record) {
   api.logRows.append(row);
 }
 
+function stopPolling(api) {
+  api.ended = true;
+  api.polling = false;
+  if (api.timer) {
+    clearTimeout(api.timer);
+    api.timer = null;
+  }
+}
+
+async function readJournal(api, afterSeq) {
+  const response = await fetch(
+    '/api/tasks/' + encodeURIComponent(api.task.id) + '/journal?after_seq=' + afterSeq,
+    {credentials: 'same-origin', cache: 'no-store'});
+  if (!response.ok) throw new Error('journal unavailable');
+  const data = await response.json();
+  return Array.isArray(data.records) ? data.records : [];
+}
+
 function connect(api) {
-  const id = api.task.id;
-  if (api.source) return;
-  api.ended = false;
+  if (api.polling || api.ended) return;
+  api.polling = true;
   api.status.textContent = t('connecting');
   api.logStatus.textContent = t('connecting');
-  try {
-    const source = new EventSource('/api/tasks/' + encodeURIComponent(id) + '/events');
-    api.source = source;
-    const handler = event => {
-      try {
-        appendEvent(api, JSON.parse(event.data));
-      } catch { /* malformed lines are ignored; the server closes on gaps. */ }
-    };
-    EVENT_TYPES.forEach(type => source.addEventListener(type, handler));
-    source.addEventListener('journal_gap', () => {
-      api.status.textContent = t('journalGap');
-      api.ended = true;
-      source.close();
-    });
-    source.onerror = () => {
-      if (api.ended) return;
-      if (!api.live) {
-        // Terminal/draft journals replay once and then end. Close instead of
-        // letting EventSource reconnect forever and exhaust the browser's
-        // per-origin connection budget.
-        api.ended = true;
-        source.close();
-        api.status.textContent = stateLabel(api.phase);
-        api.logStatus.textContent = stateLabel(api.phase);
-      } else if (source.readyState === EventSource.CLOSED) {
-        api.status.textContent = t('connectionClosed');
+  const started = Date.now();
+  const tick = async () => {
+    if (api.ended) { api.polling = false; return; }
+    try {
+      const records = await readJournal(api, api.lastSeq || 0);
+      for (const record of records) appendEvent(api, record);
+    } catch {
+      if (Date.now() - started > 15000) {
+        api.status.textContent = t('cannotConnect');
+        stopPolling(api);
+        return;
       }
-    };
-  } catch {
-    api.status.textContent = t('cannotConnect');
-  }
+    }
+    if (api.ended) { api.polling = false; return; }
+    if (Date.now() - started > 300000) { stopPolling(api); return; }
+    api.timer = setTimeout(tick, 400);
+  };
+  tick();
 }
 
 async function loadArtifacts(api) {
@@ -252,7 +255,7 @@ function buildMonitor() {
 
 function clearCards() {
   for (const api of state.cards.values()) {
-    api.source?.close();
+    stopPolling(api);
     api.logGroup?.remove();
     api.card.remove();
   }
@@ -270,8 +273,17 @@ async function refreshTasks(list, count) {
     await session();
     const all = await tasks();
     if (generation !== state.generation) return;
-    const candidates = all.filter(task => !task.demo && task.phase !== 'preview');
-    const visible = candidates.slice(0, 12);
+    const scope = globalThis.__binaryRepairTaskId || '';
+    if (state.scope !== scope) {
+      state.scope = scope;
+      clearCards();
+    }
+    // The monitor inside a task lane belongs to that task only; never list the
+    // archive's historical runs here.
+    const candidates = scope
+      ? all.filter(task => !task.demo && task.phase !== 'preview' && task.id === scope)
+      : [];
+    const visible = candidates.slice(0, 1);
     count.textContent = runCount(visible.length);
     if (!visible.length) {
       list.replaceChildren(el('p', {class: 'ra-muted'}, t('noRuns')));
@@ -286,36 +298,17 @@ async function refreshTasks(list, count) {
     for (const task of visible) {
       const card = state.cards.get(task.id);
       if (!card) continue;
-      const phaseChanged = task.phase !== card.phase;
-      if (card.source?.readyState === EventSource.CLOSED) card.source = null;
       card.phase = task.phase;
       card.live = LIVE_PHASES.has(task.phase);
       if (card.target) {
         card.target.textContent = fill(t('phaseValue'), {value: stateLabel(task.phase || 'unknown')});
       }
-      // Re-arm a stream that was closed during a draft/terminal replay. Also
-      // replay once when a task changes phase, so a fast draft→start→failed
-      // transition cannot leave the card without its journal rows.
-      if (!card.source && (card.live || phaseChanged)) {
-        card.ended = false;
-        connect(card);
-      } else if (!card.live && card.source) {
-        card.source.close();
-        card.source = null;
-        card.ended = true;
-        card.status.textContent = stateLabel(task.phase);
-        card.logStatus.textContent = stateLabel(task.phase);
-      } else if (!card.source) {
-        // No stream (terminal/draft): keep the overview phase current without
-        // reconnecting a task that already completed its replay.
-        card.status.textContent = stateLabel(task.phase);
-        card.logStatus.textContent = stateLabel(task.phase);
-      }
+      if (!card.ended && !card.polling) connect(card);
     }
-    const currentIds = new Set(all.map(task => task.id));
+    const visibleIds = new Set(visible.map(task => task.id));
     for (const [id, card] of state.cards) {
-      if (currentIds.has(id)) continue;
-      card.source?.close();
+      if (visibleIds.has(id)) continue;
+      stopPolling(card);
       card.logGroup?.remove();
       card.card.remove();
       state.cards.delete(id);
@@ -340,7 +333,7 @@ function routeBLog() {
 function resetForLocale() {
   state.generation += 1;
   for (const api of state.cards.values()) {
-    api.source?.close();
+    stopPolling(api);
     api.logGroup?.remove();
     api.card.remove();
   }
@@ -371,12 +364,21 @@ function mount() {
   if (contentB && state.logB?.panel.parentElement !== contentB) contentB.append(routeBLog());
   if (!state.mounted) {
     state.mounted = true;
+    document.addEventListener('binaryrepair:task', event => {
+      if (!event.detail?.taskId) return;
+      const list = state.monitor?.querySelector('.ra-task-list');
+      const count = state.monitor?.querySelector('.ra-count');
+      if (list && count) refreshTasks(list, count);
+      const a = document.querySelectorAll('.route-slot .route-lane')[0];
+      if (a?.matches('details')) a.open = true;
+    });
     state.timer = setInterval(() => {
       const list = state.monitor?.querySelector('.ra-task-list');
       const count = state.monitor?.querySelector('.ra-count');
       if (list && count) refreshTasks(list, count);
     }, 5000);
   }
+  if (globalThis.__binaryRepairTaskId && lane.matches('details')) lane.open = true;
 }
 
 const observer = new MutationObserver(() => mount());

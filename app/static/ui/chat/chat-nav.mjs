@@ -1,7 +1,7 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
-import {settingsCopy} from '../shared/settings-copy.mjs?v=20261121z';
-import {control, displayTitle} from './chat-view.mjs?v=20261122a';
+import {settingsCopy} from '../shared/settings-copy.mjs?v=20261124b';
+import {control, displayTitle} from './chat-view.mjs?v=20261124n';
 
 function settingsLabel(key) {
   let stored = null;
@@ -35,9 +35,6 @@ export function sidebar({t, list, mobile, conversation, newChat, search, setting
       navButton('search', 'search', search, 'search-button')),
     el('nav', {'aria-label': t('chats')}, el('div', {class: 'source-label'}, t('recent')), list),
     el('footer', {},
-      el('a', {class: 'control nav-control legacy-entry', href: '/legacy',
-        title: settingsLabel('aboutLegacy'), 'aria-label': settingsLabel('aboutLegacy')},
-      icon('layers', 17), el('span', {}, settingsLabel('aboutLegacy'))),
       (() => {
         const entry = navButton('settings', 'settings', settings, 'settings-entry');
         entry.dataset.settingsTrigger = 'true';
