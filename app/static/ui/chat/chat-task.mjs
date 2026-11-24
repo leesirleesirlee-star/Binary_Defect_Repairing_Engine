@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261124q';
+import {label} from './chat-copy.mjs?v=20261124u';
 
 const newId = () => crypto.randomUUID();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -134,7 +134,7 @@ export function chatTask({notify = () => {}} = {}) {
     await submitPayload(chat, payload, text, locale);
   }
 
-  async function assistantTurn(chat, text, locale) {
+  async function assistantTurn(chat, text, locale, model = null) {
     if (!chat.jobId) return;
     chat.locale = locale;
     chat.assistantMode = chat.assistantMode ?? 'deterministic';
@@ -144,7 +144,7 @@ export function chatTask({notify = () => {}} = {}) {
     try {
       const data = await api(`/api/tasks/${chat.jobId}/assistant`, {
         method: 'POST',
-        body: {message: text, locale},
+        body: {message: text, locale, model: model || undefined},
       });
       chat.assistantMode = data.mode || 'deterministic';
       event(chat, 'assistant_reply', {
@@ -271,7 +271,10 @@ export function chatTask({notify = () => {}} = {}) {
       try {
         const audit = await api(`/api/tasks/${chat.jobId}/audit`);
         chat.audit = audit;
-        chat.auditMode = audit.audit_mode || 'signed';
+        // Agent-first choice: do not expose signed plans until the operator
+        // explicitly chooses the deterministic replay. The live audit is the
+        // path that actually calls the model and produces a fresh plan.
+        chat.auditMode = 'choose';
         chat.liveGuest = Boolean(audit.live_guest);
         emitLiveAudit(chat);
       } catch { chat.audit = null; }
@@ -384,9 +387,11 @@ export function chatTask({notify = () => {}} = {}) {
       await sleep(800);
       try {
         const data = await api(`/api/tasks/${chat.jobId}/audit`);
+        const before = JSON.stringify(chat.audit?.live_audit || null);
         chat.audit = data;
-        emitLiveAudit(chat);
+        if (JSON.stringify(data.live_audit || null) !== before) emitLiveAudit(chat);
         const status = data.live_audit?.status;
+        if (data.audit_mode === 'signed') break;
         if (status === 'completed' || status === 'failed') break;
       } catch { break; }
     }

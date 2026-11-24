@@ -147,12 +147,17 @@ function approval(item, ctx) {
   const status = item.decision;
   if (p.kind === 'repair_plan') {
     const options = p.options ?? [];
+    if (chat.auditMode && chat.auditMode !== 'signed') {
+      return el('p', {class: 'inline-note'},
+        t(chat.auditMode === 'live' ? 'livePlanFirst' : 'chooseAuditMode'));
+    }
     if (status) {
       const chosen = options.find(option => option.id === status);
       return el('div', {class: 'inline-actions'}, icon('check', 15),
         el('span', {}, t('planChosen') + (chosen ? ' · ' + chosen.title : '')));
     }
     return el('div', {class: 'plan-choices', role: 'group', 'aria-label': t('approval')},
+      el('p', {class: 'inline-note replay-note'}, t('signedReplayPlanNote')),
       p.note ? el('p', {class: 'inline-note'}, p.note) : null,
       options.map(option => el('div', {class: 'plan-choice'},
         el('strong', {}, option.title),

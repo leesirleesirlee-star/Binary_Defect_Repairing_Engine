@@ -6,15 +6,15 @@ import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261124q';
-import {chatPreview} from './chat-stream.mjs?v=20261124q';
-import {chatTask} from './chat-task.mjs?v=20261124q';
+import {label} from './chat-copy.mjs?v=20261124u';
+import {chatPreview} from './chat-stream.mjs?v=20261124u';
+import {chatTask} from './chat-task.mjs?v=20261124u';
 import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261121z';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261124b';
 import {bindSidebarSpring} from './chat-spring.mjs?v=20261120au';
 import {refreshStepCard} from './chat-steps.mjs?v=20261121j';
-import {control, displayTitle, renderItem, transcript} from './chat-view.mjs?v=20261124q';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261124q';
+import {control, displayTitle, renderItem, transcript} from './chat-view.mjs?v=20261124u';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261124u';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -143,7 +143,8 @@ function send(text) {
   if (engine.taskMode && !file) {
     if (selected.jobId && text.trim() && !busy(selected)) {
       nodes.composerFeedback.textContent = '';
-      engine.assistantTurn(selected, text.trim(), locale);
+      engine.assistantTurn(selected, text.trim(), locale,
+        model === 'default' ? null : model);
       setDraft({text: '', attachment: '', file: null, cases: []});
       nodes.input.value = '';
       resize();
@@ -397,8 +398,9 @@ function paint() {
   const latestApproval = items.findLast(item => item.type === 'awaiting_user' && item.decision === 'approve');
   for (const item of items) {
     const previous = nodes.rows.get(item.key);
-    const flags = item.type === 'awaiting_user' && item.decision === 'approve' ? selected.phase + selected.startReady :
-      item.type === 'error' ? selected.phase + selected.run : '';
+    const flags = item.type === 'awaiting_user'
+      ? selected.phase + selected.startReady + ':' + (selected.auditMode || '') + ':' + (item.decision || '')
+      : item.type === 'error' ? selected.phase + selected.run : '';
     if (previous?.item === item && previous.flags === flags) continue;
     const row = renderItem(item, {t, locale, chat: selected, engine, latestApproval});
     if (!row) continue;

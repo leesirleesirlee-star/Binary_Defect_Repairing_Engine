@@ -9,12 +9,14 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import inspect
 import json
 import os
 import secrets
 import subprocess
 import sys
 from datetime import UTC, datetime
+from functools import partial
 from hashlib import sha256
 from pathlib import Path
 from typing import Annotated, Any
@@ -724,6 +726,11 @@ def assistant_turn(task_id: str, body: Annotated[dict[str, Any], Body()]) -> dic
         raise _error(422, "message_too_long")
     locale = body.get("locale")
     locale = locale if isinstance(locale, str) and locale else "zh-Hans"
+    requested_model = body.get("model")
+    if requested_model in (None, "", "default"):
+        requested_model = None
+    if requested_model not in (None, "deepseek-flash", "deepseek-v4-pro"):
+        raise _error(422, "invalid_model")
     try:
         records = read_records(task_id)
     except JournalError as error:
@@ -737,6 +744,15 @@ def assistant_turn(task_id: str, body: Annotated[dict[str, Any], Body()]) -> dic
     verdict = _read_task_file(task_id, "verdict.json")
     if verdict is not None:
         task = {**task, "verdict": verdict}
-    return assistant.respond(
-        task, records, message, locale=locale, client=ASSISTANT_CLIENT, artifacts=artifacts
+    client = ASSISTANT_CLIENT
+    if client is not None and requested_model is not None:
+        try:
+            if "model" in inspect.signature(client).parameters:
+                client = partial(client, model=requested_model)
+        except (TypeError, ValueError):
+            pass
+    response = assistant.respond(
+        task, records, message, locale=locale, client=client, artifacts=artifacts
     )
+    response["requested_model"] = requested_model
+    return response

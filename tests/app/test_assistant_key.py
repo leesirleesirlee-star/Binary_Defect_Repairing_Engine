@@ -104,7 +104,7 @@ def test_connection_test_success_returns_provider_model(
     assert client.post("/api/assistant/key", json={"key": KEY}).status_code == 200
 
     def ok(messages, model, max_tokens):
-        assert max_tokens == 8
+        assert max_tokens == 64
         return {
             "content": '{"ok": true}',
             "model": "deepseek-chat",
@@ -155,3 +155,33 @@ def test_legacy_key_file_is_read_compatible(
     monkeypatch.setenv(assistant_key.FILE_ENV, str(legacy))
     assert assistant_key.load_key() == KEY
     assert assistant_key.key_status()["source"] == "stored"
+
+
+def test_explicit_model_selection_overrides_the_provider_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_MODEL", "deepseek-chat")
+    assert assistant_key.resolve_model("deepseek-v4-pro") == "deepseek-v4-pro"
+    assert assistant_key.resolve_model("deepseek-flash") == "deepseek-flash"
+    assert assistant_key.resolve_model(None) == "deepseek-chat"
+    assert assistant_key.resolve_model("default") == "deepseek-chat"
+
+
+def test_connection_test_sends_the_explicitly_selected_model(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert client.post("/api/assistant/key", json={"key": KEY}).status_code == 200
+    seen: dict[str, str] = {}
+
+    def ok(messages, model, max_tokens):
+        seen["model"] = model
+        return {"content": '{"ok": true}', "model": "deepseek-flash",
+                "usage": {}, "request_id": "req_2"}
+
+    monkeypatch.setattr(assistant_key, "_curl_chat", ok)
+    result = client.post("/api/assistant/key/test",
+                         json={"model": "deepseek-v4-pro"}).json()
+    assert result["ok"] is True
+    assert seen["model"] == "deepseek-v4-pro"
+    assert result["requested_model"] == "deepseek-v4-pro"
+    assert result["model"] == "deepseek-flash"
