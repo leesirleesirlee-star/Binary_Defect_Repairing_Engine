@@ -12,11 +12,12 @@ frozen, human-reviewed contract and regression corpus, and reports
 The model never writes the contract and never decides the verdict. That
 separation is the point of the redesign.
 
-> **Status (2026-11-22):** G1 fixture freeze, G2 AI audit and **G3 repair verdict are
-> signed** — tags `g0-bootstrap`, `fixture-v1`, `audit-v1`, `candidate-v1`. G4 (the
-> end-to-end console demo) is the only gate still open. The verdict is scoped to the
+> **Status (2026-11-24):** **G0-G4 are signed**; tags `g0-bootstrap`, `fixture-v1`,
+> `audit-v1`, `candidate-v1` and **`v0.1.0`**. The console delivers the frozen
+> fixture end to end and renders the persisted verdict. The verdict is scoped to the
 > frozen contract and corpus: **it is not a proof of whole-program correctness or
-> security.**
+> security.** The additive **G4.1 live AI chain** (live three-run audit + live WSL2
+> guest) is in progress; it does not change this record.
 >
 > - **G1** — frozen x86-64 fixture, 9-case corpus, contract, original guest
 >   observations: [`docs/plan/evidence/G1-RECORD.md`](docs/plan/evidence/G1-RECORD.md).
@@ -30,10 +31,13 @@ separation is the point of the redesign.
 >   independently: [`docs/plan/evidence/G3-RECORD.md`](docs/plan/evidence/G3-RECORD.md),
 >   [evidence bundle](docs/plan/evidence/g3/). The guest runtime was a fresh-boot
 >   WSL2 VM; strict disposable-guest isolation is recorded as an open limitation.
-> - **G4** — the minimal chat-first console (`fb8af46`) and the runner with the G2
->   decision gate and cancellation (`b680a27`) are merged; the end-to-end console
->   demo on the frozen fixture is the remaining gate. The runner needs M3's guest
->   observations and never fabricates a verdict.
+> - **G4** — the minimal chat-first console (`#56`), the AI-hosted chat with an
+>   honest mode badge (`#73`), the runner with the G2 decision gate and the export
+>   bundle (`#57`/`#75`) are merged; the end-to-end demo on the frozen fixture
+>   returns `verified_against_stated_criteria` with the live journal panels.
+>   Signed record and evidence: [`docs/plan/evidence/G4-RECORD.md`](docs/plan/evidence/G4-RECORD.md);
+>   walkthrough: [`docs/gui/g4-walkthrough.md`](docs/gui/g4-walkthrough.md). The
+>   runner consumes M3's guest observations and never fabricates a verdict.
 
 ## Read first
 
