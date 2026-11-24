@@ -13,7 +13,7 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
 import {LANGUAGE_CODES} from '../shared/languages.mjs?v=20261120au';
-import {label as translate} from './chat-copy.mjs?v=20261124i';
+import {label as translate} from './chat-copy.mjs?v=20261124k';
 import {disclosure} from './chat-steps.mjs?v=20261121j';
 
 const STEPS = ['collect', 'freeze', 'analyze', 'audit', 'decision', 'repair', 'verify', 'export'];
@@ -81,7 +81,7 @@ function buildEventLog(route, empty = t('noRunEvents')) {
   const body = el('div', {class: 'ra-log-body'}, el('p', {class: 'ra-muted'}, empty));
   const heading = el('span', {class: 'ra-heading'},
     el('span', {class: 'ra-title'}, icon('terminal', 15), t(route) + ' · ' + t('activity')), count);
-  const panel = disclosure({className: 'ra-monitor ra-event-log', heading, open: true}, body);
+  const panel = disclosure({className: 'ra-monitor ra-event-log', heading, open: false}, body);
   return {panel, body, count, groups: 0};
 }
 
@@ -270,11 +270,17 @@ async function refreshTasks(list, count) {
     await session();
     const all = await tasks();
     if (generation !== state.generation) return;
-    const scope = globalThis.__binaryRepairTaskId;
-    const candidates = all
-      .filter(task => !task.demo && task.phase !== 'preview')
-      .filter(task => !scope || task.id === scope);
-    const visible = candidates.slice(0, 12);
+    const scope = globalThis.__binaryRepairTaskId || '';
+    if (state.scope !== scope) {
+      state.scope = scope;
+      clearCards();
+    }
+    // The monitor inside a task lane belongs to that task only; never list the
+    // archive's historical runs here.
+    const candidates = scope
+      ? all.filter(task => !task.demo && task.phase !== 'preview' && task.id === scope)
+      : [];
+    const visible = candidates.slice(0, 1);
     count.textContent = runCount(visible.length);
     if (!visible.length) {
       list.replaceChildren(el('p', {class: 'ra-muted'}, t('noRuns')));
@@ -315,9 +321,9 @@ async function refreshTasks(list, count) {
         card.logStatus.textContent = stateLabel(task.phase);
       }
     }
-    const currentIds = new Set(all.map(task => task.id));
+    const visibleIds = new Set(visible.map(task => task.id));
     for (const [id, card] of state.cards) {
-      if (currentIds.has(id)) continue;
+      if (visibleIds.has(id)) continue;
       card.source?.close();
       card.logGroup?.remove();
       card.card.remove();

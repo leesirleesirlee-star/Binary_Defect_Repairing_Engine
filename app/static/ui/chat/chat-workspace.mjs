@@ -1,7 +1,7 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
-import {control} from './chat-view.mjs?v=20261124i';
-import {createProgress} from './chat-progress.mjs?v=20261124i';
+import {control} from './chat-view.mjs?v=20261124k';
+import {createProgress} from './chat-progress.mjs?v=20261124k';
 import {createStepGroups, disclosure} from './chat-steps.mjs?v=20261121j';
 import {motionReduced} from '../shared/motion.mjs?v=20261120au';
 
@@ -49,22 +49,6 @@ function taskLaneStates(chat) {
       : chat.runEnd ? (chat.runEnd.execution === 'completed' ? 'in_progress' : 'failed') : 'pending',
   ];
   return {route_a: a, route_b: ['not_run', 'not_run', 'not_run']};
-}
-
-function runnerChecklist(chat, t) {
-  const steps = chat.plan?.steps || [];
-  const byStep = Object.fromEntries(steps.map(step => [step.step_id, step]));
-  const errors = chat.journal.filter(record => record.type === 'error');
-  return el('ol', {class: 'runner-steps lane-checklist'},
-    ...runnerSteps.map(id => {
-      const step = byStep[id] || {step_id: id, label_code: id, status: 'pending'};
-      const code = errors.find(record => record.step_id === id)?.payload?.code || '';
-      return el('li', {'data-status': step.status},
-        el('span', {class: 'runner-dot'}, icon(stateGlyph(step.status), 10)),
-        el('span', {class: 'runner-name'}, stepName(step.label_code || id, t)),
-        el('span', {class: 'runner-state'},
-          t(step.status) + ' · ' + step.status + (code ? ' · ' + code : '')));
-    }));
 }
 
 export function createExecution(t, showConversation, taskMode = false) {
@@ -194,7 +178,6 @@ export function createExecution(t, showConversation, taskMode = false) {
           return el('li', {'data-state': state}, el('span', {class: 'step-dot'}, icon(stateGlyph(state), 13)),
             el('span', {}, t(step)), el('span', {class: 'visually-hidden'}, t(state)));
         })),
-        index === 0 ? runnerChecklist(chat, t) : null,
         el('p', {class: 'route-note'}, note));
       node.dataset.status = status;
       const restoreFocus = last?.contains(document.activeElement);

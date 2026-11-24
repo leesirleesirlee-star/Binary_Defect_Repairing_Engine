@@ -51,13 +51,15 @@ the runner journal, not by a client checklist:
 - overview shows the selected contract scope plus signed-G2 rows (audit,
   decision, plan/contract hashes);
 - **Route A** carries the selected G2-approved contract, its three checkpoints,
-  the runner's eight-step checklist (`skipped` + `error.code` included) and the
-  current-run monitor inside the lane;
+  the current-run monitor inside the lane (the monitor card carries the runner's
+  eight-step statuses, including `skipped` + `error.code`);
 - **Route B** keeps the alternative contracts as `not_run`, with the refusal
   reasons;
-- the lane monitor is scoped to the current task and replays the persisted journal
-  (`#seq · type · step · payload · source`).  Header count/phase come from
-  `plan_update` and `run_end` (`7 / 8`, `已结束 · completed`).
+- the lane monitor is scoped strictly to the current task: one run card, no
+  historical archive runs; the detailed event log is collapsed by default and
+  replays the persisted journal (`#seq · type · step · payload · source`).
+  Header count/phase come from `plan_update` and `run_end` (`7 / 8`,
+  `已结束 · completed`).
 
 The conversation presents the generation as cards (analysis, signed G2, live
 8-step run progress, final outcome with download tiles) with a short entrance
