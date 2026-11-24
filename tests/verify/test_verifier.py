@@ -42,6 +42,10 @@ NOW = "2026-11-21T12:00:00Z"
 NOT_RUN = "not_run"
 PASS = "pass"
 FAIL = "fail"
+LIVE_OBSERVATIONS = (
+    ROOT / "docs" / "plan" / "evidence" / "g3" / "observations-candidate-wsl2.json"
+)
+LIVE_CANDIDATE_SHA = "c010c006b573b29a683540d128296bc94343e0d0c8bf73fc2c308b95aaa25b28"
 
 
 # ---------------------------------------------------------------------------
@@ -349,6 +353,72 @@ def test_all_required_checks_pass_with_evidence() -> None:
 def test_v5_is_reported_but_not_required() -> None:
     verdict = _verify()
     assert _required(verdict, "V5-reapply") is False
+
+
+def test_live_style_selected_plan_observations_pass_v0_v5() -> None:
+    """A live-style observation document still has to satisfy every check."""
+    blob = _selected_plan_guard()
+    candidate = _candidate(blob=blob)
+    observations = _observations(_sha(candidate))
+    observations["environment"] = {
+        "uname": "Linux guest 6.18.40.1-microsoft-standard-WSL2 x86_64",
+        "kernel": "6.18.40.1-microsoft-standard-WSL2",
+        "libc": "glibc 2.43",
+    }
+    observations["started_at"] = "2026-11-22T11:06:48Z"
+    verdict = verify_candidate(
+        **_kwargs_for(
+            candidate,
+            manifest_kwargs={
+                "blob": blob,
+                "code_size": SELECTED_PLAN_CODE_SIZE,
+                "message_size": len(MESSAGE),
+                "message_offset": SELECTED_PLAN_MESSAGE_OFFSET,
+            },
+            observations=observations,
+        )
+    )
+    assert verdict["verdict"] == "verified_against_stated_criteria"
+    assert {row["id"]: row["status"] for row in verdict["criteria"]} == {
+        "V0-identity": PASS,
+        "V1-structure": PASS,
+        "V2-valid-behaviour": PASS,
+        "V3-invalid-response": PASS,
+        "V4-boundary": PASS,
+        "V5-reapply": PASS,
+    }
+    assert verdict["coverage"] == {"cases_total": 9, "cases_run": 9, "unmeasured": []}
+
+
+def test_live_wsl2_observation_is_bound_to_the_g3_candidate() -> None:
+    """The committed live observation is schema-valid and bound to the candidate."""
+    payload = json.loads(LIVE_OBSERVATIONS.read_text(encoding="utf-8"))
+    schema = json.loads(
+        (ROOT / "schemas" / "ObservationV1.schema.json").read_text(encoding="utf-8")
+    )
+    assert not list(Draft202012Validator(schema).iter_errors(payload))
+    assert payload["binary"]["sha256"] == LIVE_CANDIDATE_SHA
+    assert payload["environment"]["kernel"].endswith("WSL2")
+    assert len(payload["cases"]) == 9
+    assert {case["id"] for case in payload["cases"]} == {
+        "valid-0",
+        "valid-1",
+        "valid-5",
+        "valid-31",
+        "valid-punct",
+        "invalid-32",
+        "invalid-33",
+        "invalid-64",
+        "invalid-128",
+    }
+
+
+def test_live_observation_candidate_hash_mismatch_is_refused() -> None:
+    observations = json.loads(LIVE_OBSERVATIONS.read_text(encoding="utf-8"))
+    observations["binary"]["sha256"] = "0" * 64
+    verdict = _verify(observations=observations)
+    assert _status(verdict, "V0-identity") == FAIL
+    assert verdict["verdict"] != "verified_against_stated_criteria"
 
 
 def test_selected_plan_guard_layout_passes_v4() -> None:
