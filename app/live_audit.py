@@ -26,7 +26,7 @@ AUDIT_ROOT = ROOT / "var" / "audit"
 FIXTURE_DIR = ROOT / "fixtures" / "stack-overflow-01"
 MODEL = "deepseek-v4-pro"
 TIMEOUT_S = 600
-_RUNNING: dict[str, subprocess.Popen[bytes]] = {}
+_RUNNING: dict[str, Any] = {}
 _LOCK = threading.Lock()
 
 
@@ -148,6 +148,62 @@ def _audit_plan_path(value: str) -> Path | None:
     return None
 
 
+class _Fanout:
+    """Wait for three independent audit CLI runs and combine their summaries."""
+
+    def __init__(self, processes: list[subprocess.Popen[bytes]],
+                 summaries: list[Path], final_summary: Path) -> None:
+        self.processes = processes
+        self.summaries = summaries
+        self.final_summary = final_summary
+
+    def wait(self, timeout: float | None = None) -> int:
+        deadline = time.time() + (timeout or TIMEOUT_S)
+        for process in self.processes:
+            remaining = max(1.0, deadline - time.time())
+            returncode = process.wait(timeout=remaining)
+            if returncode != 0:
+                return returncode
+        prompt_sha = contract_sha = None
+        model = MODEL
+        runs: list[dict[str, Any]] = []
+        for index, path in enumerate(self.summaries, start=1):
+            try:
+                summary = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return 1
+            if index == 1:
+                prompt_sha = summary.get("prompt_sha256")
+                contract_sha = summary.get("contract_sha256")
+                model = summary.get("model") or MODEL
+            row = (summary.get("runs") or [None])[0]
+            if not isinstance(row, dict):
+                return 1
+            row = dict(row)
+            row["run_index"] = index
+            runs.append(row)
+        self.final_summary.parent.mkdir(parents=True, exist_ok=True)
+        self.final_summary.write_text(json.dumps({
+            "model": model, "prompt_sha256": prompt_sha,
+            "contract_sha256": contract_sha, "runs": runs,
+        }, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        return 0
+
+    def terminate(self) -> None:
+        for process in self.processes:
+            try:
+                process.terminate()
+            except OSError:
+                pass
+
+    def kill(self) -> None:
+        for process in self.processes:
+            try:
+                process.kill()
+            except OSError:
+                pass
+
+
 def _watch(task_id: str, process: subprocess.Popen[bytes], summary_path: Path) -> None:
     try:
         try:
@@ -263,26 +319,38 @@ def start(task_id: str, *, rerun: bool = False) -> dict[str, Any]:
     task["selected_plan"] = None
     task["live_audit"] = live
     tasks.update(task)
-    command = [
-        sys.executable, "-m", "pipeline.audit",
-        "--fixture-dir", str(FIXTURE_DIR.relative_to(ROOT)),
-        "--runs", "3",
-        "--raw-dir", str(raw_dir.relative_to(ROOT)),
-        "--summary-out", str(summary_path.relative_to(ROOT)),
-        "--model", MODEL,
-    ]
     env = os.environ.copy()
     env["DEEPSEEK_API_KEY"] = key
     env["DEEPSEEK_MODEL"] = MODEL
+    processes: list[subprocess.Popen[bytes]] = []
+    summaries: list[Path] = []
     try:
-        process = _spawn(command, env)
+        for index in range(1, 4):
+            run_summary = directory / f"summary-run-{index}.json"
+            run_raw = raw_dir / f"run-{index}"
+            command = [
+                sys.executable, "-m", "pipeline.audit",
+                "--fixture-dir", str(FIXTURE_DIR.relative_to(ROOT)),
+                "--runs", "1",
+                "--raw-dir", str(run_raw.relative_to(ROOT)),
+                "--summary-out", str(run_summary.relative_to(ROOT)),
+                "--model", MODEL,
+            ]
+            processes.append(_spawn(command, env))
+            summaries.append(run_summary)
     except OSError as error:
+        for process in processes:
+            try:
+                process.terminate()
+            except OSError:
+                pass
         live.update({"status": "failed", "finished_at": _now(), "error": "audit_failed"})
         _set_state(task_id, live)
         raise LiveAuditError(409, "audit_failed") from error
+    fanout = _Fanout(processes, summaries, summary_path)
     with _LOCK:
-        _RUNNING[task_id] = process
-    threading.Thread(target=_watch, args=(task_id, process, summary_path),
+        _RUNNING[task_id] = fanout
+    threading.Thread(target=_watch, args=(task_id, fanout, summary_path),
                      name="live-audit-" + task_id, daemon=True).start()
     return {"status": "running"}
 

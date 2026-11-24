@@ -59,27 +59,24 @@ def _upload(client: TestClient) -> str:
 def _fake_spawn(returncode: int = 0):
     def spawn(command: list[str], env: dict[str, str]) -> FakeProcess:
         assert command[1:3] == ["-m", "pipeline.audit"]
-        assert "--runs" in command and command[command.index("--runs") + 1] == "3"
+        assert "--runs" in command and command[command.index("--runs") + 1] == "1"
         assert "--model" in command and "deepseek-v4-pro" in command
         assert env["DEEPSEEK_API_KEY"] == "sk-test-live-1234567890"
         summary_index = command.index("--summary-out") + 1
         summary_path = ROOT / command[summary_index]
-        runs = []
-        for index in range(1, 4):
-            runs.append({
-                "run_index": index,
-                "schema_valid": True,
-                "plan_sha256": f"{index:064x}",
-                "plan_path": None,
-                "plan": json.loads(PLAN.read_text(encoding="utf-8")),
-                "usage": {"total_tokens": 100 + index},
-            })
         summary_path.parent.mkdir(parents=True, exist_ok=True)
         summary_path.write_text(json.dumps({
             "model": "deepseek-v4-pro",
             "prompt_sha256": "a" * 64,
             "contract_sha256": "b" * 64,
-            "runs": runs,
+            "runs": [{
+                "run_index": 1,
+                "schema_valid": True,
+                "plan_sha256": "1" * 64,
+                "plan_path": None,
+                "plan": json.loads(PLAN.read_text(encoding="utf-8")),
+                "usage": {"total_tokens": 101},
+            }],
         }), encoding="utf-8")
         return FakeProcess(returncode)
     return spawn
