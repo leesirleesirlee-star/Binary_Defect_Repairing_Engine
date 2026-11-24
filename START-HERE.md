@@ -1,8 +1,10 @@
 # START HERE — Binary Defect Repairing Engine (MVP2)
 
-**Status:** planning complete locally; GitHub repository is still empty; no
-application code has been written. First milestone is **G0: repository
-bootstrap**.
+**Status:** **G0-G4 signed**; tag `v0.1.0` on the G4 record
+([`docs/plan/evidence/G4-RECORD.md`](docs/plan/evidence/G4-RECORD.md)). The
+console runs the frozen fixture end to end and renders the persisted verdict.
+The additive **G4.1 live AI chain** (live three-run audit + live WSL2 guest) is in
+progress: [#68](https://github.com/leesirleesirlee-star/Binary_Defect_Repairing_Engine/issues/68).
 **Target repository:** <https://github.com/leesirleesirlee-star/Binary_Defect_Repairing_Engine>
 **Archive repository:** <https://github.com/leesirleesirlee-star/Binary_Repair> (v1.2.2, accepted work, read-only reference)
 **Reference report:** 2026-11-19, "AI-Assisted Binary Vulnerability Repair: Project Workflow and Technical Assessment".
@@ -208,15 +210,18 @@ Do not start the AI audit before G1. Do not start the repair before G2.
 - [ ] M3's deterministic verifier writes `verdict.json` with the six-word vocabulary.
 - [ ] V0-V4 pass on matching hashes; an independent re-run reproduces the candidate.
 
-### G4 — minimal chat-first conversation console (delivery)
+### G4 — minimal chat-first conversation console (delivery) — **signed 2026-11-24**
 
-- [ ] `/welcome` → `/ui/chat/` → `/ui/` open without the Jinja legacy.
-- [ ] the conversation is AI-hosted (LLM assistant with a deterministic fallback and an honest mode badge).
-- [ ] the chat collects the binary, normal inputs and the crash input, then freezes the contract.
-- [ ] approval binds contract + corpus + binary digests; Start stays blocked until approved, and Start runs `scripts/run_task.py`.
-- [ ] the three-run audit, the decision and the patch/verdict are narrated in the chat; corpus/contract/score cards stay hidden, while the right-side 修复运行监视 + 事件日志 panels show the phases and the chronological journal in real time.
-- [ ] the verdict renders only the six-word vocabulary; `not_run` verbatim; downloads resolve.
-- [ ] no `pipeline.*` import in `app/`; honesty tests green; headless walkthrough captured; `v0.1.0` tagged.
+Evidence: [`docs/plan/evidence/G4-RECORD.md`](docs/plan/evidence/G4-RECORD.md),
+[`docs/gui/g4-walkthrough.md`](docs/gui/g4-walkthrough.md).
+
+- [x] `/welcome` → `/ui/chat/` → `/ui/` open without the Jinja legacy.
+- [x] the conversation is AI-hosted (LLM assistant with a deterministic fallback and an honest mode badge) — free-form turns are model-hosted; the guided flow narration stays deterministic and the badge says which mode is active.
+- [x] the chat collects the binary, normal inputs and the crash input, then freezes the contract — uploads are recorded and bound to the G1-frozen contract (frozen before AI by design).
+- [x] approval binds contract + corpus + binary digests; Start stays blocked until approved, and Start runs `scripts/run_task.py`.
+- [x] the three-run audit, the decision and the patch/verdict are narrated in the chat; corpus/contract/score cards stay hidden, while the right-side 修复运行监视 + 事件日志 panels show the phases and the chronological journal in real time.
+- [x] the verdict renders only the six-word vocabulary; `not_run` verbatim; downloads resolve.
+- [x] no `pipeline.*` import in `app/`; honesty tests green; headless walkthrough captured; `v0.1.0` tagged.
 
 ---
 
