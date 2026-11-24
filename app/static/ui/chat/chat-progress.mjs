@@ -4,7 +4,33 @@ import {currentEvaluation} from '../workbench/api.mjs?v=20261124b';
 
 const labels = ['milestoneReview', 'milestoneQueue', 'milestoneRun', 'milestoneVerdict'];
 
+function taskProgress(chat) {
+  const states = ['pending', 'pending', 'pending', 'pending'];
+  const steps = chat.plan?.steps || [];
+  const statusOf = id => steps.find(step => step.step_id === id)?.status;
+  const bound = Boolean(chat.g2 && chat.bound);
+  const end = chat.runEnd?.execution;
+  const repair = statusOf('repair');
+  const verify = statusOf('verify');
+  const verdict = chat.verdict;
+  states[0] = bound ? 'completed' : chat.request ? 'in_progress' : 'pending';
+  if (chat.run) states[1] = end ? 'completed' : 'in_progress';
+  else if (bound) states[1] = 'in_progress';
+  if (repair === 'in_progress' || verify === 'in_progress') states[2] = 'in_progress';
+  else if (repair === 'completed' && verify === 'completed') states[2] = 'completed';
+  else if (end && (repair === 'failed' || verify === 'failed')) states[2] = 'failed';
+  if (verdict?.available && verdict?.finalized) states[3] = 'completed';
+  else if (chat.runEnd) states[3] = end === 'completed' ? 'in_progress' : 'failed';
+  let detail = '';
+  if (chat.g2 && !bound) detail = 'awaitingBinding';
+  if (verdict?.available && verdict?.finalized) detail = verdict.verdict;
+  else if (chat.runEnd && states[3] !== 'completed') detail = end || 'unknown';
+  else if (bound && !chat.runEnd) detail = 'g2Bound';
+  return {states, detail};
+}
+
 export function repairProgress(chat) {
+  if (chat.taskMode) return taskProgress(chat);
   const states = ['pending', 'pending', 'pending', 'pending'];
   const run = chat.live ? chat.execution?.run_id : chat.kind === 'repair' && chat.run;
   if (!run) {

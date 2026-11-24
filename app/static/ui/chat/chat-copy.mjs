@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261124e';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261124i';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -103,6 +103,24 @@ const copy = {
   g2Decision: ['Signed decision', '已签决策'],
   g2Plan: ['Signed plan', '已签计划'],
   g2Pending: ['Signed G2 records are loading…', '正在载入 G2 签核记录…'],
+  analysisTitle: ['Analysis', '分析结果'],
+  analysisFunction: ['Function', '函数'],
+  analysisAddress: ['Address', '地址'],
+  analysisInstruction: ['Call site', '调用点'],
+  analysisCases: ['Cases', '用例'],
+  caseScopeNote: ['Uploaded cases are task evidence only; verification uses the frozen contract/corpus and M3 guest observations. The host never executes the uploaded ELF.', '上传用例仅作为任务证据登记；验证使用冻结 contract/corpus 与 M3 guest observations，宿主机不会执行上传的 ELF。'],
+  bindingNote: ['Choosing a contract binds the signed G2 decision; no audit re-run, no new vote.', '选择此契约 = 绑定已签 G2 决策；不重跑审计，不重新投票。'],
+  repairRun: ['Repair run', '修复运行'],
+  repairComplete: ['Repair complete', '修复完成'],
+  noVerdict: ['No persisted verdict', '无持久化结论'],
+  analysisTitleShort: ['Analysis', '分析'],
+
+  awaitingBinding: ['Waiting for contract binding…', '等待绑定契约…'],
+  g2Bound: ['G2 decision bound', '已绑定 G2 决策'],
+  onlineNow: ['Online now', '在线'],
+  routeStepBind: ['Bind signed G2 decision', '绑定已签 G2 决策'],
+  routeStepRun: ['Repair & verify under the contract', '按契约修复与验证'],
+  routeStepEvidence: ['Persist verdict & evidence', '写结论与证据'],
   runnerChecklist: ['Runner checklist (plan_update)', '运行器步骤（plan_update）'],
   journalLog: ['Chronological journal', '事件日志（按序号）'],
   journalPending: ['Waiting for runner journal events…', '等待运行器 journal 事件…'],

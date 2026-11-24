@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261124e';
+import {label} from './chat-copy.mjs?v=20261124i';
 
 const newId = () => crypto.randomUUID();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -207,35 +207,33 @@ export function chatTask({notify = () => {}} = {}) {
         finish(chat, 'unsupported');
         return;
       }
-      say(chat, t(locale,
-        `分析完成：${finding.function || '?'} @ ${finding.address || '?'}，`
-        + `${finding.instruction || '?'}，${finding.cwe || 'CWE-121'}；`
-        + `已登记 ${counts.valid ?? 0} 个正确用例、${counts.poc ?? 0} 个错误用例。`
-        + '上传用例仅作为任务证据登记；验证使用冻结 contract/corpus 与 M3 guest '
-        + 'observations，宿主机不会执行上传的 ELF。',
-        `Analysis finished: ${finding.function || '?'} @ ${finding.address || '?'}, `
-        + `${finding.instruction || '?'}, ${finding.cwe || 'CWE-121'}; recorded `
-        + `${counts.valid ?? 0} valid and ${counts.poc ?? 0} PoC case(s). Uploaded cases are `
-        + 'task evidence only; verification uses the frozen contract/corpus and M3 guest '
-        + 'observations, and the host never executes the uploaded ELF.'));
+      event(chat, 'g4_analysis', {
+        function: finding.function || '?',
+        address: finding.address || '?',
+        instruction: finding.instruction || '?',
+        cwe: finding.cwe || 'CWE-121',
+        counts: {valid: counts.valid ?? 0, poc: counts.poc ?? 0},
+      }, 'analyze');
       try {
         const g2 = await api('/api/g4/g2');
         chat.g2 = g2;
         const audit = g2.audit || {};
         const selected = audit.selected_plan || {};
         const runs = audit.runs || [];
-        const schemas = runs.length ? runs.every(run => run.schema_valid) : false;
+        const schemas = runs.length > 0 && runs.every(run => run.schema_valid);
         const scores = audit.reviewer_scores || {};
-        say(chat, t(locale,
-          `已签 G2 记录：${runs.length} 次审计、schema ${schemas ? 'valid' : 'invalid'}、`
-          + `M1 ${scores.m1 ?? '—'}、决策 ${audit.decision || '?'}、`
-          + `选定 run ${selected.run_index ?? '?'}（plan ${String(selected.plan_sha256 || '').slice(0, 12)}…）。`
-          + '选择下方契约 = 绑定该已签 G2 决策；不重跑审计，不重新投票。',
-          `Signed G2 record: ${runs.length} audit run(s), schema ${schemas ? 'valid' : 'invalid'}, `
-          + `M1 ${scores.m1 ?? '—'}, decision ${audit.decision || '?'}, `
-          + `selected run ${selected.run_index ?? '?'} (plan ${String(selected.plan_sha256 || '').slice(0, 12)}…). `
-          + 'Choosing a contract below binds that signed G2 decision; it does not re-run the '
-          + 'audit or take a new vote.'));
+        event(chat, 'g4_g2', {
+          report_id: audit.report_id || '—',
+          runs: runs.length,
+          schema_valid: schemas,
+          score_m1: scores.m1 ?? null,
+          decision: audit.decision || '—',
+          selected_run: selected.run_index ?? null,
+          plan_id: g2.plan?.plan_id || '—',
+          strategy: g2.plan?.strategy || '—',
+          record_sha256: g2.record_sha256 || null,
+          contract_sha256: g2.contract_sha256 || null,
+        }, 'report');
       } catch { chat.g2 = null; }
       chat.request = {
         kind: 'repair_plan',
@@ -273,6 +271,8 @@ export function chatTask({notify = () => {}} = {}) {
     const option = chat.options.find(item => item.id === action);
     if (!option || !option.feasible) return;
     chat.request = null;
+    chat.bound = {id: option.id, title_zh: option.title_zh, title_en: option.title_en,
+      scope_zh: option.scope_zh, scope_en: option.scope_en};
     event(chat, 'user_response', {request_id: requestId, decision: action}, 'report');
     state(chat, 'running');
     chat.started = Date.now();
@@ -331,7 +331,15 @@ export function chatTask({notify = () => {}} = {}) {
       const seq = Number(record.seq) || 0;
       if (seq > (chat.journalSeq ?? 0)) chat.journalSeq = seq;
       const payload = record.payload || {};
-      if (record.type === 'plan_update') chat.plan = payload;
+      if (record.type === 'plan_update') {
+        chat.plan = payload;
+        event(chat, 'g4_progress', {
+          id: 'g4-progress-' + (chat.run || 'run'),
+          steps: payload.steps || [],
+          revision: payload.revision ?? null,
+          execution: chat.runEnd?.execution ?? null,
+        }, 'report');
+      }
       else if (record.type === 'audit_runs') chat.auditRuns = payload;
       else if (record.type === 'run_end') chat.runEnd = payload;
     }
@@ -359,22 +367,19 @@ export function chatTask({notify = () => {}} = {}) {
     }
     const word = verdict?.available && verdict?.finalized ? verdict.verdict : null;
     chat.verdict = verdict;
-    if (word) {
-      say(chat, t(chat.locale,
-        `修复完成，验证结论：${word}。`,
-        `Repair complete; verdict: ${word}.`));
-    } else {
-      say(chat, t(chat.locale,
-        '运行结束，但没有可用的持久化 verdict；界面不会伪造结论。',
-        'The run ended without a persisted verdict; the console does not fabricate one.'));
-    }
-    sendDownloads(chat, chat.jobId, artifacts, chat.locale);
+    event(chat, 'g4_progress', {
+      id: 'g4-progress-' + (chat.run || 'run'),
+      steps: chat.plan?.steps || [],
+      revision: chat.plan?.revision ?? null,
+      execution: chat.runEnd?.execution ?? null,
+    }, 'report');
+    sendDownloads(chat, chat.jobId, artifacts, chat.locale, word, verdict);
     const execution = chat.runEnd?.execution === 'completed' ? 'completed'
       : chat.runEnd?.execution === 'cancelled' ? 'cancelled' : 'failed';
     finish(chat, execution);
   }
 
-  function sendDownloads(chat, taskId, artifacts, locale) {
+  function sendDownloads(chat, taskId, artifacts, locale, verdictWord, verdictPayload) {
     if (!artifacts.length) return;
     const byName = new Map(artifacts.map(item => [item.display_path, item]));
     const link = name => {
@@ -388,11 +393,13 @@ export function chatTask({notify = () => {}} = {}) {
     const verdictFile = link('verdict.json');
     event(chat, 'g4_downloads', {
       id: 'g4-downloads-' + taskId,
+      verdict_word: verdictWord || null,
+      candidate_sha256: verdictPayload?.candidate_sha256 ?? null,
       candidate: candidate && {...candidate, label: t(locale, '下载修复后的程序 (.elf)',
         'Download repaired program (.elf)')},
       manifest: manifest && {...manifest, label: t(locale, '下载补丁清单',
         'Download repair manifest')},
-      verdict: verdictFile && {...verdictFile, label: t(locale, '下载验证结论 (verdict.json)',
+      verdict_file: verdictFile && {...verdictFile, label: t(locale, '下载验证结论 (verdict.json)',
         'Download verdict (verdict.json)')},
     }, 'export');
   }

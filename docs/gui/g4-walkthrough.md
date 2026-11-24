@@ -41,22 +41,28 @@ only the input, run and output behaviour and their copy changed.
 
 ## Run projection (right pane)
 
-In task mode the right pane is no longer the legacy v1.2.2 checklist/lanes:
+The v1.2.2 execution-detail architecture is preserved: the 4-milestone
+**修复进度** card, the **运行概览** card, the **Route A/B** lanes, and each lane's
+own run monitor.  In task mode their content is fed by the signed G2 record and
+the runner journal, not by a client checklist:
 
-- **Signed G2 record card** — audit id, three runs, schema status, selected run,
-  decision (`proceed`), plan id, and the record/contract hashes.
-- **Runner checklist** — the eight `plan_update` steps (`collect`, `freeze`,
-  `analyze`, `audit`, `decision`, `repair`, `verify`, `export`) with the statuses
-  written by the runner (`skipped` and its `error.code` included).  The header
-  count is `completed / total` from the same `plan_update`; a run without a
-  verdict cannot show `verify completed`.
-- **Chronological journal** — every persisted record with `#seq · type · step ·
-  short payload · source`, replayable via `GET /api/tasks/{id}/journal?after_seq=`.
-  The terminal `run_end.execution` and `steps_taken` are rendered as written.
+- milestone states come from G2 binding → run start → repair/verify stages →
+  persisted verdict;
+- overview shows the selected contract scope plus signed-G2 rows (audit,
+  decision, plan/contract hashes);
+- **Route A** carries the selected G2-approved contract, its three checkpoints,
+  the runner's eight-step checklist (`skipped` + `error.code` included) and the
+  current-run monitor inside the lane;
+- **Route B** keeps the alternative contracts as `not_run`, with the refusal
+  reasons;
+- the lane monitor is scoped to the current task and replays the persisted journal
+  (`#seq · type · step · payload · source`).  Header count/phase come from
+  `plan_update` and `run_end` (`7 / 8`, `已结束 · completed`).
 
-On current main the demo is `7 / 8` with `audit skipped ·
-satisfied_by_signed_g2` and `run_end.execution = completed`.  Legacy route
-lanes/milestones remain only under `?preview=1`.
+The conversation presents the generation as cards (analysis, signed G2, live
+8-step run progress, final outcome with download tiles) with a short entrance
+animation; reduced-motion preference disables the animation.  Legacy preview data
+is still available under `?preview=1`.
 
 ## What is real in the demo
 
