@@ -185,9 +185,8 @@ function approval(item, ctx) {
   const status = item.decision;
   if (p.kind === 'repair_plan') {
     const options = p.options ?? [];
-    if (chat.auditMode && chat.auditMode !== 'signed') {
-      return el('p', {class: 'inline-note'},
-        t(chat.auditMode === 'live' ? 'livePlanFirst' : 'chooseAuditMode'));
+    if (chat.auditMode === 'live') {
+      return el('p', {class: 'inline-note'}, t('livePlanFirst'));
     }
     if (status) {
       const chosen = options.find(option => option.id === status);
