@@ -68,9 +68,10 @@ default browser. Set `BINARYREPAIR_NO_BROWSER=1` to skip opening the page.
 - **Live AI chain (G4.1, additive).** A live three-run audit in the API host
   (provider key only in the child environment), a human choice among the three
   plans, then a live WSL2 guest run and the same deterministic verifier. Needs a
-  provider key and WSL2 on the demo host; without them the UI and the runner fail
-  honestly (no fabricated verdict). Implementation is merged; the continuous live
-  console run is **not yet recorded** — see
+  provider key and WSL2 on the demo host (the on-site demo is M3's real-machine
+  run); without them the UI and the runner fail honestly (no fabricated verdict).
+  Implementation is merged; the continuous live console run is **not yet
+  recorded** — see
   [`docs/plan/evidence/G4.1-DEMO.md`](docs/plan/evidence/G4.1-DEMO.md) for the
   evidence, the script and the fallbacks.
 

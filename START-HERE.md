@@ -234,8 +234,9 @@ and the live-audit console (#76). Evidence and the demo script are in
 [`docs/plan/evidence/G4.1-DEMO.md`](docs/plan/evidence/G4.1-DEMO.md).
 
 Still open: one continuous live console run (live audit -> live plan -> live WSL2
-guest -> verdict) on a host with a provider key **and** WSL2, and the M5 live-plan
-apply test (#66). The record lists the exact capture checklist.
+guest -> verdict) on **M3's real machine** (WSL2 + Ubuntu + the configured
+provider key), and the M5 live-plan apply test (#66). The record lists the exact
+capture checklist.
 
 ---
 
