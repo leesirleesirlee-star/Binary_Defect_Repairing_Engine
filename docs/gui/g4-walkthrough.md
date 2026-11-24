@@ -56,15 +56,21 @@ the runner journal, not by a client checklist:
 - **Route B** keeps the alternative contracts as `not_run`, with the refusal
   reasons;
 - the lane monitor is scoped strictly to the current task: one run card, no
-  historical archive runs; the detailed event log is collapsed by default and
-  replays the persisted journal (`#seq · type · step · payload · source`).
-  Header count/phase come from `plan_update` and `run_end` (`7 / 8`,
+  historical archive runs.  It is driven by the same
+  `GET /api/tasks/{id}/journal?after_seq=` source as the chat, polled every 400 ms
+  until `run_end` (the old SSE path could stop after its first batch); the
+  eight steps and the detailed event log therefore finish live, without a page
+  reload.  The event log is collapsed by default and shows the full persisted
+  journal when opened (`#seq · type · step · payload · source`).  Header
+  count/phase come from `plan_update` and `run_end` (`7 / 8`,
   `已结束 · completed`).
 
 The conversation presents the generation as cards (analysis, signed G2, live
 8-step run progress, final outcome with download tiles) with a short entrance
-animation; reduced-motion preference disables the animation.  Legacy preview data
-is still available under `?preview=1`.
+animation; reduced-motion preference disables the animation.  The
+`g4-execution-journal.png` screenshot is captured from a live run (no reload):
+one current-run card, all eight steps with `审计 已跳过`, and the full journal on
+demand.  Legacy preview data is still available under `?preview=1`.
 
 ## What is real in the demo
 

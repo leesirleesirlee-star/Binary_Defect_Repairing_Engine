@@ -89,3 +89,15 @@
 .ra-log-heading { display: flex; align-items: center; gap: .3rem; flex: 1; min-width: 0; }
 .ra-log-status { color: var(--muted); font-size: .62rem; }
 .ra-log-rows { display: grid; gap: .12rem; margin-top: .22rem; max-height: 17rem; overflow: auto; }
+/* Live monitor event rows: keep seq/type/source on one line and let the summary
+   wrap instead of squeezing each token into a vertical column. */
+.ra-event > summary {
+  display: grid;
+  grid-template-columns: auto auto auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: .28rem;
+}
+.ra-event > summary > .ra-seq,
+.ra-event > summary > strong,
+.ra-event > summary > .ra-chip { white-space: nowrap; }
+.ra-event-summary { min-width: 0; white-space: normal; }
