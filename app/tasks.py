@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import secrets
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -42,7 +44,21 @@ def _read(task_id: str) -> dict[str, Any]:
 def _write(task: dict[str, Any]) -> dict[str, Any]:
     path = _path(task["id"])
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(task, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    payload = (json.dumps(task, indent=2, ensure_ascii=True) + "\n").encode("utf-8")
+    fd, name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+    temporary = Path(name)
+    try:
+        try:
+            os.write(fd, payload)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.replace(temporary, path)
+    finally:
+        try:
+            temporary.unlink()
+        except OSError:
+            pass
     return task
 
 
