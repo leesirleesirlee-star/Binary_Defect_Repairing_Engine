@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261124b';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261124d';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -97,6 +97,15 @@ const copy = {
   inspect: ['Inspect available evidence', '查看现有证据'],
   summarize: ['Summarize checks', '总结检查'], pending: ['Pending', '待处理'],
   in_progress: ['In progress', '进行中'], skipped: ['Skipped', '已跳过'],
+  pending: ['Pending', '待处理'],
+  g2Record: ['Signed G2 record', 'G2 签核记录'],
+  g2Audit: ['Audit', '审计'],
+  g2Decision: ['Signed decision', '已签决策'],
+  g2Plan: ['Signed plan', '已签计划'],
+  g2Pending: ['Signed G2 records are loading…', '正在载入 G2 签核记录…'],
+  runnerChecklist: ['Runner checklist (plan_update)', '运行器步骤（plan_update）'],
+  journalLog: ['Chronological journal', '事件日志（按序号）'],
+  journalPending: ['Waiting for runner journal events…', '等待运行器 journal 事件…'],
   tool: ['Read saved contract', '读取已保存的契约'],
   toolInput: ['Contract revision 2', '契约修订 2'],
   toolOutput: ['Saved contract revision 2.', '已读取契约修订 2。'],

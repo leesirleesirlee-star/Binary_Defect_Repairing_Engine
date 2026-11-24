@@ -1,12 +1,12 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
-import {control} from './chat-view.mjs?v=20261123k';
-import {createProgress} from './chat-progress.mjs?v=20261123k';
+import {control} from './chat-view.mjs?v=20261124d';
+import {createProgress} from './chat-progress.mjs?v=20261124d';
 import {createStepGroups, disclosure} from './chat-steps.mjs?v=20261121j';
 import {motionReduced} from '../shared/motion.mjs?v=20261120au';
 
-// Revision 2.2: activity rows feed the right-side event log only; errors and
-// the final run summary stay in the conversation as inline text.
+// Task mode renders the runner's own journal; the legacy v1.2.2 preview keeps
+// its synthetic route lanes and milestone card.
 export const activityTypes = new Set(['thinking', 'plan_update', 'tool_call', 'file_change',
   'command', 'verification', 'journal_error']);
 
@@ -15,18 +15,54 @@ const phases = {
   running: 'executing', awaiting_user: 'awaiting_user', cancel_requested: 'cancel_requested',
   waiting_for_executor: 'waiting_for_executor',
 };
-const names = ['route_a', 'route_b'];
 const stepKeys = {
   collect: 'stepCollect', freeze: 'stepFreeze', analyze: 'stepAnalyze', audit: 'stepAudit',
   decision: 'stepDecision', repair: 'stepRepair', verify: 'stepVerify', export: 'stepExport',
 };
+const runnerSteps = ['collect', 'freeze', 'analyze', 'audit', 'decision', 'repair', 'verify', 'export'];
 const stepName = (code, t) => t(stepKeys[code] ?? code);
+const names = ['route_a', 'route_b'];
 const branchSteps = {
   route_a: ['scopeReview', 'manifestRead', 'evidenceCheck'],
   route_b: ['scopeReview', 'rebuildEvidence', 'evidenceCheck'],
 };
 
-export function createExecution(t, showConversation) {
+function journalSummary(record) {
+  const p = record.payload || {};
+  if (record.type === 'plan_update') {
+    const steps = p.steps || [];
+    return steps.filter(step => step.status === 'completed').length + '/' + steps.length + ' completed';
+  }
+  if (record.type === 'run_state') return p.status || 'state';
+  if (record.type === 'command') {
+    return `${p.phase || '—'} ${p.label_code || ''}${p.exit_code != null ? ' · exit ' + p.exit_code : ''}`;
+  }
+  if (record.type === 'file_change') {
+    return `${p.stage || '—'} · ${(p.files || []).map(file => file.display_path).join(', ')}`;
+  }
+  if (record.type === 'verification') return p.verdict || p.kind || 'verification';
+  if (record.type === 'audit_runs') return `${(p.runs || []).length} run(s)`;
+  if (record.type === 'error') return p.code || 'error';
+  if (record.type === 'run_end') {
+    return `${p.execution || '—'} · ${p.steps_taken ?? '?'} steps`;
+  }
+  if (record.type === 'corpus_update') return `${p.total ?? '—'} cases`;
+  return p.summary || record.type;
+}
+
+function journalRow(record) {
+  const step = record.step_id ? stepName(record.step_id, key => key) : '—';
+  return el('details', {class: 'journal-row', 'data-type': record.type},
+    el('summary', {},
+      el('span', {class: 'journal-seq'}, '#' + record.seq),
+      el('strong', {}, record.type),
+      el('span', {class: 'journal-step'}, step),
+      el('span', {class: 'journal-summary'}, journalSummary(record)),
+      el('span', {class: 'journal-source'}, record.source || '—')),
+    el('pre', {class: 'journal-raw'}, JSON.stringify(record.payload || {}, null, 2)));
+}
+
+export function createExecution(t, showConversation, taskMode = false) {
   const count = el('strong');
   const phase = el('strong');
   const clock = el('strong');
@@ -34,6 +70,7 @@ export function createExecution(t, showConversation) {
     ...[[t('phase'), phase], [t('stepCount'), count], [t('elapsed'), clock]].map(([name, value]) =>
       el('div', {class: 'run-metric'}, el('span', {}, name), value)));
 
+  // Legacy preview panel (unchanged for ?preview=1).
   const scope = el('p');
   const slots = names.map(() => el('div', {class: 'route-slot'}));
   const branches = el('section', {class: 'route-overview', 'aria-label': t('routes')},
@@ -43,11 +80,85 @@ export function createExecution(t, showConversation) {
   const log = el('div', {class: 'trace-log', 'aria-label': t('activity')});
   const groups = createStepGroups(log, t);
   const empty = el('p', {class: 'trace-empty'}, icon('terminal', 19), t('noActivity'));
-  const scroll = el('div', {class: 'execution-scroll', tabindex: '0'},
+  const legacyScroll = el('div', {class: 'execution-scroll', tabindex: '0'},
     branches,
     el('section', {class: 'trace'}, el('h3', {}, t('activity')), empty, log));
 
+  // Task mode: signed G2 record + the runner's own eight-step checklist + journal.
+  const g2Rows = el('div', {class: 'g2-rows'});
+  const g2Card = el('section', {class: 'g2-card', 'aria-label': t('g2Record')},
+    el('h3', {}, t('g2Record')), g2Rows);
+  const checklist = el('ol', {class: 'runner-steps'});
+  const journal = el('div', {class: 'journal-log'});
+  const taskScroll = el('div', {class: 'execution-scroll task-execution', tabindex: '0'},
+    g2Card,
+    el('section', {class: 'runner-section'}, el('h3', {}, t('runnerChecklist')), checklist),
+    el('section', {class: 'journal-section'}, el('h3', {}, t('journalLog')), journal));
+
   const progress = createProgress(t);
+  progress.panel.hidden = taskMode;
+  const scroll = taskMode ? taskScroll : legacyScroll;
+  let g2Stamp;
+  let stepStamp;
+  let journalStamp;
+
+  function updateG2(chat) {
+    const stamp = chat.g2 ? [chat.g2.audit_sha256, chat.g2.record_sha256, chat.g2.plan_sha256].join(':') : '';
+    if (stamp === g2Stamp) return;
+    g2Stamp = stamp;
+    if (!chat.g2) {
+      g2Rows.replaceChildren(el('p', {class: 'muted'}, t('g2Pending')));
+      return;
+    }
+    const audit = chat.g2.audit || {};
+    const runs = audit.runs || [];
+    const selected = audit.selected_plan || {};
+    const schemas = runs.length ? runs.every(run => run.schema_valid) : false;
+    const scores = (audit.reviewer_scores || {});
+    const row = (name, value) => el('div', {class: 'g2-row'},
+      el('span', {}, name), el('strong', {}, value));
+    g2Rows.replaceChildren(
+      row(t('g2Audit'),
+        `${audit.report_id || '—'} · ${runs.length} run(s) · schema ${schemas ? 'valid' : 'invalid'}`
+        + ` · selected run ${selected.run_index ?? '—'}`
+        + (scores.m1 != null ? ` · M1 ${scores.m1}` : '')),
+      row(t('g2Decision'),
+        `${audit.decision || '—'} · signed record ${g2Hash(chat.g2.record_sha256)}`),
+      row(t('g2Plan'),
+        `${chat.g2.plan?.plan_id || '—'} · ${chat.g2.plan?.strategy || '—'}`
+        + ` · contract ${g2Hash(chat.g2.contract_sha256)}`));
+  }
+
+  function updateChecklist(chat) {
+    const stamp = [chat.plan?.revision, chat.journal.length, chat.plan ? 'plan' : ''].join(':');
+    if (stamp === stepStamp) return;
+    stepStamp = stamp;
+    const steps = chat.plan?.steps || [];
+    const byStep = Object.fromEntries(steps.map(step => [step.step_id, step]));
+    const errors = chat.journal.filter(record => record.type === 'error');
+    checklist.replaceChildren(...runnerSteps.map(id => {
+      const step = byStep[id] || {step_id: id, label_code: id, status: 'pending'};
+      const error = errors.find(record => record.step_id === id);
+      const reason = error?.payload?.code || step.reason || '';
+      return el('li', {'data-status': step.status},
+        el('span', {class: 'runner-dot'}, icon('circle', 10)),
+        el('span', {class: 'runner-name'}, stepName(step.label_code || id, t)),
+        el('span', {class: 'runner-state'}, t(step.status) + (reason ? ' · ' + reason : '')));
+    }));
+  }
+
+  function updateJournal(chat) {
+    const last = chat.journal[chat.journal.length - 1];
+    const stamp = `${chat.journal.length}:${last?.seq ?? 0}`;
+    if (stamp === journalStamp) return;
+    journalStamp = stamp;
+    if (!chat.journal.length) {
+      journal.replaceChildren(el('p', {class: 'muted'}, t('journalPending')));
+      return;
+    }
+    journal.replaceChildren(...chat.journal.map(journalRow));
+  }
+
   const inspect = control(t('details'), () => toggleInspect(),
     {tone: 'inspect-before-run-button', 'aria-controls': 'execution-content', 'aria-expanded': 'false'});
   function toggleInspect() {
@@ -98,17 +209,30 @@ export function createExecution(t, showConversation) {
 
   let stamp;
   function update(chat, items) {
-    progress.update(chat);
-    const plan = items.findLast(item => item.run_id === chat.run && item.type === 'plan_update');
-    const state = chat.phase === 'idle' ? 'noRun' : phases[chat.phase] ?? chat.phase;
-    const steps = plan?.payload.steps;
+    const plan = chat.plan;
+    const steps = plan?.steps;
     const activeStep = steps?.find(step => step.status === 'in_progress');
-    phase.textContent = chat.phase === 'running' && activeStep
-      ? stepName(activeStep.label_code, t) : t(state);
-    count.textContent = steps ? steps.filter(step => step.status === 'completed').length + ' / ' + steps.length : '—';
+    const runEnd = chat.runEnd;
+    phase.textContent = taskMode
+      ? (runEnd?.execution ? t(runEnd.execution)
+        : activeStep ? stepName(activeStep.label_code, t)
+          : t(chat.phase === 'idle' ? 'noRun' : chat.phase))
+      : t(chat.phase === 'running' && activeStep ? stepName(activeStep.label_code, t)
+        : chat.phase === 'idle' ? 'noRun' : (phases[chat.phase] ?? chat.phase));
+    count.textContent = steps
+      ? steps.filter(step => step.status === 'completed').length + ' / ' + steps.length : '—';
     clock.dataset.runStarted = chat.started ?? '';
     clock.dataset.runEnded = chat.ended ?? '';
     clock.textContent = elapsed(clock);
+
+    if (taskMode) {
+      updateG2(chat);
+      updateChecklist(chat);
+      updateJournal(chat);
+      return;
+    }
+
+    progress.update(chat);
     empty.hidden = items.some(item => activityTypes.has(item.type));
     groups.sync(items.filter(item => activityTypes.has(item.type)));
     const scopeText = chat.reviewed && chat.scope ? chat.scope : t('scopePending');
@@ -143,6 +267,10 @@ export function createExecution(t, showConversation) {
     });
   }
   return {panel, metrics, log, groups, scroll, update, clock, inspect};
+}
+
+function g2Hash(value) {
+  return value ? String(value).slice(0, 12) + '…' : '—';
 }
 
 export function elapsed(node) {

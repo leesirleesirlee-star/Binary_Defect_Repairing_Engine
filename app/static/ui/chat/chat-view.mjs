@@ -148,6 +148,7 @@ function approval(item, ctx) {
         el('span', {}, t('planChosen') + (chosen ? ' · ' + chosen.title : '')));
     }
     return el('div', {class: 'plan-choices', role: 'group', 'aria-label': t('approval')},
+      p.note ? el('p', {class: 'inline-note'}, p.note) : null,
       options.map(option => el('div', {class: 'plan-choice'},
         el('strong', {}, option.title),
         el('p', {}, option.summary),

@@ -29,6 +29,9 @@ TASK_ROOT = ROOT / "var" / "tasks"
 FROZEN_FIXTURE_ID = "stack-overflow-01"
 FROZEN_BINARY_SHA = "705ab9290094218af7164fb6415cde14bd800b040d52f3fc1e9d1b766b3d9c26"
 FROZEN_PLAN = "docs/audit/fix-plan-v1.json"
+G2_AUDIT = "docs/audit/2026-11-21-audit-01.json"
+G2_RECORD = "docs/plan/evidence/G2-RECORD.md"
+FROZEN_CONTRACT = "fixtures/stack-overflow-01/contract.json"
 OBSERVATIONS_EVIDENCE = "docs/plan/evidence/g3/observations-candidate-wsl2.json"
 
 MAX_BINARY_BYTES = 32 * 1024 * 1024
@@ -235,6 +238,41 @@ def _frame_buffer_bytes(finding: dict[str, Any]) -> int | None:
     return abs(value) if value else None
 
 
+def _contract_max_valid_input_bytes(fallback: int = 31) -> int:
+    """The frozen contract boundary, not the raw stack frame size."""
+    try:
+        contract = json.loads((ROOT / FROZEN_CONTRACT).read_text(encoding="utf-8"))
+        value = contract.get("stated_criteria", {}).get("max_valid_input_bytes")
+        if isinstance(value, int) and value > 0:
+            return value
+    except (OSError, ValueError, TypeError):
+        pass
+    return fallback
+
+
+def g2_payload() -> dict[str, Any]:
+    """Read-only signed G2 audit/decision/plan records + their file hashes."""
+    audit_path = ROOT / G2_AUDIT
+    record_path = ROOT / G2_RECORD
+    plan_path = ROOT / FROZEN_PLAN
+    contract_path = ROOT / FROZEN_CONTRACT
+    audit = json.loads(audit_path.read_text(encoding="utf-8"))
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    record = record_path.read_text(encoding="utf-8")
+    return {
+        "audit": audit,
+        "audit_sha256": _sha256_bytes(audit_path.read_bytes()),
+        "record_markdown": record,
+        "record_sha256": _sha256_bytes(record_path.read_bytes()),
+        "plan": plan,
+        "plan_sha256": _sha256_bytes(plan_path.read_bytes()),
+        "contract": contract,
+        "contract_sha256": _sha256_bytes(contract_path.read_bytes()),
+        "stated_criteria": contract.get("stated_criteria", {}),
+    }
+
+
 def build_plans(finding: dict[str, Any], supported: bool) -> list[dict[str, Any]]:
     """Derive the selectable repair contracts from the deterministic finding."""
     function = str(finding.get("function") or "target")
@@ -242,6 +280,7 @@ def build_plans(finding: dict[str, Any], supported: bool) -> list[dict[str, Any]
     instruction = str(finding.get("instruction") or "the vulnerable call")
     cwe = str(finding.get("cwe") or "CWE-121")
     buffer_bytes = _frame_buffer_bytes(finding)
+    max_valid_input_bytes = _contract_max_valid_input_bytes()
     evidence = [str(item) for item in (finding.get("evidence") or [])][:3]
     facts = {
         "function": function,
@@ -249,6 +288,7 @@ def build_plans(finding: dict[str, Any], supported: bool) -> list[dict[str, Any]
         "instruction": instruction,
         "cwe": cwe,
         "buffer_bytes": buffer_bytes,
+        "max_valid_input_bytes": max_valid_input_bytes,
         "evidence": evidence,
     }
     unsupported = not supported
@@ -256,17 +296,17 @@ def build_plans(finding: dict[str, Any], supported: bool) -> list[dict[str, Any]
         {
             "id": "guard_trampoline",
             "strategy": "trampoline_guard",
-            "title_zh": "方案 A · 尾部守卫跳板（推荐）",
-            "title_en": "Plan A · trampoline guard (recommended)",
+            "title_zh": "方案 A · 尾部守卫跳板（G2 已批准计划的策略）",
+            "title_en": "Plan A · trampoline guard (signed G2 plan strategy)",
             "summary_zh": (
                 f"把 {function} 中 {address} 的 {instruction} 重定向到保留代码尾部的守卫桩："
-                f"长度 ≤ {buffer_bytes or '缓冲'} 字节且为可打印 ASCII 时原样放行，"
+                f"长度 ≤ {max_valid_input_bytes} 字节且为可打印 ASCII 时原样放行，"
                 "否则输出固定错误并以状态 1 退出。"
             ),
             "summary_en": (
                 f"Redirect the {instruction} at {address} in {function} to a guard stub in "
                 f"the reserved code tail: pass through valid input up to "
-                f"{buffer_bytes or 'the buffer'} bytes, otherwise write the fixed error "
+                f"{max_valid_input_bytes} bytes, otherwise write the fixed error "
                 "and exit 1."
             ),
             "scope_zh": "仅替换该调用点的 5 字节 rel32 调用，不移动既有函数体；"

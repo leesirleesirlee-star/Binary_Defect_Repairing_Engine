@@ -18,23 +18,45 @@ only the input, run and output behaviour and their copy changed.
    this host.
 4. The chat analyses the ELF (`pipeline.analyze`, child process) and shows the
    finding plus **three repair contracts derived from it**:
-   - **方案 A · 尾部守卫跳板（推荐）** – redirect the copy call to a guard stub in
-     the reserved code tail; valid input ≤ buffer size passes through, invalid
-     input gets the fixed error and exit 1.  Implementable in this build.
+   - **方案 A · 尾部守卫跳板（G2 已批准计划的策略）** – redirect the copy call to a
+     guard stub in the reserved code tail; valid input ≤ 31 bytes (the frozen
+     contract's `max_valid_input_bytes`, capacity 32 includes the terminator)
+     passes through, invalid input gets the fixed error and exit 1.  Implementable.
    - **方案 B · 调用点内联长度检查** – rejected: `insufficient_code_space`
      (moving instructions exceeds the MVP2 edit budget).
    - **方案 C · 入口处提前拒绝超长输入** – rejected: `behaviour_change_risk`
      (changes valid-input behaviour).
-5. Select the recommended contract with **选择此修复契约 / Select this contract**.
-   The console then, without further clicks: approves the frozen binding
-   (`review_binding_digest`), persists the G2 `proceed` decision
-   (`{decision, decided_at, binding_digest}` in the task snapshot), stages M3's
-   guest observations, and starts the real runner
-   (`collect → freeze → analyze → repair → verify`).
+5. The chat narrates the signed G2 record (3 runs, schema validity, scores,
+   `proceed`, selected plan) before the choice.  Selecting a contract with
+   **选择此修复契约 / Select this contract** binds that **signed** G2 decision —
+   it does not re-run the audit or take a new vote.  The console then approves the
+   frozen binding (`review_binding_digest`), persists the decision reference,
+   stages M3's guest observations, and starts the real runner
+   (`collect → freeze → analyze → audit(skipped: satisfied_by_signed_g2) →
+   decision → repair → verify → export`).
 6. The final assistant message renders the persisted `VerdictV1` word
    (`verified_against_stated_criteria`) and three downloads:
    `candidate.elf`, `edit-manifest.json`, `verdict.json`.  Nothing in the chat
    computes or edits the verdict.
+
+## Run projection (right pane)
+
+In task mode the right pane is no longer the legacy v1.2.2 checklist/lanes:
+
+- **Signed G2 record card** — audit id, three runs, schema status, selected run,
+  decision (`proceed`), plan id, and the record/contract hashes.
+- **Runner checklist** — the eight `plan_update` steps (`collect`, `freeze`,
+  `analyze`, `audit`, `decision`, `repair`, `verify`, `export`) with the statuses
+  written by the runner (`skipped` and its `error.code` included).  The header
+  count is `completed / total` from the same `plan_update`; a run without a
+  verdict cannot show `verify completed`.
+- **Chronological journal** — every persisted record with `#seq · type · step ·
+  short payload · source`, replayable via `GET /api/tasks/{id}/journal?after_seq=`.
+  The terminal `run_end.execution` and `steps_taken` are rendered as written.
+
+On current main the demo is `7 / 8` with `audit skipped ·
+satisfied_by_signed_g2` and `run_end.execution = completed`.  Legacy route
+lanes/milestones remain only under `?preview=1`.
 
 ## What is real in the demo
 
@@ -72,10 +94,12 @@ only the input, run and output behaviour and their copy changed.
 
 Screenshots (headless Chrome, 1440×900, zh-Hans):
 
-- `screenshots/g4-plan-options.png` — analysis summary + three contracts, one
-  implementable.
+- `screenshots/g4-plan-options.png` — analysis summary, signed G2 narration and
+  three contracts; Plan A says the G2-approved strategy and 31-byte boundary.
 - `screenshots/g4-repaired-output.png` — verdict `verified_against_stated_criteria`
-  and the three download entries.
+  plus the three downloads.
+- `screenshots/g4-execution-journal.png` — signed-G2 card, eight-step runner
+  checklist (`audit skipped · satisfied_by_signed_g2`) and chronological journal.
 
 Automated checks for this change:
 

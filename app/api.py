@@ -207,13 +207,24 @@ def assistant_key_clear() -> dict[str, Any]:
 
 
 @router.get("/tasks/{task_id}/journal", dependencies=[Depends(require_session)])
-def task_journal(task_id: str) -> dict[str, Any]:
-    """Persisted GUI journal for one task; read-only, newest 300 records."""
+def task_journal(task_id: str, after_seq: int | None = None) -> dict[str, Any]:
+    """Persisted GUI journal for one task; read-only and replayable by seq."""
     try:
         tasks.get(task_id)
     except KeyError:
         raise _error(404, "task_not_found") from None
-    return {"records": journal.read_records(task_id)[-300:]}
+    records = journal.read_records(task_id)
+    if after_seq is None:
+        records = records[-300:]
+    else:
+        records = [record for record in records if record.get("seq", 0) > after_seq]
+    return {"records": records, "last_seq": records[-1]["seq"] if records else (after_seq or 0)}
+
+
+@router.get("/g4/g2", dependencies=[Depends(require_session)])
+def g4_g2() -> dict[str, Any]:
+    """Read-only signed G2 audit, decision and selected plan (no re-vote)."""
+    return g4.g2_payload()
 
 
 @router.get("/g4/fixture", dependencies=[Depends(require_session)])

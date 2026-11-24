@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261124b';
+import {label} from './chat-copy.mjs?v=20261124d';
 
 const newId = () => crypto.randomUUID();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -20,6 +20,7 @@ export function chatTask({notify = () => {}} = {}) {
       attachmentNames: new Map(), reviewScopes: new Map(),
       jobId: null, task: null, g4: null, options: [], request: null,
       run: null, started: null, ended: null, epoch: 0, locale: 'en',
+      journal: [], journalSeq: 0, plan: null, runEnd: null, auditRuns: null, g2: null,
       live: true, taskMode: true, requireAscii: false, timer: null,
     };
     chats.set(chat.id, chat);
@@ -53,16 +54,6 @@ export function chatTask({notify = () => {}} = {}) {
   function state(chat, status) {
     chat.phase = status;
     event(chat, 'run_state', {status, message_id: null});
-  }
-
-  function planSteps(chat, statuses) {
-    const order = ['collect', 'freeze', 'analyze', 'repair', 'verify'];
-    event(chat, 'plan_update', {
-      revision: (chat.planRevision ?? 0) + 1,
-      steps: order.map(step => ({step_id: step, label_code: step,
-        status: statuses[step] ?? 'pending'})),
-    });
-    chat.planRevision = (chat.planRevision ?? 0) + 1;
   }
 
   async function session() {
@@ -170,7 +161,6 @@ export function chatTask({notify = () => {}} = {}) {
     chat.kind = 'repair';
     chat.started = Date.now();
     state(chat, 'running');
-    planSteps(chat, {collect: 'in_progress'});
     event(chat, 'thinking', {phase: 'started'}, 'collect');
     try {
       const data = await api('/api/tasks/upload', {
@@ -189,7 +179,6 @@ export function chatTask({notify = () => {}} = {}) {
       chat.options = data.plans || [];
       event(chat, 'thinking', {phase: 'finished', duration_ms: 0, summary_code: 'analysis',
         description: 'analysis'}, 'collect');
-      planSteps(chat, {collect: 'completed', freeze: 'completed', analyze: 'completed'});
       const finding = data.analysis || {};
       const counts = data.task.g4?.cases?.counts || {};
       const status = data.analysis_status || data.task.g4?.analysis_status || 'ok';
@@ -221,10 +210,33 @@ export function chatTask({notify = () => {}} = {}) {
       say(chat, t(locale,
         `分析完成：${finding.function || '?'} @ ${finding.address || '?'}，`
         + `${finding.instruction || '?'}，${finding.cwe || 'CWE-121'}；`
-        + `已登记 ${counts.valid ?? 0} 个正确用例、${counts.poc ?? 0} 个错误用例。`,
+        + `已登记 ${counts.valid ?? 0} 个正确用例、${counts.poc ?? 0} 个错误用例。`
+        + '上传用例仅作为任务证据登记；验证使用冻结 contract/corpus 与 M3 guest '
+        + 'observations，宿主机不会执行上传的 ELF。',
         `Analysis finished: ${finding.function || '?'} @ ${finding.address || '?'}, `
         + `${finding.instruction || '?'}, ${finding.cwe || 'CWE-121'}; recorded `
-        + `${counts.valid ?? 0} valid and ${counts.poc ?? 0} PoC case(s).`));
+        + `${counts.valid ?? 0} valid and ${counts.poc ?? 0} PoC case(s). Uploaded cases are `
+        + 'task evidence only; verification uses the frozen contract/corpus and M3 guest '
+        + 'observations, and the host never executes the uploaded ELF.'));
+      try {
+        const g2 = await api('/api/g4/g2');
+        chat.g2 = g2;
+        const audit = g2.audit || {};
+        const selected = audit.selected_plan || {};
+        const runs = audit.runs || [];
+        const schemas = runs.length ? runs.every(run => run.schema_valid) : false;
+        const scores = audit.reviewer_scores || {};
+        say(chat, t(locale,
+          `已签 G2 记录：${runs.length} 次审计、schema ${schemas ? 'valid' : 'invalid'}、`
+          + `M1 ${scores.m1 ?? '—'}、决策 ${audit.decision || '?'}、`
+          + `选定 run ${selected.run_index ?? '?'}（plan ${String(selected.plan_sha256 || '').slice(0, 12)}…）。`
+          + '选择下方契约 = 绑定该已签 G2 决策；不重跑审计，不重新投票。',
+          `Signed G2 record: ${runs.length} audit run(s), schema ${schemas ? 'valid' : 'invalid'}, `
+          + `M1 ${scores.m1 ?? '—'}, decision ${audit.decision || '?'}, `
+          + `selected run ${selected.run_index ?? '?'} (plan ${String(selected.plan_sha256 || '').slice(0, 12)}…). `
+          + 'Choosing a contract below binds that signed G2 decision; it does not re-run the '
+          + 'audit or take a new vote.'));
+      } catch { chat.g2 = null; }
       chat.request = {
         kind: 'repair_plan',
         request_id: newId(),
@@ -236,6 +248,9 @@ export function chatTask({notify = () => {}} = {}) {
             : (option.reason_en || option.reason_zh),
           feasible: option.feasible,
         })),
+        note: t(locale,
+          '选择此契约 = 绑定已签 G2 决策；不重跑审计，不重新投票。',
+          'Choosing a contract binds the signed G2 decision; no audit re-run, no new vote.'),
       };
       event(chat, 'awaiting_user', chat.request, 'report');
       state(chat, 'awaiting_user');
@@ -259,18 +274,14 @@ export function chatTask({notify = () => {}} = {}) {
     if (!option || !option.feasible) return;
     chat.request = null;
     event(chat, 'user_response', {request_id: requestId, decision: action}, 'report');
-    planSteps(chat, {collect: 'completed', freeze: 'completed', analyze: 'completed',
-      repair: 'in_progress'});
-    chat.reviewed = true;
-    chat.scope = chat.locale === 'zh-Hans'
-      ? (option.scope_zh || option.summary_zh || '')
-      : (option.scope_en || option.summary_en || '');
-    chat.routes = {route_a: ['completed', 'in_progress', 'pending'],
-      route_b: ['not_run', 'not_run', 'not_run']};
-    chat.routeNotes = {route_a: 'routeASelected', route_b: 'routeBNotSelected'};
     state(chat, 'running');
     chat.started = Date.now();
     event(chat, 'thinking', {phase: 'started'}, 'repair');
+    say(chat, t(chat.locale,
+      `已绑定已签 G2 决策：${option.title_zh || option.title_en}。不重跑审计，不重新投票；`
+      + '下面启动按该决策修复。',
+      `Bound the signed G2 decision: ${option.title_en || option.title_zh}. The audit is not `
+      + 're-run and no new vote is taken; starting the repair under that decision.'));
     try {
       const selected = await api(`/api/tasks/${chat.jobId}/g4/select`, {
         method: 'POST', body: {option_id: action},
@@ -292,10 +303,11 @@ export function chatTask({notify = () => {}} = {}) {
       });
       chat.run = started.run_id;
       chat.execution = {run_id: started.run_id, terminal: false, status: 'queued'};
-      chat.routes = {route_a: ['completed', 'completed', 'in_progress'],
-        route_b: ['not_run', 'not_run', 'not_run']};
-      if (chat.scope) chat.scope += ' · ' + started.run_id.slice(0, 12);
-      void ingestJournal(chat);
+      chat.journal = [];
+      chat.journalSeq = 0;
+      chat.plan = null;
+      chat.runEnd = null;
+      chat.auditRuns = null;
       void follow(chat);
     } catch (error) {
       event(chat, 'thinking', {phase: 'finished', duration_ms: 0, summary_code: 'repair'},
@@ -307,72 +319,33 @@ export function chatTask({notify = () => {}} = {}) {
     }
   }
 
-  function emitJournal(chat, record) {
-    const type = record?.type;
-    const payload = record?.payload || {};
-    const step = record?.step_id ?? null;
-    if (type === 'plan_update') {
-      event(chat, 'plan_update', payload, step, chat.run);
-    } else if (type === 'command') {
-      const command = {...payload};
-      // Command and file-change ids can collide in the journal (`analyze-1`);
-      // keep the command row distinct in the transcript projection.
-      command.command_id = 'cmd-' + (command.command_id || step || 'run');
-      if (command.phase === 'output') command.append = command.append ?? command.text ?? '';
-      event(chat, 'command', command, step, chat.run);
-    } else if (type === 'file_change' || type === 'verification') {
-      event(chat, type, payload, step, chat.run);
-    } else if (type === 'error') {
-      // Runner-stage errors stay in the execution log; the conversation keeps
-      // the persisted verdict and downloads only.
-      event(chat, 'journal_error', payload, step, chat.run);
-    }
-  }
-
   async function collectJournal(chat) {
     if (!chat.run) return;
     let records = [];
     try {
-      const data = await api(`/api/tasks/${chat.jobId}/journal`);
+      const data = await api(`/api/tasks/${chat.jobId}/journal?after_seq=${chat.journalSeq ?? 0}`);
       records = Array.isArray(data.records) ? data.records : [];
     } catch { return; }
     for (const record of records) {
+      chat.journal.push(record);
       const seq = Number(record.seq) || 0;
-      if (seq <= (chat.journalSeq ?? 0)) continue;
-      chat.journalSeq = seq;
-      emitJournal(chat, record);
-    }
-  }
-
-  async function ingestJournal(chat) {
-    while (!chat.journalDone && !chat.execution?.terminal) {
-      await collectJournal(chat);
-      await sleep(600);
+      if (seq > (chat.journalSeq ?? 0)) chat.journalSeq = seq;
+      const payload = record.payload || {};
+      if (record.type === 'plan_update') chat.plan = payload;
+      else if (record.type === 'audit_runs') chat.auditRuns = payload;
+      else if (record.type === 'run_end') chat.runEnd = payload;
     }
   }
 
   async function follow(chat) {
     const deadline = Date.now() + 180_000;
-    let task = null;
-    while (Date.now() < deadline) {
-      try { task = await api(`/api/tasks/${chat.jobId}`); } catch { task = null; }
-      if (task?.execution) {
-        chat.execution = {...chat.execution, status: task.execution.status,
-          terminal: Boolean(task.execution.terminal)};
-        if (task.execution.status === 'running' && chat.routes?.route_a) {
-          chat.routes = {route_a: ['completed', 'completed', 'in_progress'],
-            route_b: ['not_run', 'not_run', 'not_run']};
-        }
-      }
-      if (task?.execution?.terminal) break;
-      await sleep(700);
+    while (Date.now() < deadline && !chat.runEnd) {
+      await collectJournal(chat);
+      if (chat.runEnd) break;
+      await sleep(500);
     }
-    chat.journalDone = true;
+    // One last replay catches a terminal record appended between polls.
     await collectJournal(chat);
-    event(chat, 'thinking', {phase: 'finished', duration_ms: 0, summary_code: 'repair'},
-      'repair');
-    planSteps(chat, {collect: 'completed', freeze: 'completed', analyze: 'completed',
-      repair: 'completed', verify: 'completed'});
     let verdict = null;
     let artifacts = [];
     try { verdict = await api(`/api/tasks/${chat.jobId}/verdict`); } catch { verdict = null; }
@@ -386,8 +359,6 @@ export function chatTask({notify = () => {}} = {}) {
     }
     const word = verdict?.available && verdict?.finalized ? verdict.verdict : null;
     chat.verdict = verdict;
-    chat.routes = {route_a: ['completed', 'completed', word ? 'completed' : 'failed'],
-      route_b: ['not_run', 'not_run', 'not_run']};
     if (word) {
       say(chat, t(chat.locale,
         `修复完成，验证结论：${word}。`,
@@ -398,7 +369,9 @@ export function chatTask({notify = () => {}} = {}) {
         'The run ended without a persisted verdict; the console does not fabricate one.'));
     }
     sendDownloads(chat, chat.jobId, artifacts, chat.locale);
-    finish(chat, word ? 'completed' : 'failed');
+    const execution = chat.runEnd?.execution === 'completed' ? 'completed'
+      : chat.runEnd?.execution === 'cancelled' ? 'cancelled' : 'failed';
+    finish(chat, execution);
   }
 
   function sendDownloads(chat, taskId, artifacts, locale) {
@@ -428,7 +401,7 @@ export function chatTask({notify = () => {}} = {}) {
     chat.phase = execution;
     chat.ended = Date.now();
     if (chat.execution) chat.execution = {...chat.execution, terminal: true,
-      status: execution === 'completed' ? 'completed' : execution};
+      status: execution};
     event(chat, 'run_state', {status: execution, message_id: null});
   }
 

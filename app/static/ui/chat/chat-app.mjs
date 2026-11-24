@@ -6,15 +6,15 @@ import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261124b';
-import {chatPreview} from './chat-stream.mjs?v=20261123k';
-import {chatTask} from './chat-task.mjs?v=20261124b';
+import {label} from './chat-copy.mjs?v=20261124d';
+import {chatPreview} from './chat-stream.mjs?v=20261124d';
+import {chatTask} from './chat-task.mjs?v=20261124d';
 import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261121z';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261124b';
 import {bindSidebarSpring} from './chat-spring.mjs?v=20261120au';
 import {refreshStepCard} from './chat-steps.mjs?v=20261121j';
-import {control, displayTitle, renderItem, transcript} from './chat-view.mjs?v=20261123k';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261123k';
+import {control, displayTitle, renderItem, transcript} from './chat-view.mjs?v=20261124d';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261124d';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -209,7 +209,7 @@ function mount() {
   const title = el('h1', {class: 'chat-title'});
   const openExecution = control(t('execution'), () => changePane(true), {glyph: 'terminal', tone: 'compact-only',
     'aria-controls': 'execution-pane'});
-  const execution = createExecution(t, () => changePane(false));
+  const execution = createExecution(t, () => changePane(false), Boolean(engine.taskMode));
   const header = el('header', {class: 'chat-header'}, openNav, title,
     el('span', {class: 'preview-label'}, el('span', {'aria-hidden': 'true'}),
       t(engine.live ? 'liveLabel' : 'preview')), openExecution, language);
@@ -391,7 +391,11 @@ function paint() {
       if (focused) (row.querySelector('summary,button') ?? nodes.input).focus({preventScroll: true});
     } else {
       if (item.type === 'plan_update') row.open = true;
-      (activityTypes.has(item.type) ? nodes.execution.groups.target(item, selected.run) : nodes.log).append(row);
+      if (activityTypes.has(item.type)) {
+        if (!engine.taskMode) nodes.execution.groups.target(item, selected.run).append(row);
+      } else {
+        nodes.log.append(row);
+      }
     }
     nodes.rows.set(item.key, {row, item, flags});
   }

@@ -125,6 +125,20 @@ def test_select_contract_then_repair_end_to_end(client: TestClient) -> None:
     assert "command" in types and "verification" in types
     commands = [record for record in journal if record["type"] == "command"]
     assert any(record["payload"].get("phase") == "finished" for record in commands)
+    plans = [record for record in journal if record["type"] == "plan_update"]
+    statuses = {step["step_id"]: step["status"] for step in plans[-1]["payload"]["steps"]}
+    assert len(statuses) == 8
+    assert statuses["audit"] == "skipped"
+    assert statuses["export"] == "completed"
+    errors = [record for record in journal if record["type"] == "error"]
+    assert any(
+        record["step_id"] == "audit" and record["payload"]["code"] == "satisfied_by_signed_g2"
+        for record in errors
+    )
+    ends = [record for record in journal if record["type"] == "run_end"]
+    assert len(ends) == 1
+    assert ends[0]["payload"]["execution"] == "completed"
+    assert ends[0]["payload"]["steps_taken"] == 7
 
     artifacts = client.get(f"/api/tasks/{task_id}/artifacts").json()["artifacts"]
     names = {item["display_path"] for item in artifacts}
@@ -216,3 +230,56 @@ def test_elf_without_supported_finding_is_an_honest_scope_refusal(
     assert body["task"]["phase"] == "unsupported"
     assert [item["feasible"] for item in body["plans"]] == [False, False, False]
     assert body["task"]["g4"]["analysis_status"] == "no_supported_finding"
+
+
+def test_g2_records_are_read_only_and_boundary_is_the_contract(client: TestClient) -> None:
+    body = client.get("/api/g4/g2").json()
+    audit = body["audit"]
+    assert audit["decision"] == "proceed"
+    assert len(audit["runs"]) == 3
+    assert audit["selected_plan"]["run_index"] == 2
+    assert body["audit_sha256"] == (
+        "00c49e41dac1e1fbe524338702986e6d5d0d223d0ea5338648336cca2bc774a0"
+    )
+    assert body["stated_criteria"]["capacity_bytes"] == 32
+    assert body["stated_criteria"]["max_valid_input_bytes"] == 31
+    assert "# G2 gate record" in body["record_markdown"]
+    assert body["plan"]["strategy"] == "trampoline_guard"
+
+
+def test_plan_a_says_31_bytes_and_g2_approved(client: TestClient) -> None:
+    body = _upload(client, FIXTURE.read_bytes()).json()
+    plan = body["plans"][0]
+    assert "≤ 31 字节" in plan["summary_zh"]
+    assert "≤ 32" not in plan["summary_zh"]
+    assert "up to 31 bytes" in plan["summary_en"]
+    assert "G2" in plan["title_zh"]
+    assert "recommended" not in plan["title_en"].lower()
+    assert "signed G2" in plan["title_en"]
+
+
+def test_journal_after_seq_is_incremental(client: TestClient) -> None:
+    body = _upload(client, FIXTURE.read_bytes()).json()
+    task_id = body["task"]["id"]
+    select = client.post(f"/api/tasks/{task_id}/g4/select", json={"option_id": "guard_trampoline"})
+    selected = select.json()["task"]
+    digest = selected["review_binding_digest"]
+    client.post(
+        f"/api/tasks/{task_id}/approve",
+        json={"expected_review_binding_digest": digest, "reviewer_label": "M2-G4"},
+    )
+    client.post(
+        f"/api/tasks/{task_id}/decision", json={"request_id": "g4-select", "decision": "proceed"}
+    )
+    client.post(
+        f"/api/tasks/{task_id}/start",
+        json={"expected_review_binding_digest": digest},
+        headers={"Idempotency-Key": "g4-journal-" + task_id},
+    )
+    _wait_run_end(client, task_id)
+    records = client.get(f"/api/tasks/{task_id}/journal").json()["records"]
+    cut = records[len(records) // 2]["seq"]
+    tail = client.get(f"/api/tasks/{task_id}/journal?after_seq={cut}").json()
+    assert tail["records"]
+    assert all(record["seq"] > cut for record in tail["records"])
+    assert tail["last_seq"] == records[-1]["seq"]
