@@ -62,19 +62,6 @@ Body: `{}` or `{"rerun": true}`.
 - Timeout 10 minutes; cancellation maps to `live_audit.status = "failed"` with
   `error = "cancelled"`.
 
-### POST /api/tasks/{task_id}/audit/signed
-
-CSRF required. Leaves live mode and restores the signed-replay starting point
-(`audit_mode=signed`, `selected_plan=null`, `approval.approved=false`,
-`phase=plans_ready`) if no execution has started; 409 `audit_running` while the
-live child is active, 409 `invalid_transition` after a run has started.
-
-### POST /api/tasks/{task_id}/audit/guest
-
-Body: `{"enabled": bool}`. CSRF required; persists `task.live_guest` so the
-runner and the live-mode UI use the same value. Refused while an execution is
-active.
-
 ### GET /api/tasks/{task_id}/audit
 
 Returns `{"audit_mode", "live_audit"}` (no key, no raw provider response).
