@@ -1,4 +1,4 @@
-import {currentEvaluation, reportUrl, shouldPoll} from './api.mjs?v=20261120au';
+import {currentEvaluation, reportUrl, shouldPoll} from './api.mjs?v=20261124b';
 import {badge, button, date, download, el, isAscii, notice} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
 

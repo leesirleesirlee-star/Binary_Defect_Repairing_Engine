@@ -1,10 +1,10 @@
 import {assistantKey} from '../shared/assistant-key.mjs?v=20261120au';
 import {LANGUAGES} from '../shared/languages.mjs?v=20261120au';
-import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261121z';
+import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261124b';
 import {modelLabel, modelPicker} from '../shared/model-picker.mjs?v=20261120au';
 import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {control, displayTitle} from './chat-view.mjs?v=20261122a';
+import {control, displayTitle} from './chat-view.mjs?v=20261124p';
 
 function dialog(title, content, t) {
   const trigger = document.activeElement;

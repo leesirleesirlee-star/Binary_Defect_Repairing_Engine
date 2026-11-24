@@ -38,6 +38,8 @@
 # fixture, guest and verify modules (M3)
 /fixtures/                          @chenfanaichifan @leesirleesirlee-star @lyz200807
 /guest/                             @chenfanaichifan @leesirleesirlee-star @lyz200807
+/tests/guest/                       @chenfanaichifan @leesirleesirlee-star @lyz200807
+/docs/guest/                        @chenfanaichifan @leesirleesirlee-star @lyz200807
 /pipeline/verify/                   @chenfanaichifan @leesirleesirlee-star @lyz200807
 /tests/fixture/                     @chenfanaichifan @leesirleesirlee-star @lyz200807
 /tests/verify/                      @chenfanaichifan @leesirleesirlee-star @lyz200807
