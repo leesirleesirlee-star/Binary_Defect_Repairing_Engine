@@ -20,6 +20,7 @@ def run_audit(
     model: str | None = None,
     contract_sha256: str | None = None,
     fixture_id: str | None = None,
+    base_url: str | None = None,
 ) -> list[dict]:
     """Return one record per attempt (plan, model, usage, raw text and any error).
 
@@ -38,6 +39,7 @@ def run_audit(
                 model=model,
                 contract_sha256=contract_sha256,
                 fixture_id=fixture_id,
+                base_url=base_url,
             )
         except Exception as error:  # noqa: BLE001 - a failed run is still a run
             records.append(
