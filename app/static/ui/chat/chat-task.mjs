@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125m';
+import {label} from './chat-copy.mjs?v=20261125n';
 
 const newId = () => crypto.randomUUID();
 const autoTitle = (chat, value) => {
@@ -803,17 +803,22 @@ export function chatTask({notify = () => {}} = {}) {
 
   function restoreHistory(items) {
     if (!Array.isArray(items)) return;
+    const seen = new Set();
     for (const item of items) {
       if (!item || typeof item !== 'object' || !Array.isArray(item.events)) continue;
+      if (item.id && seen.has(item.id)) continue;
       const chat = create();
+      const generatedId = chat.id;
       const savedId = item.id;
       Object.assign(chat, item);
-      chat.id = savedId || chat.id;
+      chat.id = savedId || generatedId;
       chat.events = item.events;
       chat.attachmentNames = new Map(item.attachmentNames || []);
       chat.attachmentFiles = new Map(item.attachmentFiles || []);
       chat.phase = item.phase || 'idle';
+      if (generatedId !== chat.id) chats.delete(generatedId);
       chats.set(chat.id, chat);
+      if (item.id) seen.add(item.id);
     }
   }
 

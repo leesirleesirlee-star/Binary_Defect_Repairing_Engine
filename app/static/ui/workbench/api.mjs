@@ -111,9 +111,12 @@ const archivedPhase = (task, verdict) => {
   if (verdict?.verdict === 'verified_against_stated_criteria') return 'verified';
   if (task.phase === 'unsupported') return 'unsupported';
   const status = task.execution?.status;
-  if (status === 'running' || status === 'queued') return 'running';
+  if (status === 'running' || status === 'queued' || task.live_audit?.status === 'running') {
+    return 'running';
+  }
   if (status === 'failed' || task.phase === 'failed') return 'failed';
   if (task.phase === 'completed' || task.phase === 'done') return 'completed';
+  if (task.phase === 'plans_ready' || task.phase === 'plan_selected') return 'draft';
   return 'draft';
 };
 const verdictFor = async id => {
@@ -130,6 +133,7 @@ const toArchiveJob = (task, verdict = null) => ({
   defect: task.g4?.binary_name || task.fixture_id || task.id,
   created_at: task.created_at,
   execution: task.execution,
+  live_audit: task.live_audit || null,
   g4: task.g4 || {},
   plan: task.plan,
   verdict,
