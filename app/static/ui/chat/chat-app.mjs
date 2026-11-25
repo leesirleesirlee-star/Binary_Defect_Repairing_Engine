@@ -8,14 +8,14 @@ import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
 import {label} from './chat-copy.mjs?v=20261126b';
 import {chatPreview} from './chat-stream.mjs?v=20261126b';
-import {chatTask} from './chat-task.mjs?v=20261126b';
+import {chatTask} from './chat-task.mjs?v=20261127b';
 import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261126b';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261125f';
 import {bindSidebarSpring} from './chat-spring.mjs?v=20261126b';
 import {refreshStepCard} from './chat-steps.mjs?v=20261126b';
 import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261126b';
 import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261126b';
-import {mountPet} from '../shared/pet.mjs?v=20261126a';
+import {mountPet} from '../shared/pet.mjs?v=20261127a';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');

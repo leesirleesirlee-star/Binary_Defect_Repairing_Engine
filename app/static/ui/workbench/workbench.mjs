@@ -12,7 +12,7 @@ import {getSetting} from '../shared/settings-preferences.mjs?v=20261126b';
 import {bindSidebarSpring} from '../chat/chat-spring.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261126b';
 import {createDialog, languageDialog, searchDialog, settingsDialog, shell, tasksView} from './views.mjs?v=20261126b';
-import {mountPet} from '../shared/pet.mjs?v=20261126a';
+import {mountPet} from '../shared/pet.mjs?v=20261127a';
 
 // The archive opens on its synthetic fixture immediately. The legacy live API
 // remains available explicitly with ?live=1, but the archive must never present
@@ -205,8 +205,17 @@ function render({focus = false, mainOnly = false} = {}) {
 
 async function refreshList() {
   try {
+    // The archive can be the first page opened directly: ask for the session
+    // cookie (the chat page does the same) before the live list call, otherwise
+    // that call is rejected before anything gets a chance to set it.
+    try {
+      await fetch('/api/session', {credentials: 'same-origin', cache: 'no-store'});
+    } catch { /* The list error below stays the user-facing one. */ }
     state.jobs = await api.list();
     state.listError = null;
+    // The archive shares one crab with the chat page: hand it the live task
+    // list so its working tiers animate while repairs run in the background.
+    globalThis.__binaryRepairArchiveJobs = state.jobs;
   } catch (error) {
     state.listError = errorKey(error);
   } finally {

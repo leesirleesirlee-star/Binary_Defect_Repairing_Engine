@@ -20,6 +20,8 @@ const t = (locale, zh, en) => locale === 'zh-Hans' ? zh : en;
 export function chatTask({notify = () => {}} = {}) {
   const chats = new Map();
   let sessionPromise = null;
+  // Active tool calls per chat; sizes the pet's busy level (SPEC section 6).
+  const toolCounts = new Map();
 
   function create() {
     const chat = {
@@ -41,6 +43,71 @@ export function chatTask({notify = () => {}} = {}) {
     try {
       document.dispatchEvent(new CustomEvent('binaryrepair:task', {detail: {taskId}}));
     } catch { /* no DOM in unit contexts */ }
+  }
+
+  // Feed the optional Clawd pet contract. The pet is decorative, so every call
+  // is optional-chained and guarded: a pet failure can never break the chat.
+  function petSignal(patch) {
+    if (!patch) return;
+    try { globalThis.BinaryRepairPet?.signal?.(patch); } catch { /* pet is decorative */ }
+  }
+
+  function toolCount(chat) {
+    return Math.max(0, Number(toolCounts.get(chat.id)) || 0);
+  }
+
+  // Map this engine's events onto one pet snapshot patch (see SPEC section 6).
+  // Returns null when the event should not move the pet.
+  function petPatch(chat, type, payload) {
+    const p = payload || {};
+    if (type === 'run_state') {
+      const status = p.status;
+      if (status === 'running' || status === 'cancelling') {
+        return {activity: 'thinking', awaiting: false, busy: 0};
+      }
+      if (status === 'queued' || status === 'waiting_for_executor') {
+        return {activity: 'thinking', awaiting: false};
+      }
+      if (status === 'awaiting_user') return {awaiting: true, activity: 'idle'};
+      if (status === 'completed') {
+        toolCounts.delete(chat.id);
+        return {activity: 'idle', awaiting: false, moment: 'attention'};
+      }
+      if (status === 'failed' || status === 'cancelled' || status === 'unsupported') {
+        // `unsupported` is the read-only analysis outcome written by finish();
+        // it is terminal like a failure, so the pet settles the same way.
+        toolCounts.delete(chat.id);
+        return {activity: 'idle', awaiting: false, moment: 'error'};
+      }
+      return null;
+    }
+    if (type === 'assistant_delta') {
+      return {activity: 'working', busy: Math.max(1, toolCount(chat) + 1)};
+    }
+    if (type === 'assistant_reply') return {activity: 'working', busy: 1};
+    if (type === 'assistant_end') return {activity: 'thinking'};
+    if (type === 'thinking') {
+      return p.phase === 'started' ? {activity: 'thinking'} : null;
+    }
+    if (type === 'error') return {moment: 'error'};
+    if (type === 'awaiting_user') return {awaiting: true};
+    if (type === 'tool_call' || type === 'tool_result') {
+      const next = Math.max(0, toolCount(chat) + (type === 'tool_call' ? 1 : -1));
+      toolCounts.set(chat.id, next);
+      return {activity: 'working', busy: Math.max(1, next)};
+    }
+    if (type === 'g4_live_audit') {
+      const live = p.live_audit?.status;
+      if (live === 'running') return {activity: 'working', busy: 1};
+      if (live === 'completed') return {moment: 'attention'};
+      if (live === 'failed') return {moment: 'error'};
+      return null;
+    }
+    if (type === 'g4_progress') return {activity: 'working', busy: 1};
+    if (type === 'user_message' || type === 'user_response') {
+      return {activity: 'thinking', awaiting: false};
+    }
+    return null;
   }
 
   function event(chat, type, payload, step = null, run = chat.run) {
@@ -72,6 +139,8 @@ export function chatTask({notify = () => {}} = {}) {
           {detail: {state: pet}}));
       }
     } catch { /* pet is decorative */ }
+    // Additive wiring: the Clawd pet also accepts explicit snapshot patches.
+    try { petSignal(petPatch(chat, type, payload)); } catch { /* pet is decorative */ }
     return entry;
   }
 

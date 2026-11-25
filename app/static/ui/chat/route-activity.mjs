@@ -38,8 +38,11 @@ const FALLBACK_LOCALE = 'en';
 // SSE connections exhaust the browser's per-origin connection budget and every
 // other page on this host (the archive) stalls while loading.
 const LIVE_PHASES = new Set(['queued', 'waiting_for_executor', 'running', 'cancelling']);
+// Evidence-collection plan steps. Real runner journals never write a run_state
+// "screening", so the plan is the only journal source for the pet's sweep.
+const EVIDENCE_STEPS = new Set(['collect', 'freeze']);
 const state = {monitor: null, logA: null, logB: null, cards: new Map(), timer: null, mounted: false,
-  generation: 0, locale: null};
+  generation: 0, locale: null, petSweeping: false};
 
 function storedLocale() {
   try { return localStorage.getItem('binaryrepair.chat.language'); } catch { return null; }
@@ -62,6 +65,12 @@ const short = (value, head = 14, tail = 8) => {
   return text.length > head + tail + 1 ? text.slice(0, head) + '…' + text.slice(-tail) : text;
 };
 const chip = (text, tone = '') => el('span', {class: 'ra-chip', 'data-tone': tone}, text);
+
+// Feed the optional Clawd pet contract. The pet is decorative, so every call is
+// optional-chained and guarded: a pet failure can never break the monitor.
+function petSignal(patch) {
+  try { globalThis.BinaryRepairPet?.signal?.(patch); } catch { /* pet is decorative */ }
+}
 
 async function session() {
   const response = await fetch('/api/session', {credentials: 'same-origin', cache: 'no-store'});
@@ -114,7 +123,8 @@ function taskCard(task, index) {
     state.logA.count.textContent = runCount(state.logA.groups);
   }
   const api = {task, card, logGroup, logRows, logStatus, steps, status, artifacts, target,
-    labelText, phase: task.phase, live, lastSeq: 0, timer: null, polling: false, ended: !live};
+    labelText, phase: task.phase, live, lastSeq: 0, timer: null, polling: false, ended: !live,
+    toolCount: 0};
   state.cards.set(id, api);
   if (live) connect(api);
   else hydrate(api);
@@ -147,6 +157,110 @@ function applyPlan(api, steps) {
   }));
 }
 
+// Map one journal record onto the pet snapshot (SPEC section 6). Only cards in
+// the visible scope reach this function, so the pet follows the shown run.
+function signalJournal(api, record) {
+  const p = record.payload || {};
+  if (record.type === 'run_state') {
+    const status = p.status;
+    if (status === 'screening') {
+      state.petSweeping = true;
+      petSignal({sweeping: true, activity: 'thinking', awaiting: false});
+    } else if (status === 'analyzing' || status === 'repair') {
+      state.petSweeping = false;
+      petSignal({sweeping: false, activity: 'working', busy: 1, awaiting: false});
+    } else if (status === 'verification') {
+      state.petSweeping = false;
+      petSignal({sweeping: false, activity: 'thinking', awaiting: false});
+    } else if (status === 'completed' || status === 'finished' || status === 'done') {
+      state.petSweeping = false;
+      petSignal({sweeping: false, activity: 'idle', awaiting: false, moment: 'attention'});
+    } else if (status === 'failed' || status === 'error' || status === 'cancelled') {
+      state.petSweeping = false;
+      petSignal({sweeping: false, activity: 'idle', awaiting: false, moment: 'error'});
+    } else if (status === 'awaiting_user') {
+      petSignal({awaiting: true});
+    } else if (status === 'running' || status === 'cancelling'
+        || status === 'queued' || status === 'waiting_for_executor') {
+      // Real runner journals start with run_state "running"; treat it like the
+      // chat engine's waiting phase until stronger evidence arrives.
+      state.petSweeping = false;
+      petSignal({activity: 'thinking', awaiting: false});
+    }
+    return;
+  }
+  if (record.type === 'plan_update') {
+    const inProgress = (p.steps || []).filter(step => step?.status === 'in_progress');
+    // Parallel lanes are the conducting tier; one in-progress step is normal.
+    petSignal({routes: Math.max(1, inProgress.length)});
+    // Compact/sweep while the evidence-collection steps run. An explicit
+    // run_state sweeping flag (screening) always wins over this derivation.
+    const collecting = inProgress.some(step => EVIDENCE_STEPS.has(step?.step_id));
+    if (collecting && !state.petSweeping) {
+      state.petSweeping = true;
+      petSignal({sweeping: true, activity: 'thinking'});
+    } else if (!collecting) {
+      state.petSweeping = false;
+      petSignal({sweeping: false});
+    }
+    return;
+  }
+  if (record.type === 'awaiting_user') {
+    petSignal({awaiting: true});
+    return;
+  }
+  if (record.type === 'user_response') {
+    petSignal({awaiting: false, activity: 'thinking'});
+    return;
+  }
+  if (record.type === 'tool_call' || record.type === 'tool_result') {
+    api.toolCount = Math.max(0,
+      (api.toolCount || 0) + (record.type === 'tool_call' ? 1 : -1));
+    petSignal({activity: 'working', busy: Math.max(1, api.toolCount)});
+    return;
+  }
+  if (record.type === 'assistant_delta') {
+    petSignal({activity: 'working', busy: Math.max(1, (api.toolCount || 0) + 1)});
+    return;
+  }
+  if (record.type === 'assistant_end') {
+    petSignal({activity: 'thinking'});
+    return;
+  }
+  if (record.type === 'thinking') {
+    petSignal({activity: 'thinking'});
+    return;
+  }
+  if (record.type === 'error') {
+    petSignal({moment: 'error'});
+    return;
+  }
+  if (record.type === 'verification') {
+    if (p.kind === 'evaluation') {
+      const verdict = typeof p.verdict === 'string' ? p.verdict : p.verdict?.outcome;
+      if (verdict === 'verified_against_stated_criteria' || verdict === 'verified') {
+        petSignal({moment: 'attention'});
+      } else if (verdict === 'error' || verdict === 'unsupported') {
+        petSignal({moment: 'error'});
+      }
+      // unverified / not_run / rejected / null carry no moment.
+    }
+    return;
+  }
+  if (record.type === 'command') {
+    petSignal({activity: 'working', busy: Math.max(1, api.toolCount || 0)});
+    return;
+  }
+  if (record.type === 'run_end') {
+    api.toolCount = 0;
+    state.petSweeping = false;
+    const execution = String(p.execution || '');
+    const success = !['error', 'failed', 'cancelled', 'aborted'].includes(execution);
+    petSignal({sweeping: false, activity: 'idle', awaiting: false,
+      moment: success ? 'attention' : 'error'});
+  }
+}
+
 function appendEvent(api, record) {
   if (record.seq <= api.lastSeq) return;
   api.lastSeq = record.seq;
@@ -174,6 +288,7 @@ function appendEvent(api, record) {
       el('span', {class: 'ra-muted'}, `${record.step_id || '—'} · ${record.ts || ''}`),
       el('pre', {}, JSON.stringify({...record, conversation_id: t('hiddenRunId')}, null, 2))));
   api.logRows.append(row);
+  signalJournal(api, record);
 }
 
 function stopPolling(api) {
@@ -278,10 +393,13 @@ function buildMonitor() {
 function clearCards() {
   for (const api of state.cards.values()) {
     stopPolling(api);
+    api.toolCount = 0;
     api.logGroup?.remove();
     api.card.remove();
   }
   state.cards.clear();
+  state.petSweeping = false;
+  petSignal({routes: 0});
   if (state.logA) {
     state.logA.body.replaceChildren(el('p', {class: 'ra-muted'}, t('noRunEvents')));
     state.logA.groups = 0;
@@ -308,6 +426,7 @@ async function refreshTasks(list, count) {
     const visible = candidates.slice(0, 1);
     count.textContent = runCount(visible.length);
     if (!visible.length) {
+      petSignal({routes: 0});
       list.replaceChildren(el('p', {class: 'ra-muted'}, t('noRuns')));
       return;
     }
@@ -345,6 +464,8 @@ async function refreshTasks(list, count) {
         state.logA.count.textContent = runCount(state.logA.groups);
       }
     }
+    // Keep the juggling tier honest: routes only exist while a card is live.
+    if (![...state.cards.values()].some(card => card.live)) petSignal({routes: 0});
   } catch (error) {
     if (generation !== state.generation) return;
     clearCards();
@@ -362,10 +483,13 @@ function resetForLocale() {
   state.generation += 1;
   for (const api of state.cards.values()) {
     stopPolling(api);
+    api.toolCount = 0;
     api.logGroup?.remove();
     api.card.remove();
   }
   state.cards.clear();
+  state.petSweeping = false;
+  petSignal({routes: 0});
   state.monitor?.remove();
   state.monitor = null;
   state.logA?.panel.remove();
