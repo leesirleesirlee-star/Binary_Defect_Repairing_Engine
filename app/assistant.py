@@ -444,6 +444,7 @@ def validate_envelope(value: Any) -> dict[str, Any] | None:
     if not isinstance(raw_actions, list) or len(raw_actions) > MAX_ACTIONS:
         return None
     actions: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
     for item in raw_actions:
         if not isinstance(item, Mapping):
             return None
@@ -456,6 +457,10 @@ def validate_envelope(value: Any) -> dict[str, Any] | None:
             return None
         if not isinstance(action_id, str) or not action_id.strip():
             return None
+        key = (kind, label_code[:64])
+        if key in seen:
+            continue
+        seen.add(key)
         actions.append({"id": action_id[:64], "label_code": label_code[:64], "kind": kind})
     return {"reply": reply.strip(), "actions": actions}
 

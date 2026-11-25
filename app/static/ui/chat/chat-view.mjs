@@ -1,7 +1,7 @@
 import {animateDetails} from '../shared/details-anim.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125z';
-import {stepCard} from './chat-steps.mjs?v=20261125z';
+import {icon} from '../shared/icons.mjs?v=20261126b';
+import {stepCard} from './chat-steps.mjs?v=20261126b';
 
 export function fileDropZone({label, hint, accept = '', multiple = false, onFiles}) {
   const input = el('input', {type: 'file', hidden: true, accept, multiple,
@@ -431,6 +431,16 @@ function renderMarkdown(text) {
   return body;
 }
 
+function uniqueActions(actions) {
+  const seen = new Set();
+  return (actions || []).filter(action => {
+    const key = String(action.kind || '') + ':' + String(action.label_code || action.label || '');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function assistantActionLabel(action, t) {
   if (action.label) return action.label;
   const code = String(action.label_code || action.kind || '').replace(/^action\./, '');
@@ -641,12 +651,12 @@ export function renderItem(item, ctx) {
           el('strong', {}, t('assistant')),
           el('span', {class: 'assistant-mode-pill', 'data-mode': p.mode || 'deterministic'}, mode)),
         renderMarkdown(p.reply),
-        (p.actions || []).length ? el('div', {class: 'assistant-actions'},
-          (p.actions || []).map(action => control(assistantActionLabel(action, t),
+        uniqueActions(p.actions).length ? el('div', {class: 'assistant-actions'},
+          uniqueActions(p.actions).map(action => control(assistantActionLabel(action, t),
             () => engine.assistantAction?.(chat, action),
             {class: 'control assistant-chip', 'data-kind': action.kind,
              title: assistantActionLabel(action, t)}))) : null,
-        (p.actions || []).length ? el('p', {class: 'assistant-action-note'},
+        uniqueActions(p.actions).length ? el('p', {class: 'assistant-action-note'},
           t('assistantActionNote')) : null,
         el('div', {class: 'assistant-suggestions', role: 'group'},
           ['askWhyRejected', 'askWhatChanged', 'askHowToPass', 'askEvidence'].map(key =>

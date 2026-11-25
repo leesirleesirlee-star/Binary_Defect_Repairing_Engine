@@ -4,7 +4,8 @@ import {saveDraft, saveLanguage} from '../shared/handoff.mjs?v=20261120au';
 import {LANGUAGES, LANGUAGE_CODES, detectLanguage, isLanguage, languageName} from '../shared/languages.mjs?v=20261120au';
 import '../shared/theme.mjs?v=20261120au';
 import {playExit} from '../shared/warp.mjs?v=20261121y';
-import {welcomeCopy} from './welcome-copy.mjs?v=20261125c';
+import {welcomeCopy} from './welcome-copy.mjs?v=20261126b';
+import {mountPet} from '../shared/pet.mjs?v=20261126a';
 
 const form = document.querySelector('.composer-card');
 const draft = document.querySelector('#draft');
@@ -117,3 +118,5 @@ document.addEventListener('click', event => {
   const enter = () => location.assign(link.getAttribute('href'));
   playExit().then(enter, enter);
 });
+
+mountPet();

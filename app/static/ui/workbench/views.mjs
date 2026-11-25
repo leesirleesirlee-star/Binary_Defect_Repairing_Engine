@@ -1,8 +1,8 @@
-import {badge, button, date, el, isAscii, notice, taskHref} from '../shared/dom.mjs?v=20261125o';
-import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261125o';
-import {LANGUAGES, languageName} from '../shared/languages.mjs?v=20261125o';
-import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261125o';
-import {icon} from '../shared/icons.mjs?v=20261125o';
+import {badge, button, date, el, isAscii, notice, taskHref} from '../shared/dom.mjs?v=20261126b';
+import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261126b';
+import {LANGUAGES, languageName} from '../shared/languages.mjs?v=20261126b';
+import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261126b';
+import {icon} from '../shared/icons.mjs?v=20261126b';
 
 export function shell(ctx) {
   const {t, language, api, jobs, id, create, settings, switchLanguage, menuOpen, toggleMenu, search} = ctx;

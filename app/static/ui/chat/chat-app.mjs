@@ -1,20 +1,21 @@
 import {el, isAscii} from '../shared/dom.mjs?v=20261120au';
 import {saveLanguage, takeDraft} from '../shared/handoff.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125z';
+import {icon} from '../shared/icons.mjs?v=20261126b';
 import {LANGUAGE_CODES, languageName} from '../shared/languages.mjs?v=20261120au';
 import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261125z';
-import {chatPreview} from './chat-stream.mjs?v=20261125z';
-import {chatTask} from './chat-task.mjs?v=20261125z';
-import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261125z';
+import {label} from './chat-copy.mjs?v=20261126b';
+import {chatPreview} from './chat-stream.mjs?v=20261126b';
+import {chatTask} from './chat-task.mjs?v=20261126b';
+import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261126b';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261125f';
-import {bindSidebarSpring} from './chat-spring.mjs?v=20261125z';
-import {refreshStepCard} from './chat-steps.mjs?v=20261125z';
-import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125z';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125z';
+import {bindSidebarSpring} from './chat-spring.mjs?v=20261126b';
+import {refreshStepCard} from './chat-steps.mjs?v=20261126b';
+import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261126b';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261126b';
+import {mountPet} from '../shared/pet.mjs?v=20261126a';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -612,3 +613,4 @@ setInterval(() => {
 }, 250);
 
 mount();
+mountPet();

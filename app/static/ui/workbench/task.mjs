@@ -1,6 +1,6 @@
-import {currentEvaluation, reportUrl, shouldPoll} from './api.mjs?v=20261125o';
-import {badge, button, date, download, el, isAscii, notice} from '../shared/dom.mjs?v=20261125o';
-import {icon} from '../shared/icons.mjs?v=20261125o';
+import {currentEvaluation, reportUrl, shouldPoll} from './api.mjs?v=20261126b';
+import {badge, button, date, download, el, isAscii, notice} from '../shared/dom.mjs?v=20261126b';
+import {icon} from '../shared/icons.mjs?v=20261126b';
 
 export const fieldKeys = ['valid_domain', 'forbidden', 'invalid_outcome', 'assumptions'];
 const section = (heading, ...children) => el('section', {class: 'card padded section'}, el('h2', {}, heading), children);

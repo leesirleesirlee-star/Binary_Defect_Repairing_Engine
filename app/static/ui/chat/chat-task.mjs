@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125z';
+import {label} from './chat-copy.mjs?v=20261126b';
 
 const newId = () => crypto.randomUUID();
 const autoTitle = (chat, value) => {
@@ -50,6 +50,28 @@ export function chatTask({notify = () => {}} = {}) {
     };
     chat.events.push(entry);
     notify(chat, entry);
+    try {
+      let pet = null;
+      if (type === 'run_state') {
+        const status = payload?.status;
+        pet = status === 'running' || status === 'cancelling' ? 'running'
+          : status === 'completed' ? 'happy'
+            : status === 'failed' || status === 'cancelled' ? 'error'
+              : status === 'queued' || status === 'waiting_for_executor' ? 'waiting' : null;
+      } else if (type === 'error') pet = 'error';
+      else if (type === 'assistant_reply') pet = 'happy';
+      else if (type === 'assistant_delta') pet = 'thinking';
+      else if (type === 'thinking' && payload?.phase === 'started') pet = 'thinking';
+      else if (type === 'g4_live_audit') {
+        const live = payload?.live_audit?.status;
+        pet = live === 'running' ? 'thinking' : live === 'completed' ? 'happy'
+          : live === 'failed' ? 'error' : null;
+      }
+      if (pet) {
+        window.dispatchEvent(new CustomEvent('binaryrepair:pet-state',
+          {detail: {state: pet}}));
+      }
+    } catch { /* pet is decorative */ }
     return entry;
   }
 

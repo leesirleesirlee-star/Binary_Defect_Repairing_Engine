@@ -235,10 +235,10 @@
     --ld-chat-6: #3b3b45;
     --ld-chat-7: #f1f1f4;
     --ld-chat-8: #acacbb;
-    --ld-chat-9: #cec6ff;
-    --ld-chat-10: #c0b3fc;
-    --ld-chat-11: #21183e;
-    --ld-chat-12: #332d49;
+    --ld-chat-9: #e39a7a;
+    --ld-chat-10: #d97757;
+    --ld-chat-11: #20110d;
+    --ld-chat-12: #3a251f;
     --ld-chat-13: #ffaaa5;
     --ld-chat-14: #efd092;
     --ld-chat-15: #9fdbbc;
@@ -254,10 +254,10 @@
     --ld-chat-6: #3b3b45;
     --ld-chat-7: #f1f1f4;
     --ld-chat-8: #acacbb;
-    --ld-chat-9: #cec6ff;
-    --ld-chat-10: #c0b3fc;
-    --ld-chat-11: #21183e;
-    --ld-chat-12: #332d49;
+    --ld-chat-9: #e39a7a;
+    --ld-chat-10: #d97757;
+    --ld-chat-11: #20110d;
+    --ld-chat-12: #3a251f;
     --ld-chat-13: #ffaaa5;
     --ld-chat-14: #efd092;
     --ld-chat-15: #9fdbbc;
@@ -828,8 +828,8 @@ p.activity-row { display: flex; gap: .4rem; align-items: center; color: var(--mu
 .markdown-body { white-space: normal; line-height: 1.62; }
 .markdown-body p { margin: .35rem 0; }
 .markdown-body h4.md-heading {
-  margin: .85rem 0 .35rem; color: var(--accent); font-size: .82rem;
-  font-weight: 700; letter-spacing: .01em;
+  margin: .95rem 0 .4rem; color: var(--accent); font-size: 1rem;
+  font-weight: 750; letter-spacing: .015em; line-height: 1.35;
 }
 .markdown-body h4.md-heading:first-child { margin-top: 0; }
 .markdown-body strong { color: var(--text); font-weight: 700; }
