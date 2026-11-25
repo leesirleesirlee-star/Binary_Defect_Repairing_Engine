@@ -1,8 +1,8 @@
-import {badge, button, date, el, isAscii, notice, taskHref} from '../shared/dom.mjs?v=20261125l';
-import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261125l';
-import {LANGUAGES, languageName} from '../shared/languages.mjs?v=20261125l';
-import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261125l';
-import {icon} from '../shared/icons.mjs?v=20261125l';
+import {badge, button, date, el, isAscii, notice, taskHref} from '../shared/dom.mjs?v=20261125m';
+import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261125m';
+import {LANGUAGES, languageName} from '../shared/languages.mjs?v=20261125m';
+import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261125m';
+import {icon} from '../shared/icons.mjs?v=20261125m';
 
 export function shell(ctx) {
   const {t, language, api, jobs, id, create, settings, switchLanguage, menuOpen, toggleMenu, search} = ctx;
@@ -46,7 +46,8 @@ export function shell(ctx) {
 }
 
 const inProgress = new Set(['queued', 'screening', 'repair', 'verification', 'running',
-  'waiting_for_executor', 'blocked']);
+  'waiting_for_executor', 'blocked', 'draft', 'plans_ready', 'plan_selected',
+  'awaiting_user']);
 const finished = new Set(['done', 'completed', 'failed', 'cancelled', 'verified', 'unsupported']);
 const phase = job => job.execution?.status === 'waiting_for_executor' ? job.execution.status : job.phase;
 const listFilter = (jobs, filter, text) => jobs.filter(job =>

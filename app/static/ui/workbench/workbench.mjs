@@ -1,24 +1,24 @@
-import {saveLanguage} from '../shared/handoff.mjs?v=20261125l';
-import {LANGUAGE_CODES} from '../shared/languages.mjs?v=20261125l';
-import {getTheme, setTheme} from '../shared/theme.mjs?v=20261125l';
-import {live, shouldPoll} from './api.mjs?v=20261125l';
-import {button, el, notice, taskHref} from '../shared/dom.mjs?v=20261125l';
-import {translate} from './labels.mjs?v=20261125l';
-import {taskView} from './task.mjs?v=20261125l';
-import {g4TaskView} from './g4task.mjs?v=20261125l';
-import {pageSlideActive} from '../shared/page-slide.mjs?v=20261125l';
-import {motionReduced} from '../shared/motion.mjs?v=20261125l';
-import {getSetting} from '../shared/settings-preferences.mjs?v=20261125l';
+import {saveLanguage} from '../shared/handoff.mjs?v=20261125m';
+import {LANGUAGE_CODES} from '../shared/languages.mjs?v=20261125m';
+import {getTheme, setTheme} from '../shared/theme.mjs?v=20261125m';
+import {live, shouldPoll} from './api.mjs?v=20261125m';
+import {button, el, notice, taskHref} from '../shared/dom.mjs?v=20261125m';
+import {translate} from './labels.mjs?v=20261125m';
+import {taskView} from './task.mjs?v=20261125m';
+import {g4TaskView} from './g4task.mjs?v=20261125m';
+import {pageSlideActive} from '../shared/page-slide.mjs?v=20261125m';
+import {motionReduced} from '../shared/motion.mjs?v=20261125m';
+import {getSetting} from '../shared/settings-preferences.mjs?v=20261125m';
 import {bindSidebarSpring} from '../chat/chat-spring.mjs?v=20261120au';
-import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261125l';
-import {createDialog, languageDialog, searchDialog, settingsDialog, shell, tasksView} from './views.mjs?v=20261125l';
+import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261125m';
+import {createDialog, languageDialog, searchDialog, settingsDialog, shell, tasksView} from './views.mjs?v=20261125m';
 
 // The archive opens on its synthetic fixture immediately. The legacy live API
 // remains available explicitly with ?live=1, but the archive must never present
 // an empty "task service unavailable" dead end before showing its content.
 const archiveQuery = new URLSearchParams(location.search);
 const previewMode = archiveQuery.get('preview') === '1';
-const api = previewMode ? (await import('./preview.mjs?v=20261125l')).preview : {...live, lifecycle: false};
+const api = previewMode ? (await import('./preview.mjs?v=20261125m')).preview : {...live, lifecycle: false};
 const app = document.querySelector('#app');
 const preferences = {language: 'zh-Hans', density: 'comfortable'};
 const preferenceValues = {language: LANGUAGE_CODES, density: ['comfortable', 'compact']};

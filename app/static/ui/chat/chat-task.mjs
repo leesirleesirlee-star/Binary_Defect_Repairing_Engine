@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125n';
+import {label} from './chat-copy.mjs?v=20261125o';
 
 const newId = () => crypto.randomUUID();
 const autoTitle = (chat, value) => {
@@ -142,6 +142,7 @@ export function chatTask({notify = () => {}} = {}) {
   async function probeBinary(chat, file, locale) {
     if (['running', 'awaiting_user', 'cancel_requested'].includes(chat.phase)) return;
     chat.locale = locale;
+    autoTitle(chat, file.name);
     const messageId = newId();
     const attachmentId = newId();
     chat.attachmentNames.set(attachmentId, file.name);

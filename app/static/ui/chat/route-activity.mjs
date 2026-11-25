@@ -11,10 +11,10 @@
  * taken from the document (`lang`), then the stored chat preference, then `en`.
  */
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125n';
+import {icon} from '../shared/icons.mjs?v=20261125o';
 import {LANGUAGE_CODES} from '../shared/languages.mjs?v=20261120au';
-import {label as translate} from './chat-copy.mjs?v=20261125n';
-import {disclosure} from './chat-steps.mjs?v=20261125n';
+import {label as translate} from './chat-copy.mjs?v=20261125o';
+import {disclosure} from './chat-steps.mjs?v=20261125o';
 
 const STEPS = ['collect', 'freeze', 'analyze', 'audit', 'decision', 'repair', 'verify', 'export'];
 const PHASE_KEYS = {

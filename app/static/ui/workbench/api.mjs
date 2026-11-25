@@ -116,7 +116,7 @@ const archivedPhase = (task, verdict) => {
   }
   if (status === 'failed' || task.phase === 'failed') return 'failed';
   if (task.phase === 'completed' || task.phase === 'done') return 'completed';
-  if (task.phase === 'plans_ready' || task.phase === 'plan_selected') return 'draft';
+  if (task.phase === 'plans_ready' || task.phase === 'plan_selected') return task.phase;
   return 'draft';
 };
 const verdictFor = async id => {

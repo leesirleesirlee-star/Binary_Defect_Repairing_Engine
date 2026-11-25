@@ -1,4 +1,4 @@
-import {extraLabels} from './labels-extra.mjs?v=20261125l';
+import {extraLabels} from './labels-extra.mjs?v=20261125m';
 
 // Pair each display string with its Simplified Chinese translation.
 const labels = {
@@ -119,6 +119,8 @@ const labels = {
   route_b: ['Route B', '路线 B'],
   waiting_for_executor: ['Waiting for executor', '等待执行器'],
   draft: ['Draft', '草稿'],
+  plans_ready: ['Plans ready', '待选择方案'],
+  plan_selected: ['Plan selected', '已选方案'],
   awaiting_review: ['Awaiting review', '待审阅'],
   queued: ['Queued', '已排队'],
   screening: ['Screening', '筛查中'],
