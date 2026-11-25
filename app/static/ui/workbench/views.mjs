@@ -1,8 +1,8 @@
-import {badge, button, date, el, isAscii, notice, taskHref} from '../shared/dom.mjs?v=20261125i';
-import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261125i';
-import {LANGUAGES, languageName} from '../shared/languages.mjs?v=20261125i';
-import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261125i';
-import {icon} from '../shared/icons.mjs?v=20261125i';
+import {badge, button, date, el, isAscii, notice, taskHref} from '../shared/dom.mjs?v=20261125j';
+import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261125j';
+import {LANGUAGES, languageName} from '../shared/languages.mjs?v=20261125j';
+import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261125j';
+import {icon} from '../shared/icons.mjs?v=20261125j';
 
 export function shell(ctx) {
   const {t, language, api, jobs, id, create, settings, switchLanguage, menuOpen, toggleMenu, search} = ctx;
@@ -107,8 +107,7 @@ export function tasksView(ctx) {
             } catch { /* browser history is best-effort */ }
             await reload();
           } catch (error) { window.alert(error?.code || error?.message || t('readError')); }
-        }, {className: 'delete-task', title: t('delete'), 'aria-label': t('delete'),
-          glyph: 'x'}) : null)));
+        }, {className: 'delete-task', 'aria-label': t('delete'), glyph: 'x'}) : null)));
   };
   update();
   return el('div', {class: 'page'},
