@@ -1,6 +1,6 @@
 // G1–G4 archive detail: one repair run with its verdict and downloadable evidence.
-import {el} from '../shared/dom.mjs?v=20261125e';
-import {icon} from '../shared/icons.mjs?v=20261125e';
+import {el} from '../shared/dom.mjs?v=20261125f';
+import {icon} from '../shared/icons.mjs?v=20261125f';
 
 const text = (locale, en, zh) => locale === 'zh-Hans' ? zh : en;
 
@@ -30,7 +30,18 @@ export function g4TaskView(ctx) {
       api?.writable ? el('button', {class: 'button subtle danger', type: 'button',
         onclick: async () => {
           if (!window.confirm(t('deleteConfirm'))) return;
-          try { await api.remove(job.id); location.assign('/ui/'); }
+          try {
+            await api.remove(job.id);
+            try {
+              const key = 'binaryrepair.chat.sessions.v1';
+              const saved = JSON.parse(localStorage.getItem(key) || 'null');
+              if (saved?.chats) {
+                saved.chats = saved.chats.filter(chat => chat.jobId !== job.id);
+                localStorage.setItem(key, JSON.stringify(saved));
+              }
+            } catch { /* browser history is best-effort */ }
+            location.assign('/ui/');
+          }
           catch (error) { window.alert(error?.code || error?.message || t('readError')); }
         }}, icon('x', 16), t('delete')) : null,
       el('a', {class: 'button subtle', href: conversation}, icon('chat', 16),
