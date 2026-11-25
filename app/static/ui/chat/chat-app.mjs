@@ -1,20 +1,20 @@
 import {el, isAscii} from '../shared/dom.mjs?v=20261120au';
 import {saveLanguage, takeDraft} from '../shared/handoff.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125l';
+import {icon} from '../shared/icons.mjs?v=20261125m';
 import {LANGUAGE_CODES, languageName} from '../shared/languages.mjs?v=20261120au';
 import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261125l';
-import {chatPreview} from './chat-stream.mjs?v=20261125l';
-import {chatTask} from './chat-task.mjs?v=20261125l';
-import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261125l';
+import {label} from './chat-copy.mjs?v=20261125m';
+import {chatPreview} from './chat-stream.mjs?v=20261125m';
+import {chatTask} from './chat-task.mjs?v=20261125m';
+import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261125m';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261125f';
-import {bindSidebarSpring} from './chat-spring.mjs?v=20261125l';
-import {refreshStepCard} from './chat-steps.mjs?v=20261125l';
-import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125l';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125l';
+import {bindSidebarSpring} from './chat-spring.mjs?v=20261125m';
+import {refreshStepCard} from './chat-steps.mjs?v=20261125m';
+import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125m';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125m';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -53,12 +53,22 @@ function loadHistory() {
 }
 function saveHistory() {
   if (!engine || !selected) return;
+  const chats = engine.serialize().filter(chat =>
+    chat.id === selected.id || chat.events.length > 0);
+  const persist = value => localStorage.setItem(HISTORY_KEY, JSON.stringify(value));
   try {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify({
-      selected: selected.id,
-      chats: engine.serialize().filter(chat => chat.id === selected.id || chat.events.length > 0),
-    }));
-  } catch { /* localStorage quota: keep the live session usable */ }
+    persist({selected: selected.id, chats});
+  } catch {
+    // Quota fallback: keep every conversation, but drop bulky preview bytes
+    // from completed chats and retain a bounded transcript per chat.
+    try {
+      persist({selected: selected.id, chats: chats.map(chat => ({
+        ...chat,
+        attachmentFiles: [],
+        events: (chat.events || []).slice(-200),
+      }))});
+    } catch { /* storage truly unavailable; archive still keeps tasks */ }
+  }
 }
 function scheduleSave() {
   clearTimeout(saveTimer);
