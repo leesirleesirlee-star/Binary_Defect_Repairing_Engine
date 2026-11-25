@@ -746,13 +746,25 @@ html.slide-enter-forward body, html.slide-enter-backward body {
 .task-row-wrap .task-row { border-top: 0; width: 100%; }
 .task-row-wrap .task-row .arrow { grid-column: 4; }
 .task-row-wrap .delete-task {
-  position: absolute; inset-inline-end: 46px; top: 50%; transform: translateY(-50%);
+  position: absolute; inset-inline-end: 46px; top: 50%;
+  transform: translateY(-50%) scale(1);
   width: 24px; min-width: 24px; height: 24px; min-height: 24px; padding: 0;
   display: inline-grid; place-items: center; border-radius: 6px;
   color: var(--muted); background: color-mix(in srgb, var(--surface) 88%, transparent);
-  opacity: .55; transition: opacity 120ms ease;
+  opacity: .8; transition: transform 260ms cubic-bezier(.23, 1, .32, 1);
 }
-.task-row-wrap:hover .delete-task, .task-row-wrap:focus-within .delete-task { opacity: 1; }
+.task-row-wrap .delete-task:hover,
+.task-row-wrap .delete-task:focus-visible {
+  opacity: 1;
+  transform: translateY(-50%) scale(1.07);
+}
+.task-row-wrap .delete-task:active { transform: translateY(-50%) scale(1.02); }
+.task-row-wrap .delete-task svg {
+  transform: none !important;
+  transition: none !important;
+  animation: none !important;
+}
+.task-row-wrap .delete-task::after { display: none !important; }
 @media (hover: none) { .task-row-wrap .delete-task { opacity: .8; } }
 
 .task-row time { white-space: nowrap; }

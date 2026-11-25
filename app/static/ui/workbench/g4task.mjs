@@ -1,6 +1,6 @@
 // G1–G4 archive detail: one repair run with its verdict and downloadable evidence.
-import {el} from '../shared/dom.mjs?v=20261125j';
-import {icon} from '../shared/icons.mjs?v=20261125j';
+import {el} from '../shared/dom.mjs?v=20261125k';
+import {icon} from '../shared/icons.mjs?v=20261125k';
 
 const text = (locale, en, zh) => locale === 'zh-Hans' ? zh : en;
 
