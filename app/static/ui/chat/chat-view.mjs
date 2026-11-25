@@ -1,7 +1,7 @@
 import {animateDetails} from '../shared/details-anim.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
-import {stepCard} from './chat-steps.mjs?v=20261125g';
+import {stepCard} from './chat-steps.mjs?v=20261125h';
 
 export function fileDropZone({label, hint, accept = '', multiple = false, onFiles}) {
   const input = el('input', {type: 'file', hidden: true, accept, multiple,
@@ -184,25 +184,9 @@ function approval(item, ctx) {
   const p = item.payload;
   const status = item.decision;
   if (p.kind === 'repair_plan') {
-    const options = p.options ?? [];
-    if (chat.auditMode === 'live') {
-      return el('p', {class: 'inline-note'}, t('livePlanFirst'));
-    }
-    if (status) {
-      const chosen = options.find(option => option.id === status);
-      return el('div', {class: 'inline-actions'}, icon('check', 15),
-        el('span', {}, t('planChosen') + (chosen ? ' · ' + chosen.title : '')));
-    }
-    return el('div', {class: 'plan-choices', role: 'group', 'aria-label': t('approval')},
-      el('p', {class: 'inline-note replay-note'}, t('signedReplayPlanNote')),
-      p.note ? el('p', {class: 'inline-note'}, p.note) : null,
-      options.map(option => el('div', {class: 'plan-choice'},
-        el('strong', {}, option.title),
-        el('p', {}, option.summary),
-        option.feasible
-          ? control(t('selectPlan'), () => engine.decide(chat, p.request_id, option.id),
-            {tone: 'primary'})
-          : el('span', {class: 'muted'}, option.reason || t('planUnavailable')))));
+    // There is no signed-plan choice in the product: plans come only from the
+    // live AI audit card. Historical events keep this short truth note.
+    return el('p', {class: 'inline-note'}, t('livePlanFirst'));
   }
   const complete = Boolean(chat.contract?.review_binding_digest &&
     chat.contract?.review_binding?.original_sha256 && chat.contract?.review_binding?.test_manifest_sha256);
