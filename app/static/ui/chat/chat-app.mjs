@@ -1,20 +1,20 @@
 import {el, isAscii} from '../shared/dom.mjs?v=20261120au';
 import {saveLanguage, takeDraft} from '../shared/handoff.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125k';
+import {icon} from '../shared/icons.mjs?v=20261125l';
 import {LANGUAGE_CODES, languageName} from '../shared/languages.mjs?v=20261120au';
 import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261125k';
-import {chatPreview} from './chat-stream.mjs?v=20261125k';
-import {chatTask} from './chat-task.mjs?v=20261125k';
-import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261125k';
+import {label} from './chat-copy.mjs?v=20261125l';
+import {chatPreview} from './chat-stream.mjs?v=20261125l';
+import {chatTask} from './chat-task.mjs?v=20261125l';
+import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261125l';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261125f';
-import {bindSidebarSpring} from './chat-spring.mjs?v=20261125k';
-import {refreshStepCard} from './chat-steps.mjs?v=20261125k';
-import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125k';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125k';
+import {bindSidebarSpring} from './chat-spring.mjs?v=20261125l';
+import {refreshStepCard} from './chat-steps.mjs?v=20261125l';
+import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125l';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125l';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -99,7 +99,18 @@ if (restored?.chats?.length) {
 const meaningful = chat => Boolean(chat.jobId) || chat.events.some(item =>
   !['assistant_delta', 'assistant_end', 'thinking'].includes(item.type));
 if (restoredSession) {
+  const inferTitle = chat => {
+    if (chat.titleIsCustom || (chat.title && chat.title !== t('new'))) return;
+    const binary = chat.events.find(item => item.type === 'binary_ready')?.payload?.binary_name ||
+      chat.events.find(item => item.type === 'case_prompt')?.payload?.binary_name ||
+      chat.task?.g4?.binary_name || chat.g4?.binary_name;
+    const text = chat.events.find(item => item.type === 'user_message')?.payload?.text;
+    const value = binary || (text ? String(text).split('\n')[0].slice(0, 60) : '');
+    if (value) chat.title = String(value).slice(0, 120);
+    else if (chat.jobId) chat.title = '修复记录 ' + String(chat.jobId).slice(-8);
+  };
   for (const [id, chat] of engine.chats) {
+    inferTitle(chat);
     if (!meaningful(chat)) engine.chats.delete(id);
   }
   const found = [...engine.chats.values()].find(chat => chat.id === restored.selected) ||
