@@ -100,10 +100,18 @@ def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
         fallback = datetime.fromtimestamp(
             path.stat().st_mtime, UTC
         ).isoformat().replace("+00:00", "Z")
+        live = task.get("live_audit") if isinstance(task.get("live_audit"), dict) else {}
+        execution = task.get("execution") if isinstance(task.get("execution"), dict) else {}
+        g4 = task.get("g4") if isinstance(task.get("g4"), dict) else {}
         tasks.append(
             {key: task.get(key) for key in ("id", "fixture_id", "phase", "created_at")}
             | {"updated_at": task.get("updated_at") or fallback,
-               "verdict": task.get("verdict"), "demo": bool(task.get("demo"))}
+               "verdict": task.get("verdict"), "demo": bool(task.get("demo")),
+               "execution": {key: execution.get(key) for key in
+                             ("run_id", "status", "terminal", "pid")},
+               "live_audit": {key: live.get(key) for key in
+                              ("status", "started_at", "finished_at", "error")},
+               "g4": {"binary_name": g4.get("binary_name")}}
         )
         if len(tasks) >= min(max(1, limit), 200):
             break
