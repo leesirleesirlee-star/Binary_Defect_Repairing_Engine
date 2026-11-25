@@ -1,7 +1,7 @@
 import {animateDetails} from '../shared/details-anim.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125o';
-import {stepCard} from './chat-steps.mjs?v=20261125o';
+import {icon} from '../shared/icons.mjs?v=20261125p';
+import {stepCard} from './chat-steps.mjs?v=20261125p';
 
 export function fileDropZone({label, hint, accept = '', multiple = false, onFiles}) {
   const input = el('input', {type: 'file', hidden: true, accept, multiple,
@@ -439,8 +439,12 @@ function genLiveAudit(p, ctx, t) {
   const selected = p.selected_plan;
   const runs = audit.runs || [];
   const status = audit.status || 'idle';
-  const statusLabel = t(status === 'idle' ? 'liveAuditIdle' : status === 'running'
-    ? 'liveAuditRunning' : status === 'completed' ? 'liveAuditCompleted' : 'liveAuditFailed');
+  const allBlocked = status === 'completed' && runs.length > 0 &&
+    runs.every(run => run.selectable === false);
+  const statusLabel = allBlocked || status === 'failed'
+    ? t('failed')
+    : t(status === 'idle' ? 'liveAuditIdle' : status === 'running'
+      ? 'liveAuditRunning' : 'liveAuditCompleted');
   const children = [];
   children.push(el('p', {class: 'gen-note'}, t('liveAuditOnlyPath')));
   if (status === 'idle') {
@@ -453,6 +457,9 @@ function genLiveAudit(p, ctx, t) {
   }
   if (status === 'running' && !runs.length) {
     children.push(el('p', {class: 'muted live-audit-hint'}, t('liveAuditStarted')));
+  }
+  if (allBlocked) {
+    children.push(el('p', {class: 'gen-note verdict-reason'}, t('allPlansUnavailable')));
   }
   if (status === 'completed' && runs.length) {
     const cards = runs.map(run => {

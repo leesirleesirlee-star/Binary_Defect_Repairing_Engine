@@ -1,20 +1,20 @@
 import {el, isAscii} from '../shared/dom.mjs?v=20261120au';
 import {saveLanguage, takeDraft} from '../shared/handoff.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125o';
+import {icon} from '../shared/icons.mjs?v=20261125p';
 import {LANGUAGE_CODES, languageName} from '../shared/languages.mjs?v=20261120au';
 import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261125o';
-import {chatPreview} from './chat-stream.mjs?v=20261125o';
-import {chatTask} from './chat-task.mjs?v=20261125o';
-import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261125o';
+import {label} from './chat-copy.mjs?v=20261125p';
+import {chatPreview} from './chat-stream.mjs?v=20261125p';
+import {chatTask} from './chat-task.mjs?v=20261125p';
+import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261125p';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261125f';
-import {bindSidebarSpring} from './chat-spring.mjs?v=20261125o';
-import {refreshStepCard} from './chat-steps.mjs?v=20261125o';
-import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125o';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125o';
+import {bindSidebarSpring} from './chat-spring.mjs?v=20261125p';
+import {refreshStepCard} from './chat-steps.mjs?v=20261125p';
+import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125p';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125p';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -265,37 +265,61 @@ function preference(key, value) {
 }
 
 function openConversationMenu(chat, anchor) {
-  const trigger = anchor;
-  const close = () => popup.close();
-  const popup = el('dialog', {class: 'popup conversation-menu', 'aria-label': t('conversationMenu')},
-    el('header', {}, el('h2', {}, displayTitle(chat, t)),
-      control(t('close'), close, {glyph: 'x', compact: true})),
-    el('div', {class: 'conversation-menu-actions'},
-      control(t(chat.pinned ? 'unpinChat' : 'pinChat'), () => {
-        chat.pinned = !chat.pinned; saveHistory(); paint(); close();
-      }, {glyph: 'pin'}),
-      control(t('renameChat'), () => {
-        const value = window.prompt(t('renamePrompt'), displayTitle(chat, t));
-        if (value && value.trim()) {
-          chat.title = value.trim().slice(0, 120);
-          chat.titleKey = null;
-          chat.titleIsCustom = true;
-          saveHistory(); paint();
-        }
-        close();
-      }, {glyph: 'edit'}),
-      control(t(chat.archived ? 'unarchiveChat' : 'archiveChat'), () => {
-        chat.archived = !chat.archived; saveHistory(); paint(); close();
-      }, {glyph: 'tasks'}),
-      control(t('deleteChat'), () => {
-        if (!window.confirm(t('deleteChatConfirm'))) return;
-        engine.chats.delete(chat.id);
-        if (selected === chat) select(engine.create());
-        saveHistory(); paint(); close();
-      }, {glyph: 'x'})));
-  popup.addEventListener('close', () => popup.remove());
-  document.body.append(popup);
-  popup.showModal();
+  document.querySelector('.conversation-popover')?.remove();
+  let closed = false;
+  let closeTimer = 0;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    clearTimeout(closeTimer);
+    document.removeEventListener('pointerdown', outside, true);
+    document.removeEventListener('keydown', escape);
+    menu.remove();
+  };
+  const outside = event => {
+    if (!menu.contains(event.target) && event.target !== anchor) close();
+  };
+  const escape = event => { if (event.key === 'Escape') close(); };
+  const action = (label, glyph, run) => control(label, () => { run(); close(); },
+    {glyph, role: 'menuitem'});
+  const menu = el('div', {class: 'conversation-popover', role: 'menu',
+    'aria-label': t('conversationMenu')},
+    el('div', {class: 'conversation-menu-title'}, displayTitle(chat, t)),
+    action(t(chat.pinned ? 'unpinChat' : 'pinChat'), 'pin', () => {
+      chat.pinned = !chat.pinned; saveHistory(); paint();
+    }),
+    action(t('renameChat'), 'edit', () => {
+      const value = window.prompt(t('renamePrompt'), displayTitle(chat, t));
+      if (!value || !value.trim()) return;
+      chat.title = value.trim().slice(0, 120);
+      chat.titleKey = null;
+      chat.titleIsCustom = true;
+      saveHistory(); paint();
+    }),
+    action(t(chat.archived ? 'unarchiveChat' : 'archiveChat'), 'tasks', () => {
+      chat.archived = !chat.archived; saveHistory(); paint();
+    }),
+    action(t('deleteChat'), 'x', () => {
+      if (!window.confirm(t('deleteChatConfirm'))) return;
+      engine.chats.delete(chat.id);
+      if (selected === chat) select(engine.create());
+      saveHistory(); paint();
+    }));
+  document.body.append(menu);
+  const rect = anchor.getBoundingClientRect();
+  const left = Math.max(8, Math.min(window.innerWidth - menu.offsetWidth - 8,
+    rect.right - menu.offsetWidth));
+  const top = Math.min(window.innerHeight - menu.offsetHeight - 8, rect.bottom + 5);
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+  requestAnimationFrame(() => menu.classList.add('open'));
+  menu.addEventListener('mouseenter', () => clearTimeout(closeTimer));
+  menu.addEventListener('mouseleave', () => {
+    closeTimer = setTimeout(close, 180);
+  });
+  document.addEventListener('pointerdown', outside, true);
+  document.addEventListener('keydown', escape);
+  menu.querySelector('[role="menuitem"]')?.focus({preventScroll: true});
 }
 
 function mount() {

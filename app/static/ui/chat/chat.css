@@ -802,3 +802,21 @@ p.activity-row { display: flex; gap: .4rem; align-items: center; color: var(--mu
 .source-row.archived { opacity: .68; }
 .conversation-menu-actions { display: grid; gap: .25rem; }
 .conversation-menu-actions .control { justify-content: flex-start; }
+
+
+/* Anchored conversation menu: opens below the three dots, closes on leave. */
+.conversation-popover {
+  position: fixed; z-index: 50; width: 12rem; padding: .3rem;
+  border: 1px solid var(--line); border-radius: .65rem;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 .7rem 2rem rgba(10, 8, 24, .28);
+  transform-origin: top right; transform: translateY(-4px) scale(.96); opacity: 0;
+  transition: transform 180ms cubic-bezier(.23, 1, .32, 1), opacity 150ms ease;
+}
+.conversation-popover.open { transform: none; opacity: 1; }
+.conversation-menu-title {
+  padding: .36rem .52rem .42rem; color: var(--muted); font-size: .69rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.conversation-popover .control { width: 100%; justify-content: flex-start; min-height: 2.1rem; }
+.conversation-menu-actions { display: grid; gap: .25rem; }

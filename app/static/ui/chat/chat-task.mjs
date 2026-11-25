@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125o';
+import {label} from './chat-copy.mjs?v=20261125p';
 
 const newId = () => crypto.randomUUID();
 const autoTitle = (chat, value) => {
@@ -481,12 +481,39 @@ export function chatTask({notify = () => {}} = {}) {
     }
   }
 
+  function settleLiveAudit(chat) {
+    if (chat.liveFailureNotified) return;
+    const live = chat.audit?.live_audit || {};
+    const runs = Array.isArray(live.runs) ? live.runs : [];
+    if (live.status === 'completed' && runs.length && runs.every(run => run.selectable === false)) {
+      chat.liveFailureNotified = true;
+      const reasons = [...new Set(runs.map(run => run.select_reason).filter(Boolean))];
+      const detail = reasons.length ? reasons.join(' · ') : 'no_selectable_plan';
+      say(chat, t(chat.locale,
+        `AI 现场审计结束：${runs.length} 个方案全部无法选择，修复失败。原因：${detail}`,
+        `Live AI audit finished: all ${runs.length} plans are unselectable, so repair failed. `
+        + `Reason: ${detail}`));
+      finish(chat, 'failed');
+      scheduleSave();
+      return;
+    }
+    if (live.status === 'failed' && !chat.runEnd) {
+      chat.liveFailureNotified = true;
+      say(chat, t(chat.locale,
+        `AI 现场审计失败：${live.error || 'audit_failed'}；没有生成可修复方案。`,
+        `Live AI audit failed: ${live.error || 'audit_failed'}; no repair plan was generated.`));
+      finish(chat, 'failed');
+      scheduleSave();
+    }
+  }
+
   async function startLiveAudit(chat) {
     if (!chat.jobId || chat.liveRunning) return;
     chat.auditMode = 'live';
     chat.liveGuest = false;
     chat.guestAvailable = chat.audit?.guest_available !== false;
     chat.liveRunning = true;
+    chat.liveFailureNotified = false;
     emitLiveAudit(chat);
     try {
       await api(`/api/tasks/${chat.jobId}/audit/live`, {method: 'POST', body: {}});
@@ -513,6 +540,7 @@ export function chatTask({notify = () => {}} = {}) {
       } catch { break; }
     }
     chat.liveRunning = false;
+    settleLiveAudit(chat);
   }
 
   async function resumeLiveAudit(chat) {
@@ -533,6 +561,7 @@ export function chatTask({notify = () => {}} = {}) {
       } catch { break; }
     }
     chat.liveRunning = false;
+    settleLiveAudit(chat);
   }
 
   async function selectLivePlan(chat, runIndex) {

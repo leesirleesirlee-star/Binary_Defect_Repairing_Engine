@@ -98,7 +98,7 @@ def _plan_selectability(task: dict[str, Any] | None, plan: Any) -> tuple[bool, s
             redirects += 1
             if size != 5:
                 return False, "redirect_size_invalid"
-        elif kind == "code":
+        elif kind in {"code", "guard_stub"}:
             code_bytes += size
         elif kind == "data":
             data_bytes += size
@@ -146,7 +146,7 @@ def _allowed_plan_error(plan: Any) -> str | None:
             redirects += 1
             if size != 5:
                 return "plan_not_allowed"
-        elif kind == "code":
+        elif kind in {"code", "guard_stub"}:
             code_bytes += size
         elif kind == "data":
             data_bytes += size

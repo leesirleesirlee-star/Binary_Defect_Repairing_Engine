@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261125o';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261125p';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -68,6 +68,7 @@ const copy = {
   liveReasonFixture: ["Plan targets a different fixture", "方案对应的 fixture 不一致"],
   liveReasonContract: ["Plan targets a different contract", "方案对应的 contract 不一致"],
   liveReasonPlan: ["Plan is outside the frozen edit budget", "方案超出冻结编辑预算"],
+  allPlansUnavailable: ['All generated plans are unselectable; repair has been marked failed. Review the reasons above and retry the AI audit.', '所有方案均无法选择，修复已判定失败。请查看上方原因后重新运行 AI 审计。'],
   liveAuditOnlyPath: ["There is one plan-generation path: the live AI audit. The signed replay is no longer offered for repair.", "方案生成的唯一路径是 AI 现场审计；回放已签 G2 不再作为可修复入口。"],
   liveAuditStarted: ["Live audit started. The first model call usually takes 1–2 minutes; the run count updates as each attempt finishes.", "现场审计已启动；首次模型调用通常需要 1–2 分钟，每完成一个 run 就会更新进度。"],
   signedReplayPlanNote: ["Signed G2 replay: no model call; the signed plan is applied directly.", "回放已签 G2：不调用模型，直接应用已签名计划。"],
