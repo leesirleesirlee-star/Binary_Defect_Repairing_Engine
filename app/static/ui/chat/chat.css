@@ -846,3 +846,5 @@ p.activity-row { display: flex; gap: .4rem; align-items: center; color: var(--mu
   min-height: 1.8rem; color: var(--muted); font-size: .7rem;
 }
 .assistant-actions .control.assistant-chip:hover { color: var(--accent); border-color: var(--accent); }
+
+.assistant-action-note { margin: .3rem 0 0; color: var(--muted); font-size: .68rem; }

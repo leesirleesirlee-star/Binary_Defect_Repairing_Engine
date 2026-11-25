@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261125y';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261125z';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -69,6 +69,7 @@ const copy = {
   liveReasonContract: ["Plan targets a different contract", "方案对应的 contract 不一致"],
   liveReasonPlan: ["Plan is outside the frozen edit budget", "方案超出冻结编辑预算"],
   allPlansUnavailable: ['All generated plans are unselectable; repair has been marked failed. Review the reasons above and retry the AI audit.', '所有方案均无法选择，修复已判定失败。请查看上方原因后重新运行 AI 审计。'],
+  assistantActionNote: ['Rerun restarts the live audit; Evidence opens the archived evidence; Change scope starts a new repair conversation.', '重跑会重新启动 AI 现场审计；证据会打开归档证据；修改范围会新建修复对话。'],
   askWhyRejected: ['Why was it rejected?', '为什么结论是 rejected？'],
   askWhatChanged: ['What exactly did the patch change?', '补丁具体改了什么？'],
   askHowToPass: ['What is needed to pass verification?', '怎样才能通过验收？'],

@@ -1,7 +1,7 @@
 import {animateDetails} from '../shared/details-anim.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125y';
-import {stepCard} from './chat-steps.mjs?v=20261125y';
+import {icon} from '../shared/icons.mjs?v=20261125z';
+import {stepCard} from './chat-steps.mjs?v=20261125z';
 
 export function fileDropZone({label, hint, accept = '', multiple = false, onFiles}) {
   const input = el('input', {type: 'file', hidden: true, accept, multiple,
@@ -644,7 +644,10 @@ export function renderItem(item, ctx) {
         (p.actions || []).length ? el('div', {class: 'assistant-actions'},
           (p.actions || []).map(action => control(assistantActionLabel(action, t),
             () => engine.assistantAction?.(chat, action),
-            {className: 'assistant-chip', 'data-kind': action.kind}))) : null,
+            {class: 'control assistant-chip', 'data-kind': action.kind,
+             title: assistantActionLabel(action, t)}))) : null,
+        (p.actions || []).length ? el('p', {class: 'assistant-action-note'},
+          t('assistantActionNote')) : null,
         el('div', {class: 'assistant-suggestions', role: 'group'},
           ['askWhyRejected', 'askWhatChanged', 'askHowToPass', 'askEvidence'].map(key =>
             control(t(key), () => {
