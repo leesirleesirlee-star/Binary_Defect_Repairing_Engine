@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261125c';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261125e';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -57,6 +57,7 @@ const copy = {
   liveReasonFixture: ["Plan targets a different fixture", "方案对应的 fixture 不一致"],
   liveReasonContract: ["Plan targets a different contract", "方案对应的 contract 不一致"],
   liveReasonPlan: ["Plan is outside the frozen edit budget", "方案超出冻结编辑预算"],
+  liveAuditOnlyPath: ["There is one plan-generation path: the live AI audit. The signed replay is no longer offered for repair.", "方案生成的唯一路径是 AI 现场审计；回放已签 G2 不再作为可修复入口。"],
   liveAuditStarted: ["Live audit started. The first model call usually takes 1–2 minutes; the run count updates as each attempt finishes.", "现场审计已启动；首次模型调用通常需要 1–2 分钟，每完成一个 run 就会更新进度。"],
   signedReplayPlanNote: ["Signed G2 replay: no model call; the signed plan is applied directly.", "回放已签 G2：不调用模型，直接应用已签名计划。"],
   binaryDrop: ["Drop the vulnerable binary here", "拖拽二进制漏洞文件到这里"],
@@ -92,6 +93,8 @@ const copy = {
   composer: ['Message', '消息'], attach: ['Attach a sample file', '添加示例文件'],
   attachBinary: ['Attach binary', '添加二进制文件'],
   attachCases: ['Attach case files', '添加用例文件'],
+  fixtureDemoTitle: ["Built-in fixture demo (separate from your upload)", "内置 fixture 演示（与当前上传完全独立）"],
+  fixtureDemoNote: ["This uses only the bundled stack-overflow-01 binary and cases. It never reads or repairs the file you upload.", "仅使用项目内置的 stack-overflow-01 二进制和用例，不会读取或修复你上传的文件。"],
   useFixture: ['Try the demo', '试用示例'],
   fixtureHelp: ['Use the frozen demo ELF and its oracle cases', '使用冻结示例 ELF 与用例一键演示'],
   needCases: ['Binary received. Add the correct/error case files to start.', '已添加二进制文件，请再添加正确用例与错误用例文件。'],
@@ -151,7 +154,7 @@ const copy = {
   assistantModeLlm: ['AI assistant · llm', 'AI 助手 · llm'],
   assistantModeDeterministic: ['Deterministic fallback', '确定性回退'],
   assistantModeNotWired: ['AI not wired', 'AI 未接线'],
-  liveAuditTitle: ['AI live audit / signed replay', 'AI 现场审计 / 回放已签 G2'],
+  liveAuditTitle: ["Live AI audit", "AI 现场审计"],
   liveAuditSigned: ['Replay signed G2', '回放已签 G2'],
   liveAuditLive: ['AI live audit', 'AI 现场审计'],
   liveAuditSignedNote: ['Signed G2 replay is the default and remains the acceptance path. Live audit is additive evidence.', '回放已签 G2 是默认与验收路径；现场审计是附加证据。'],

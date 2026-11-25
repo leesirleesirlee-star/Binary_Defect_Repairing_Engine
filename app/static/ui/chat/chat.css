@@ -761,3 +761,15 @@ p.activity-row { display: flex; gap: .4rem; align-items: center; color: var(--mu
 .assistant-mode { flex: 0 0 auto; max-width: none; overflow: visible; text-overflow: clip; white-space: nowrap; }
 .chat-header > .control { flex: 0 0 auto; white-space: nowrap; }
 .chat-header .language { flex: 0 0 auto; white-space: nowrap; }
+
+
+/* Fixture demo is deliberately outside the upload flow. */
+.fixture-demo {
+  width: min(680px, 100%); margin: 18px auto 0; padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: .8rem;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  text-align: left; font-size: .75rem; color: var(--muted);
+}
+.fixture-demo strong { color: var(--text); font-size: .78rem; }
+.fixture-demo p { flex: 1 1 16rem; margin: 0; }

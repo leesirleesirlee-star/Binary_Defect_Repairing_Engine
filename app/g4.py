@@ -71,8 +71,12 @@ def _decode_files(raw: Any) -> list[dict[str, Any]]:
     files: list[dict[str, Any]] = []
     for item in raw:
         if not isinstance(item, dict):
-            raise G4Error(422, "invalid_cases")
+            raise G4Error(422, "invalid_cases", problems=["case file entry must be an object"])
         name = _safe_name(item.get("name"), "cases.txt")
+        if not name.lower().endswith(".json"):
+            raise G4Error(422, "invalid_case_file_type",
+                          problems=[f"{name}: only .json oracle case files are accepted"],
+                          accepted=[".json"])
         try:
             content = base64.b64decode(str(item.get("content_base64") or ""), validate=True)
         except (binascii.Error, ValueError) as error:
@@ -86,43 +90,46 @@ def _decode_files(raw: Any) -> list[dict[str, Any]]:
 def _collect_cases(files: list[dict[str, Any]], defect: str) -> dict[str, Any]:
     valid: list[Any] = []
     poc: list[Any] = []
+    problems: list[str] = []
     for item in files:
         try:
             text = item["bytes"].decode("utf-8")
-        except UnicodeDecodeError as error:
-            raise G4Error(422, "cases_not_utf8") from error
-        stem = item["name"].lower()
-        parsed: Any = None
-        if text.lstrip().startswith("{"):
-            try:
-                parsed = json.loads(text)
-            except json.JSONDecodeError:
-                parsed = None
-        if isinstance(parsed, dict):
-            recognized = any(key in parsed for key in (
-                "valid", "regression", "correct", "invalid", "poc", "crash", "error"))
-            if not recognized:
-                raise G4Error(422, "invalid_cases")
-            valid.extend(
-                _case_list(parsed.get("valid") or parsed.get("regression") or parsed.get("correct"))
-            )
-            poc.extend(
-                _case_list(
-                    parsed.get("invalid")
-                    or parsed.get("poc")
-                    or parsed.get("crash")
-                    or parsed.get("error")
-                )
-            )
-        else:
-            bucket = (
-                poc if any(word in stem for word in ("poc", "invalid", "crash", "error")) else valid
-            )
-            bucket.extend(line for line in text.splitlines() if line.strip())
+        except UnicodeDecodeError:
+            raise G4Error(422, "cases_not_utf8",
+                          problems=[f"{item['name']}: must be UTF-8 JSON"]) from None
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            problems.append(f"{item['name']}: not valid JSON")
+            continue
+        if not isinstance(parsed, dict):
+            problems.append(f"{item['name']}: JSON root must be an object")
+            continue
+        valid_value = parsed.get("valid", parsed.get("regression", parsed.get("correct")))
+        poc_value = parsed.get("invalid", parsed.get("poc",
+            parsed.get("crash", parsed.get("error"))))
+        recognized = valid_value is not None or poc_value is not None
+        if not recognized:
+            problems.append(
+                f"{item['name']}: expected a non-empty valid list and/or an "
+                "invalid/poc list")
+            continue
+        file_valid = _case_list(valid_value)
+        file_poc = _case_list(poc_value)
+        if valid_value is not None and not file_valid:
+            problems.append(f"{item['name']}: valid list is empty")
+        if poc_value is not None and not file_poc:
+            problems.append(f"{item['name']}: invalid/poc list is empty")
+        valid.extend(file_valid)
+        poc.extend(file_poc)
+    if problems:
+        raise G4Error(422, "invalid_cases", problems=problems)
     valid = valid[:MAX_CASES]
     poc = poc[:MAX_CASES]
     if not valid or not poc:
-        raise G4Error(422, "cases_incomplete")
+        raise G4Error(422, "cases_incomplete", problems=[
+            "at least one valid case is required", "at least one invalid/PoC case is required",
+        ])
     return {
         "valid": valid,
         "poc": poc,
@@ -388,9 +395,26 @@ def build_plans(finding: dict[str, Any], supported: bool) -> list[dict[str, Any]
     ]
 
 
+def _strcpy_call_sites(view: Any) -> int:
+    if not isinstance(view, dict):
+        return 0
+    symbols = view.get("symbols") if isinstance(view.get("symbols"), dict) else {}
+    target = str(symbols.get("strcpy@plt") or "")
+    instructions = view.get("instructions")
+    if not target or not isinstance(instructions, list):
+        return 0
+    return sum(1 for insn in instructions
+               if isinstance(insn, dict) and insn.get("mnemonic") == "call"
+               and str(insn.get("op_str") or "").strip() == target)
+
+
 def probe_binary(*, binary_name: Any, binary_base64: Any) -> dict[str, Any]:
     """Analyze one uploaded ELF without creating a task or asking for cases yet."""
     data, name = _decode_binary(binary_base64, binary_name)
+    if not name.lower().endswith(".elf"):
+        raise G4Error(422, "invalid_binary_type",
+                      problems=[f"{name}: only .elf binary files are accepted"],
+                      accepted=[".elf"])
     binary_sha = _sha256_bytes(data)
     with tempfile.TemporaryDirectory(prefix="g4-probe-") as temporary:
         root = Path(temporary)
@@ -410,16 +434,32 @@ def probe_binary(*, binary_name: Any, binary_base64: Any) -> dict[str, Any]:
             "buffer_bytes": None,
         }
     analysis_status = analysis.get("analysis_status") or "ok"
-    supported = binary_sha == FROZEN_BINARY_SHA and analysis_status == "ok"
+    call_sites = _strcpy_call_sites(analysis.get("view"))
+    if analysis_status != "ok" or not isinstance(finding, dict) or finding.get("cwe") != "CWE-121":
+        raise G4Error(422, "unsupported_vulnerability", problems=[
+            "no single supported CWE-121 stack-overflow pattern was detected",
+            f"analysis status: {analysis_status}",
+        ], supported=False, binary_sha256=binary_sha)
+    if call_sites != 1:
+        raise G4Error(422, "unsupported_vulnerability", problems=[
+            f"detected {call_sites} strcpy call sites; exactly one is required",
+        ], supported=False, binary_sha256=binary_sha)
+    if binary_sha != FROZEN_BINARY_SHA:
+        raise G4Error(422, "unsupported_binary_scope", problems=[
+            "exactly one supported stack-overflow pattern was found",
+            "this MVP2 build only has a signed repair contract for the frozen "
+            "stack-overflow-01 fixture",
+            "arbitrary ELF patching is intentionally refused",
+        ], supported=False, binary_sha256=binary_sha)
     return {
         "binary_name": name,
         "binary_sha256": binary_sha,
-        "supported": supported,
+        "supported": True,
         "analysis_status": analysis_status,
         "finding": finding,
         "finding_sha256": analysis.get("finding_sha256"),
         "view_sha256": analysis.get("view_sha256"),
-        "unsupported_detail": analysis.get("unsupported_detail"),
+        "unsupported_detail": None,
         "next": "add_case_files",
     }
 

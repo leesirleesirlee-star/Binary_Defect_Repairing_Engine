@@ -1,7 +1,7 @@
 import {animateDetails} from '../shared/details-anim.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261120au';
-import {stepCard} from './chat-steps.mjs?v=20261125c';
+import {stepCard} from './chat-steps.mjs?v=20261125e';
 
 export function fileDropZone({label, hint, accept = '', multiple = false, onFiles}) {
   const input = el('input', {type: 'file', hidden: true, accept, multiple,
@@ -452,31 +452,28 @@ function showAttachment(chat, id, t) {
 function genLiveAudit(p, ctx, t) {
   const {engine, chat} = ctx;
   const audit = p.live_audit || {status: 'idle', runs: []};
-  const mode = p.mode || 'signed';
   const selected = p.selected_plan;
   const runs = audit.runs || [];
   const status = audit.status || 'idle';
   const statusLabel = t(status === 'idle' ? 'liveAuditIdle' : status === 'running'
     ? 'liveAuditRunning' : status === 'completed' ? 'liveAuditCompleted' : 'liveAuditFailed');
-  const tabs = el('div', {class: 'live-mode-tabs'},
-    control(t('liveAuditSigned'), () => engine.setLiveMode?.(chat, 'signed'),
-      {tone: mode === 'signed' ? 'primary' : ''}),
-    control(t('liveAuditLive'), () => engine.startLiveAudit?.(chat),
-      {tone: mode === 'live' ? 'primary' : ''}));
-  const children = [tabs];
-  if (mode !== 'live') {
-    children.push(el('p', {class: 'gen-note'}, t('liveAuditSignedNote')));
-    return genCard('live', 'terminal', t('liveAuditTitle'), t('liveAuditSigned'), ...children);
+  const children = [];
+  children.push(el('p', {class: 'gen-note'}, t('liveAuditOnlyPath')));
+  if (status === 'idle') {
+    children.push(control(t('liveAuditStart'), () => engine.startLiveAudit?.(chat),
+      {tone: 'primary', glyph: 'arrow'}));
   }
-  children.push(el('p', {class: 'gen-note'},
-    `${t('liveAuditRuns')}: ${runs.length} / 3` + (audit.error ? ` · ${audit.error}` : '')));
+  if (status !== 'idle') {
+    children.push(el('p', {class: 'gen-note'},
+      `${t('liveAuditRuns')}: ${runs.length} / 3` + (audit.error ? ` · ${audit.error}` : '')));
+  }
   if (status === 'running' && !runs.length) {
     children.push(el('p', {class: 'muted live-audit-hint'}, t('liveAuditStarted')));
   }
   if (status === 'completed' && runs.length) {
     const cards = runs.map(run => {
       const picked = selected && Number(selected.run_index) === Number(run.run_index);
-      const children = [
+      const row = [
         el('div', {class: 'live-plan-head'},
           el('strong', {}, 'run ' + run.run_index),
           statusBadge(run.schema_valid ? t('liveAuditSchemaOk') : t('liveAuditSchemaBad'))),
@@ -484,17 +481,17 @@ function genLiveAudit(p, ctx, t) {
           'canonical ' + shortSha(run.canonical_sha256 || run.plan_sha256)),
       ];
       if ((run.critical_errors || []).length) {
-        children.push(el('p', {class: 'gen-note'}, run.critical_errors.join(' · ')));
+        row.push(el('p', {class: 'gen-note'}, run.critical_errors.join(' · ')));
       }
       if (run.selectable === false) {
-        children.push(el('p', {class: 'gen-note plan-unavailable'}, t('livePlanUnavailable')
+        row.push(el('p', {class: 'gen-note plan-unavailable'}, t('livePlanUnavailable')
           .replace('{reason}', planReasonLabel(run.select_reason, t))));
       } else {
-        children.push(control(picked ? t('liveAuditSelected') : t('liveAuditSelect'),
+        row.push(control(picked ? t('liveAuditSelected') : t('liveAuditSelect'),
           () => engine.selectLivePlan?.(chat, run.run_index),
           {tone: picked ? '' : 'primary'}));
       }
-      return el('div', {class: 'live-plan' + (picked ? ' selected' : '')}, ...children);
+      return el('div', {class: 'live-plan' + (picked ? ' selected' : '')}, ...row);
     });
     children.push(el('div', {class: 'live-plans'}, cards));
   }

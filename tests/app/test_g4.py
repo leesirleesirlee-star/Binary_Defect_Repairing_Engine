@@ -334,3 +334,11 @@ def test_both_valid_and_poc_cases_are_required(client: TestClient) -> None:
     response = client.post("/api/tasks/upload", json=payload)
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "cases_incomplete"
+
+
+def test_probe_refuses_a_binary_outside_the_frozen_fixture(client: TestClient) -> None:
+    response = client.post("/api/tasks/probe", json={
+        "binary_name": "other.elf", "binary_base64": _b64(FIXTURE.read_bytes() + b"\n"),
+    })
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "unsupported_binary_scope"
