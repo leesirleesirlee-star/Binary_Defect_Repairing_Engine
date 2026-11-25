@@ -1,8 +1,8 @@
-import {badge, button, date, el, isAscii, notice, taskHref} from '../shared/dom.mjs?v=20261125f';
-import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261125f';
-import {LANGUAGES, languageName} from '../shared/languages.mjs?v=20261125f';
-import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261125f';
-import {icon} from '../shared/icons.mjs?v=20261125f';
+import {badge, button, date, el, isAscii, notice, taskHref} from '../shared/dom.mjs?v=20261125h';
+import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261125h';
+import {LANGUAGES, languageName} from '../shared/languages.mjs?v=20261125h';
+import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261125h';
+import {icon} from '../shared/icons.mjs?v=20261125h';
 
 export function shell(ctx) {
   const {t, language, api, jobs, id, create, settings, switchLanguage, menuOpen, toggleMenu, search} = ctx;
@@ -82,14 +82,16 @@ export function tasksView(ctx) {
     const visible = listFilter(jobs, ctx.getFilter(), input.value);
     results.replaceChildren(
       visible.length ? el('div', {class: 'table-head'}, el('span', {}, t('description')),
-        el('span', {}, t('status')), el('span', {}, t('updated')), el('span'), el('span')) :
+        el('span', {}, t('status')), el('span', {}, t('updated')), el('span')) :
         el('div', {class: 'empty'}, el('h2', {}, t('noMatches'))),
-      ...visible.map(job => {
-        const open = el('a', {class: 'task-open', href: taskHref(job.id), style: 'display:contents'},
-          el('span', {class: 'task-title'}, job.defect || job.id, el('small', {class: 'mono'}, job.id)),
-          el('span', {class: 'inline'}, badge(phase(job), t), job.outcome ? badge(job.outcome, t) : null),
-          date(job.updated_at ?? job.created_at, language));
-        const remove = api.writable ? button(t('delete'), async event => {
+      ...visible.map(job => el('div', {class: 'task-row-wrap'},
+        el('a', {class: 'task-row', href: taskHref(job.id)}, el('span', {class: 'task-title'},
+          job.defect || job.id, el('small', {class: 'mono'}, job.id)),
+          el('span', {class: 'inline'}, badge(phase(job), t),
+            job.outcome ? badge(job.outcome, t) : null),
+          date(job.updated_at ?? job.created_at, language),
+          el('span', {class: 'arrow', 'aria-hidden': 'true'}, icon('chevron', 16))),
+        api.writable ? button('', async event => {
           event.preventDefault();
           event.stopPropagation();
           if (!window.confirm(t('deleteConfirm'))) return;
@@ -105,11 +107,8 @@ export function tasksView(ctx) {
             } catch { /* browser history is best-effort */ }
             await reload();
           } catch (error) { window.alert(error?.code || error?.message || t('readError')); }
-        }, {className: 'button subtle delete-task'}) : el('span');
-        return el('div', {class: 'task-row'}, open, remove,
-          el('a', {class: 'arrow', href: taskHref(job.id), 'aria-label': t('open')},
-            icon('chevron', 16)));
-      }));
+        }, {className: 'delete-task', title: t('delete'), 'aria-label': t('delete'),
+          glyph: 'x'}) : null)));
   };
   update();
   return el('div', {class: 'page'},

@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125h';
+import {label} from './chat-copy.mjs?v=20261125i';
 
 const newId = () => crypto.randomUUID();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -782,7 +782,7 @@ export function chatTask({notify = () => {}} = {}) {
   }
 
   function serialize() {
-    return [...chats.values()].filter(chat => chat.events.length).map(chat => {
+    return [...chats.values()].map(chat => {
       const out = {id: chat.id, events: clip(chat.events.slice(-500)),
         attachmentNames: [...chat.attachmentNames.entries()],
         attachmentFiles: [...chat.attachmentFiles.entries()]};

@@ -6,15 +6,15 @@ import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261125h';
-import {chatPreview} from './chat-stream.mjs?v=20261125h';
-import {chatTask} from './chat-task.mjs?v=20261125h';
+import {label} from './chat-copy.mjs?v=20261125i';
+import {chatPreview} from './chat-stream.mjs?v=20261125i';
+import {chatTask} from './chat-task.mjs?v=20261125i';
 import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261125f';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261125f';
 import {bindSidebarSpring} from './chat-spring.mjs?v=20261125f';
-import {refreshStepCard} from './chat-steps.mjs?v=20261125h';
-import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125h';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125h';
+import {refreshStepCard} from './chat-steps.mjs?v=20261125i';
+import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125i';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125i';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -290,13 +290,12 @@ function mount() {
       t(engine.live ? 'liveLabel' : 'preview')), modeBadge, openExecution, language);
   const heroAttach = control(t('attachBinary'), () => file.click(),
     {glyph: 'file', tone: 'primary hero-attach'});
+  const heroCases = control(t('attachCases'), () => casesInput.click(),
+    {glyph: 'file', tone: 'sample hero-cases'});
   const hero = el('section', {class: 'empty-chat'},
     appMark('hero-mark'), el('h2', {}, t('empty')),
-    el('div', {class: 'hero-actions'}, heroAttach,
-      engine.sendFixture
-        ? control(t('sample'), () => send(t('samplePrompt')), {glyph: 'arrow', tone: 'sample'})
-        : null),
-    fileDropZone({label: t('binaryDrop'), hint: t('binaryDropHint'), accept: '.elf',
+    el('div', {class: 'hero-actions'}, heroAttach, heroCases),
+    fileDropZone({label: t('binaryDrop'), hint: t('binaryDropHint'), accept: '.elf,.bin',
       multiple: false, onFiles: files => {
         if (files[0] && engine.probeBinary) engine.probeBinary(selected, files[0], locale);
       }}),
@@ -387,7 +386,7 @@ function mount() {
       openSection: openSettingsAt,
     },
   });
-  nodes = {rows: new Map(), list, mobileList, title, modeBadge, hero, heroAttach, log, scroll, input, composerFeedback,
+  nodes = {rows: new Map(), list, mobileList, title, modeBadge, hero, heroAttach, heroCases, log, scroll, input, composerFeedback,
     latest, attach, casesControl, attached, stop, sendButton, queue, language, navDialog, execution};
   nodes.workspace = workspace;
   navStamp = null;
@@ -397,7 +396,7 @@ function mount() {
 }
 
 function paintComposer() {
-  const {input, stop, sendButton, queue, hero, heroAttach, attach, casesControl, attached} = nodes;
+  const {input, stop, sendButton, queue, hero, heroAttach, heroCases, attach, casesControl, attached} = nodes;
   const active = busy(selected);
   const live = Boolean(selected.live);
   const {attachment, file, cases = []} = currentDraft();
@@ -413,6 +412,7 @@ function paintComposer() {
   queue.disabled = !input.value.trim();
   const showHeroAttach = !hero.hidden && !file && !selected.jobId;
   if (heroAttach) heroAttach.hidden = !showHeroAttach;
+  if (heroCases) heroCases.hidden = !showHeroAttach;
   attach.hidden = showHeroAttach || (live && Boolean(selected.jobId));
   casesControl.hidden = showHeroAttach || (live && Boolean(selected.jobId));
   const casesKey = cases.map(item => item.name).join('|');
