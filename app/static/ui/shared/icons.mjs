@@ -30,6 +30,8 @@ const paths = {
   branch: '<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="6" r="2"/><path d="M6 7v10m12-9a7 7 0 0 1-7 7H6"/>',
   thinking: '<path d="m12 3 1.8 6.2L20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8L12 3Zm6 13v4m-2-2h4"/>',
   refresh: '<path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4h-4"/>',
+  more: '<circle cx="5" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="19" cy="12" r="1" fill="currentColor"/>',
+  pin: '<path d="m9 4 6 0-1 5 3 3v2H7v-2l3-3-1-5Zm3 10v6"/>',
   expand: '<path d="M14 4h6v6M20 4l-8 8M10 20H4v-6m0 6 8-8"/>',
   collapse: '<path d="M10 4H4v6m0-6 6 6m4 10h6v-6m0 6-6-6"/>',
 };

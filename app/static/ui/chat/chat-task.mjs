@@ -4,9 +4,16 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125j';
+import {label} from './chat-copy.mjs?v=20261125k';
 
 const newId = () => crypto.randomUUID();
+const autoTitle = (chat, value) => {
+  const title = String(value || '').trim();
+  if (title && !chat.titleIsCustom) {
+    chat.title = title.slice(0, 120);
+    chat.titleKey = null;
+  }
+};
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const t = (locale, zh, en) => locale === 'zh-Hans' ? zh : en;
 
@@ -154,7 +161,7 @@ export function chatTask({notify = () => {}} = {}) {
       });
       const supported = Boolean(data.supported);
       chat.pendingBinary = supported ? {name: file.name, base64: binaryBase64, probe: data} : null;
-      chat.title ||= file.name;
+      autoTitle(chat, data.binary_name || file.name);
       chat.kind = 'repair';
       event(chat, 'binary_ready', {
         id: 'binary-' + newId(),
@@ -286,7 +293,7 @@ export function chatTask({notify = () => {}} = {}) {
     event(chat, 'user_message', {
       message_id: messageId, text: clean, attachment_ids: attachmentIds, delivery: 'accepted',
     }, null, null);
-    chat.title ||= payload.binaryName;
+    autoTitle(chat, payload.binaryName);
     chat.kind = 'repair';
     chat.started = Date.now();
     state(chat, 'running');
@@ -765,6 +772,7 @@ export function chatTask({notify = () => {}} = {}) {
     'execution', 'journalSeq', 'plan', 'runEnd', 'auditRuns', 'g2', 'request', 'options',
     'g4', 'task', 'contract', 'startReady', 'reviewer', 'auditMode', 'liveGuest',
     'guestAvailable', 'bound', 'verdict', 'assistantMode', 'pendingBinary',
+    'pinned', 'archived', 'titleIsCustom',
   ];
 
   function clip(value, depth = 0) {

@@ -1,20 +1,20 @@
 import {el, isAscii} from '../shared/dom.mjs?v=20261120au';
 import {saveLanguage, takeDraft} from '../shared/handoff.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261120au';
+import {icon} from '../shared/icons.mjs?v=20261125k';
 import {LANGUAGE_CODES, languageName} from '../shared/languages.mjs?v=20261120au';
 import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261125j';
-import {chatPreview} from './chat-stream.mjs?v=20261125j';
-import {chatTask} from './chat-task.mjs?v=20261125j';
-import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261125f';
+import {label} from './chat-copy.mjs?v=20261125k';
+import {chatPreview} from './chat-stream.mjs?v=20261125k';
+import {chatTask} from './chat-task.mjs?v=20261125k';
+import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261125k';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261125f';
-import {bindSidebarSpring} from './chat-spring.mjs?v=20261125f';
-import {refreshStepCard} from './chat-steps.mjs?v=20261125j';
-import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125j';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125j';
+import {bindSidebarSpring} from './chat-spring.mjs?v=20261125k';
+import {refreshStepCard} from './chat-steps.mjs?v=20261125k';
+import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125k';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125k';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -56,7 +56,7 @@ function saveHistory() {
   try {
     localStorage.setItem(HISTORY_KEY, JSON.stringify({
       selected: selected.id,
-      chats: engine.serialize(),
+      chats: engine.serialize().filter(chat => chat.id === selected.id || chat.events.length > 0),
     }));
   } catch { /* localStorage quota: keep the live session usable */ }
 }
@@ -96,18 +96,17 @@ if (restored?.chats?.length) {
     restoredSession = engine.chats.size > 0;
   } catch { restoredSession = false; }
 }
+const meaningful = chat => Boolean(chat.jobId) || chat.events.some(item =>
+  !['assistant_delta', 'assistant_end', 'thinking'].includes(item.type));
 if (restoredSession) {
+  for (const [id, chat] of engine.chats) {
+    if (!meaningful(chat)) engine.chats.delete(id);
+  }
   const found = [...engine.chats.values()].find(chat => chat.id === restored.selected) ||
     [...engine.chats.values()].at(-1);
-  const greetingOnly = found && !found.jobId && found.events.length > 0 &&
-    found.events.every(item => ['assistant_delta', 'assistant_end'].includes(item.type));
-  selected = greetingOnly ? engine.create() : found;
+  selected = found || engine.create();
+  saveHistory();
 } else {
-  Promise.resolve(engine.seed(locale)).then(() => {
-    if (!requestedJob) return;
-    const target = [...engine.chats.values()].find(chat => chat.jobId === requestedJob);
-    if (target) select(target);
-  });
   selected = engine.create();
 }
 if (requestedJob) {
@@ -242,6 +241,40 @@ function preference(key, value) {
   engine.setLocale?.(value);
   mount();
   nodes.language.focus();
+}
+
+function openConversationMenu(chat, anchor) {
+  const trigger = anchor;
+  const close = () => popup.close();
+  const popup = el('dialog', {class: 'popup conversation-menu', 'aria-label': t('conversationMenu')},
+    el('header', {}, el('h2', {}, displayTitle(chat, t)),
+      control(t('close'), close, {glyph: 'x', compact: true})),
+    el('div', {class: 'conversation-menu-actions'},
+      control(t(chat.pinned ? 'unpinChat' : 'pinChat'), () => {
+        chat.pinned = !chat.pinned; saveHistory(); paint(); close();
+      }, {glyph: 'pin'}),
+      control(t('renameChat'), () => {
+        const value = window.prompt(t('renamePrompt'), displayTitle(chat, t));
+        if (value && value.trim()) {
+          chat.title = value.trim().slice(0, 120);
+          chat.titleKey = null;
+          chat.titleIsCustom = true;
+          saveHistory(); paint();
+        }
+        close();
+      }, {glyph: 'edit'}),
+      control(t(chat.archived ? 'unarchiveChat' : 'archiveChat'), () => {
+        chat.archived = !chat.archived; saveHistory(); paint(); close();
+      }, {glyph: 'tasks'}),
+      control(t('deleteChat'), () => {
+        if (!window.confirm(t('deleteChatConfirm'))) return;
+        engine.chats.delete(chat.id);
+        if (selected === chat) select(engine.create());
+        saveHistory(); paint(); close();
+      }, {glyph: 'x'})));
+  popup.addEventListener('close', () => popup.remove());
+  document.body.append(popup);
+  popup.showModal();
 }
 
 function mount() {
@@ -438,7 +471,8 @@ function paint() {
   const trace = nodes.execution.scroll;
   const stickTrace = selectionChanged || trace.scrollHeight - trace.scrollTop - trace.clientHeight < 60;
   selectionChanged = false;
-  navStamp = paintSidebar({chats: engine.chats, selected, lists: [nodes.list, nodes.mobileList], navStamp, t, select});
+  navStamp = paintSidebar({chats: engine.chats, selected, lists: [nodes.list, nodes.mobileList], navStamp, t, select,
+    actions: {menu: openConversationMenu}});
   nodes.title.textContent = displayTitle(selected, t);
   const mode = selected.assistantMode || assistantMode;
   nodes.modeBadge.dataset.mode = mode;

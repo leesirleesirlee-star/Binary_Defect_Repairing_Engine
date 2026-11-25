@@ -1,7 +1,18 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261125j';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261125k';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
+  conversationMenu: ['Conversation actions', '对话操作'],
+  pinnedChat: ['Pinned', '已置顶'],
+  archivedChats: ['Archived conversations', '已归档对话'],
+  renameChat: ['Rename', '重命名'],
+  pinChat: ['Pin', '置顶'],
+  unpinChat: ['Unpin', '取消置顶'],
+  archiveChat: ['Archive', '归档'],
+  unarchiveChat: ['Unarchive', '取消归档'],
+  deleteChat: ['Delete conversation', '删除对话'],
+  deleteChatConfirm: ['Delete this conversation only? The task and evidence remain in the archive.', '仅删除这条对话记录？任务与证据仍保留在档案库。'],
+  renamePrompt: ['Conversation name', '对话名称'],
   search: ['Search chats', '搜索对话'], recent: ['Recent', '最近'],
   settings: ['Settings', '设置'], chats: ['Conversations', '对话列表'],
   openNav: ['Open conversations', '打开对话列表'], close: ['Close', '关闭'],

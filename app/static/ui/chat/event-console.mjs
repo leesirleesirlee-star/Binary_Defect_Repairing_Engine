@@ -6,7 +6,7 @@
  * It never derives a verdict or converts not_run into success.
  */
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261120au';
+import {icon} from '../shared/icons.mjs?v=20261125k';
 
 const LABELS = {
   collect: '收集', freeze: '冻结', analyze: '分析', audit: '审计', decision: '决策',
