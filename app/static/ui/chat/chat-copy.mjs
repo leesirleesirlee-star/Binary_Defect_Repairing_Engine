@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261125t';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261125u';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -180,7 +180,7 @@ const copy = {
   liveGuestRequired: ["This live plan needs the WSL2 live-guest check for an accepted verdict; this host cannot run it, so verification will be rejected.", "现场方案需要 WSL2 现场 guest 才能通过验收；当前主机无法运行，直接启动会得到拒绝结论。"],
   liveGuestUnavailable: ["Live guest verification needs WSL2; disabled on this host.", "现场 guest 验证需要 WSL2；当前主机不可用，已禁用。"],
   liveAuditGuest: ['Live guest verification', '现场 guest 验证'],
-  liveAuditFallback: ['Live audit unavailable; the signed G2 replay remains available with an honest badge.', '现场审计不可用；仍可使用回放已签 G2，状态会如实标记。'],
+  liveAuditFallback: ['Live audit failed; no repair plan was generated. Retry the audit.', 'AI 现场审计失败；没有生成可修复方案。请重试。'],
   routeStepBind: ['Bind signed G2 decision', '绑定已签 G2 决策'],
   routeStepRun: ['Repair & verify under the contract', '按契约修复与验证'],
   routeStepEvidence: ['Persist verdict & evidence', '写结论与证据'],

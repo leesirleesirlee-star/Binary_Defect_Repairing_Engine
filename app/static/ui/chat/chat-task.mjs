@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125t';
+import {label} from './chat-copy.mjs?v=20261125u';
 
 const newId = () => crypto.randomUUID();
 const autoTitle = (chat, value) => {
@@ -507,7 +507,7 @@ export function chatTask({notify = () => {}} = {}) {
     }
   }
 
-  async function startLiveAudit(chat) {
+  async function startLiveAudit(chat, retry = 0) {
     if (!chat.jobId || chat.liveRunning) return;
     chat.auditMode = 'live';
     chat.liveGuest = false;
@@ -520,10 +520,16 @@ export function chatTask({notify = () => {}} = {}) {
     } catch (error) {
       const code = error.detail?.code || error.message || 'audit_failed';
       emitLiveAudit(chat, {error: code});
+      chat.liveRunning = false;
+      if (retry < 1) {
+        say(chat, t(chat.locale, 'AI 现场审计启动失败，正在自动重试一次…',
+          'Live AI audit did not start; retrying once automatically…'));
+        await sleep(1200);
+        return startLiveAudit(chat, retry + 1);
+      }
       say(chat, t(chat.locale,
         `AI 现场审计未启动（${code}）；没有可用的方案生成路径。`,
         `Live AI audit did not start (${code}); no plan-generation path is available.`));
-      chat.liveRunning = false;
       return;
     }
     const deadline = Date.now() + 600000;
@@ -540,6 +546,17 @@ export function chatTask({notify = () => {}} = {}) {
       } catch { break; }
     }
     chat.liveRunning = false;
+    const live = chat.audit?.live_audit || {};
+    const runs = Array.isArray(live.runs) ? live.runs : [];
+    if ((live.status === 'failed' || (live.status === 'completed' && runs.length !== 3))
+        && retry < 1) {
+      say(chat, t(chat.locale, 'AI 现场审计未完成，正在自动重试一次…',
+        'The live AI audit did not finish; retrying once automatically…'));
+      emitLiveAudit(chat, {error: 'retrying'});
+      await sleep(1200);
+      chat.liveFailureNotified = false;
+      return startLiveAudit(chat, retry + 1);
+    }
     settleLiveAudit(chat);
   }
 

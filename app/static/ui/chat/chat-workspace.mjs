@@ -1,8 +1,8 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125t';
-import {control} from './chat-view.mjs?v=20261125t';
-import {createProgress} from './chat-progress.mjs?v=20261125t';
-import {createStepGroups, disclosure} from './chat-steps.mjs?v=20261125t';
+import {icon} from '../shared/icons.mjs?v=20261125u';
+import {control} from './chat-view.mjs?v=20261125u';
+import {createProgress} from './chat-progress.mjs?v=20261125u';
+import {createStepGroups, disclosure} from './chat-steps.mjs?v=20261125u';
 import {motionReduced} from '../shared/motion.mjs?v=20261120au';
 
 // Revision 2.4: keep the v1.2.2 execution pane architecture (milestones +

@@ -1,8 +1,8 @@
-import {badge, button, date, el, isAscii, notice, taskHref} from '../shared/dom.mjs?v=20261125m';
-import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261125m';
-import {LANGUAGES, languageName} from '../shared/languages.mjs?v=20261125m';
-import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261125m';
-import {icon} from '../shared/icons.mjs?v=20261125m';
+import {badge, button, date, el, isAscii, notice, taskHref} from '../shared/dom.mjs?v=20261125n';
+import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261125n';
+import {LANGUAGES, languageName} from '../shared/languages.mjs?v=20261125n';
+import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261125n';
+import {icon} from '../shared/icons.mjs?v=20261125n';
 
 export function shell(ctx) {
   const {t, language, api, jobs, id, create, settings, switchLanguage, menuOpen, toggleMenu, search} = ctx;
@@ -45,14 +45,29 @@ export function shell(ctx) {
   return el('div', {class: 'shell' + (menuOpen ? ' nav-open' : '')}, rail, el('div', {class: 'shell-body'}, top, main));
 }
 
-const inProgress = new Set(['queued', 'screening', 'repair', 'verification', 'running',
-  'waiting_for_executor', 'blocked', 'draft', 'plans_ready', 'plan_selected',
-  'awaiting_user']);
 const finished = new Set(['done', 'completed', 'failed', 'cancelled', 'verified', 'unsupported']);
 const phase = job => job.execution?.status === 'waiting_for_executor' ? job.execution.status : job.phase;
-const listFilter = (jobs, filter, text) => jobs.filter(job =>
-  (filter === 'all' || (filter === 'active' ? inProgress : finished).has(job.phase)) &&
-  (job.id + ' ' + (job.defect ?? '')).toLowerCase().includes(text.toLowerCase().trim()));
+const isRunning = job => job.phase === 'running' || job.phase === 'queued' ||
+  job.live_audit?.status === 'running' ||
+  ['running', 'queued', 'waiting_for_executor'].includes(job.execution?.status);
+// Rows that were running while the user was watching stay visible after they
+// finish, until the archive page is closed and reopened.
+const activeSticky = new Map();
+const matches = (job, text) =>
+  (job.id + ' ' + (job.defect ?? '')).toLowerCase().includes(text.toLowerCase().trim());
+const listFilter = (jobs, filter, text) => {
+  if (filter === 'active') {
+    const byId = new Map(jobs.map(job => [job.id, job]));
+    for (const job of jobs) if (isRunning(job)) activeSticky.set(job.id, job);
+    for (const [id, old] of activeSticky) {
+      byId.set(id, byId.get(id) || old);
+      if (byId.get(id)) activeSticky.set(id, byId.get(id));
+    }
+    return [...byId.values()].filter(job => isRunning(job) || activeSticky.has(job.id))
+      .filter(job => matches(job, text));
+  }
+  return jobs.filter(job => (filter === 'all' || finished.has(job.phase)) && matches(job, text));
+};
 
 export function tasksView(ctx) {
   const {t, language, jobs, api, listError, loading, create, filter, query, setFilter, setQuery, reload} = ctx;
@@ -99,6 +114,7 @@ export function tasksView(ctx) {
           if (!window.confirm(t('deleteConfirm'))) return;
           try {
             await api.remove(job.id);
+            activeSticky.delete(job.id);
             try {
               const key = 'binaryrepair.chat.sessions.v1';
               const saved = JSON.parse(localStorage.getItem(key) || 'null');
