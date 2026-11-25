@@ -368,3 +368,40 @@ def test_assistant_endpoint_rejects_an_unknown_model(client: TestClient) -> None
                            json={"message": "hi", "model": "some-model"})
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "invalid_model"
+
+
+def test_rejected_verdict_fallback_is_grounded_in_criteria() -> None:
+    extra = {
+        "verdict_detail": {
+            "verdict": "rejected",
+            "criteria": [
+                {"id": "V0-identity", "required": True, "status": "fail"},
+                {"id": "V4-boundary", "required": True, "status": "not_run"},
+            ],
+            "limitations": ["V0-identity fail: candidate_matches_observations"],
+            "candidate_sha256": "c" * 64,
+        }
+    }
+    envelope = assistant.respond(
+        {"id": "tsk_1"}, [], "为什么 rejected", locale="zh-Hans", context_extra=extra
+    )
+    assert envelope["mode"] == assistant.MODE_DETERMINISTIC
+    assert "V0-identity" in envelope["reply"]
+    assert "V4-boundary" in envelope["reply"]
+    assert "candidate_matches_observations" in envelope["reply"]
+
+
+def test_grounded_model_context_is_compact_and_persisted() -> None:
+    extra = {"verdict_detail": {"verdict": "rejected", "criteria": []}}
+    seen: list[Any] = []
+
+    def fake(messages: Any) -> Any:
+        seen.append(messages)
+        return json.dumps({"reply": "V0-identity 是失败项。", "actions": []})
+
+    envelope = assistant.respond(
+        {"id": "tsk_1"}, [], "为什么 rejected", locale="zh-Hans",
+        client=fake, context_extra=extra,
+    )
+    assert envelope["mode"] == assistant.MODE_LLM
+    assert "verdict_detail" in seen[0][1]["content"]

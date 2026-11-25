@@ -36,22 +36,28 @@ VERDICT_WORDS = (
 ACTION_KINDS = frozenset(
     {"attach", "start", "continue", "rerun", "change_scope", "download", "evidence", "retry"}
 )
-MAX_REPLY_CHARS = 4000
+MAX_REPLY_CHARS = 8000
 MAX_ACTIONS = 6
 MAX_MESSAGE_CHARS = 4000
 
 Client = Callable[[Sequence[Mapping[str, str]]], Any]
 
 SYSTEM_PROMPT = (
-    "You are the chat assistant of a binary-repair console. Host the conversation: ask for the "
-    "binary, the normal inputs and the crash input, narrate progress from the provided journal "
-    "context, and offer the allowed action chips. Never invent a verdict: only quote a verdict "
-    "word that is present in the context. Never mention model names, token counts or costs unless "
-    "they are present in the context. Your reply is chat text; it is never evidence and never an "
-    "audit input. Answer in the requested locale. Return JSON only: "
-    '{"reply": string, "actions": [{"id": string, "label_code": string, "kind": string}]}'
-    "The only allowed action kinds are: attach, start, continue, rerun, change_scope, download, "
-    "evidence, retry."
+    "You are the grounded repair diagnostician of a binary-repair console. Answer the user's "
+    "question in the requested locale using ONLY the supplied context. Explain why a verdict was "
+    "rejected, which numbered criteria passed, failed or were not run, what the approved patch "
+    "changed, what the persisted journal shows, which artifacts exist, and what concrete next "
+    "step is possible. Quote exact criterion ids (V0-identity ... V5-reapply), verdict words, "
+    "limitations, journal error codes and artifact filenames when present. Never infer a verdict "
+    "that is absent; only quote context.verdict. Never claim a guest observation, successful run, "
+    "or source-level fact that is not in the context. If the context is insufficient, state what "
+    "evidence is missing instead of guessing. Distinguish a repair-stage failure from a verifier "
+    "rejection; do not blame WSL2 or the guest unless context.guest or the verdict limitations "
+    "say so. Be detailed and structured, with short headings and bullet points. Your reply is "
+    "chat text: it is never evidence, never an audit input, and never changes task state. Return "
+    "JSON only: {\"reply\": string, \"actions\": [{\"id\": string, \"label_code\": string, "
+    "\"kind\": string}]}. Allowed action kinds: attach, start, continue, rerun, change_scope, "
+    "download, evidence, retry."
 )
 
 _TEXTS: dict[str, dict[str, str]] = {
@@ -282,7 +288,8 @@ def _score_list(records: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]
 
 
 def _context(task: Mapping[str, Any], records: Sequence[Mapping[str, Any]],
-             artifacts: Sequence[Mapping[str, Any]] | None) -> dict[str, Any]:
+             artifacts: Sequence[Mapping[str, Any]] | None,
+             extra: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Compact, display-only context handed to the client seam.
 
     Only persisted values are exposed: no source, no hidden corpus, no keys and
@@ -315,6 +322,8 @@ def _context(task: Mapping[str, Any], records: Sequence[Mapping[str, Any]],
     ]
     if scores:
         context["audit_scores"] = scores
+    if extra:
+        context.update({key: value for key, value in extra.items() if value is not None})
     return context
 
 
@@ -452,6 +461,91 @@ def build_messages(
     ]
 
 
+def _diagnostic_fallback(
+    task: Mapping[str, Any],
+    records: Sequence[Mapping[str, Any]],
+    message: str,
+    locale: str | None,
+    extra: Mapping[str, Any] | None,
+    artifacts: Sequence[Mapping[str, Any]] | None,
+) -> dict[str, Any]:
+    """Deterministic, evidence-grounded answer when the model is unavailable.
+
+    This is deliberately built from persisted values only; it keeps the chat
+    useful on hosts with no provider key or a transient provider failure.
+    """
+    extra = extra if isinstance(extra, Mapping) else {}
+    rich_keys = ("verdict_detail", "repair_plan", "edit_manifest", "journal",
+                 "analysis_finding", "artifacts")
+    if not any(extra.get(key) for key in rich_keys):
+        return _fallback(task, records, locale=locale, artifacts=artifacts)
+    detail = extra.get("verdict_detail")
+    verdict = detail if isinstance(detail, Mapping) else None
+    plan = extra.get("repair_plan") if isinstance(extra.get("repair_plan"), Mapping) else None
+    raw_manifest = extra.get("edit_manifest")
+    manifest = raw_manifest if isinstance(raw_manifest, Mapping) else None
+    journal = extra.get("journal") if isinstance(extra.get("journal"), list) else []
+    zh = str(locale or "").startswith("zh")
+    lines: list[str] = []
+    if verdict:
+        word = verdict.get("verdict") or task.get("verdict") or "unknown"
+        criteria = verdict.get("criteria") if isinstance(verdict.get("criteria"), list) else []
+        failures = [f"{item.get('id')}: {item.get('status')}" for item in criteria
+                    if isinstance(item, Mapping) and item.get("required") is not False
+                    and item.get("status") in {"fail", "not_run"}]
+        limitations = [str(line) for line in (verdict.get("limitations") or []) if str(line)]
+        lines.append(("结论：**" if zh else "Verdict: **") + f"{word}**")
+        if failures:
+            prefix = "未通过的必需检查：" if zh else "Required checks that did not pass: "
+            lines.append(prefix + " · ".join(failures))
+        if limitations:
+            prefix = "验收限制：" if zh else "Verifier limitations: "
+            lines.append(prefix + "；".join(limitations[:5]))
+        if verdict.get("candidate_sha256"):
+            prefix = "候选程序 sha256：" if zh else "Candidate sha256: "
+            lines.append(prefix + str(verdict["candidate_sha256"]))
+    elif task.get("verdict"):
+        lines.append(("结论：" if zh else "Verdict: ") + str(task.get("verdict")))
+    if plan:
+        edits = plan.get("edits") if isinstance(plan.get("edits"), list) else []
+        prefix = "修复方案：" if zh else "Repair plan: "
+        lines.append(prefix + str(plan.get("plan_id") or "—")
+                     + ("，编辑 " if zh else ", edits ") + str(len(edits)))
+        for edit in edits[:6]:
+            if isinstance(edit, Mapping):
+                reason = str(edit.get("reason") or "")[:180]
+                lines.append(f"- {edit.get('kind')} @ {edit.get('address')}: {reason}")
+        if plan.get("invalid_path"):
+            prefix = "无效输入路径：" if zh else "Invalid-input path: "
+            value = str(plan["invalid_path"])[:500]
+            lines.append(prefix + value)
+    if manifest:
+        raw_patch = manifest.get("patch_site")
+        patch = raw_patch if isinstance(raw_patch, Mapping) else {}
+        raw_cave = manifest.get("cave")
+        cave = raw_cave if isinstance(raw_cave, Mapping) else {}
+        if patch or cave:
+            lines.append(("补丁位置：" if zh else "Patch site: ")
+                         + f"{patch.get('vaddr', '—')} → cave {cave.get('vaddr', '—')}")
+    errors = [str(item.get("type")) + ":" + str((item.get("payload") or {}).get("code", ""))
+              for item in journal if isinstance(item, Mapping) and item.get("type") == "error"]
+    if errors:
+        prefix = "journal 错误：" if zh else "Journal errors: "
+        lines.append(prefix + " · ".join(errors[-5:]))
+    if not lines:
+        return _fallback(task, records, locale=locale, artifacts=artifacts)
+    lines.append(
+        "以上内容全部来自已持久化的任务、verdict、manifest 和 journal，不是新的验证结论。"
+        if zh else "All of the above comes from persisted task, verdict, manifest and journal "
+        "data; it is not a new verification result."
+    )
+    actions = []
+    if artifacts or extra.get("artifacts"):
+        actions.append(_action(locale, "download"))
+    actions.append(_action(locale, "evidence"))
+    return {"reply": "\n\n".join(lines)[:MAX_REPLY_CHARS], "actions": actions}
+
+
 def respond(
     task: Mapping[str, Any] | None,
     records: Sequence[Mapping[str, Any]] | None,
@@ -461,6 +555,7 @@ def respond(
     client: Client | None = None,
     key_present: bool = False,
     artifacts: Sequence[Mapping[str, Any]] | None = None,
+    context_extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return ``{"reply", "actions", "mode"}`` for one chat turn.
 
@@ -472,7 +567,7 @@ def respond(
     records = records or []
     message = str(message or "")[:MAX_MESSAGE_CHARS]
     artifacts = _artifacts(task, artifacts)
-    context = _context(task, records, artifacts)
+    context = _context(task, records, artifacts, context_extra)
     if client is not None:
         try:
             envelope = validate_envelope(client(build_messages(context, message, locale)))
@@ -481,12 +576,11 @@ def respond(
         if envelope is not None and not _contains_unpersisted_verdict(envelope["reply"], context):
             envelope["mode"] = MODE_LLM
             return envelope
-        fallback = _fallback(task, records, locale=locale, artifacts=artifacts,
-                             fallback_code="assistant_fallback")
+        fallback = _diagnostic_fallback(task, records, message, locale, context_extra, artifacts)
         fallback["mode"] = MODE_DETERMINISTIC
         fallback["fallback_code"] = "assistant_fallback"
         return fallback
-    fallback = _fallback(task, records, locale=locale, artifacts=artifacts)
+    fallback = _diagnostic_fallback(task, records, message, locale, context_extra, artifacts)
     fallback["mode"] = MODE_LLM_NOT_WIRED if key_present else MODE_DETERMINISTIC
     if key_present:
         fallback["fallback_code"] = "assistant_llm_not_wired"

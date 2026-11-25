@@ -1,7 +1,7 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125u';
+import {icon} from '../shared/icons.mjs?v=20261125v';
 import {settingsCopy} from '../shared/settings-copy.mjs?v=20261124b';
-import {control, displayTitle} from './chat-view.mjs?v=20261125u';
+import {control, displayTitle} from './chat-view.mjs?v=20261125v';
 
 function settingsLabel(key) {
   let stored = null;

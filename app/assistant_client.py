@@ -30,7 +30,7 @@ def complete(messages: Sequence[Mapping[str, str]], model: str | None = None) ->
             [{"role": str(item.get("role", "user")), "content": str(item.get("content", ""))}
              for item in messages],
             model=model,
-            max_tokens=1600,
+            max_tokens=3200,
         )
     except assistant_key.KeyError as error:
         raise AssistantUnavailable(str(error)) from error

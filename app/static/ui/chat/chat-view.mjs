@@ -1,7 +1,7 @@
 import {animateDetails} from '../shared/details-anim.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125u';
-import {stepCard} from './chat-steps.mjs?v=20261125u';
+import {icon} from '../shared/icons.mjs?v=20261125v';
+import {stepCard} from './chat-steps.mjs?v=20261125v';
 
 export function fileDropZone({label, hint, accept = '', multiple = false, onFiles}) {
   const input = el('input', {type: 'file', hidden: true, accept, multiple,
@@ -345,7 +345,7 @@ function genProgress(p, t) {
         el('span', {class: 'gen-step-state'}, t(step.status) + ' · ' + step.status)))));
 }
 
-function genOutcome(p, t) {
+function genOutcome(p, t, chat, engine) {
   const links = [p.candidate, p.manifest, p.verdict_file].filter(Boolean);
   const rejected = ['rejected', 'unverified', 'unsupported', 'error'].includes(p.verdict_word);
   const failed = !p.verdict_word && ['failed', 'cancelled'].includes(p.execution);
@@ -362,6 +362,12 @@ function genOutcome(p, t) {
     el('a', {class: 'gen-download', href: link.href, download: '',
       title: link.sha256 ? 'sha256: ' + link.sha256 : null},
     icon('download', 16), el('span', {}, link.label)))));
+  const suggestions = ['askWhyRejected', 'askWhatChanged', 'askHowToPass', 'askEvidence'];
+  if (chat?.jobId && engine?.assistantTurn) {
+    children.push(el('div', {class: 'assistant-suggestions', role: 'group'},
+      suggestions.map(key => control(t(key), () =>
+        engine.assistantTurn(chat, t(key), chat.locale)))));
+  }
   return genCard('outcome', 'check',
     rejected || failed ? t('repairNotAccepted') : t('repairComplete'),
     p.verdict_word || (failed ? t(p.execution) : t('noVerdict')), ...children);
@@ -589,7 +595,7 @@ export function renderItem(item, ctx) {
     case 'g4_analysis': return genAnalysis(p, t);
     case 'g4_g2': return genG2(p, t);
     case 'g4_progress': return genProgress(p, t);
-    case 'g4_downloads': return genOutcome(p, t);
+    case 'g4_downloads': return genOutcome(p, t, chat, engine);
     case 'g4_actions': {
       const actions = p.actions ?? [];
       return el('article', {class: 'message assistant'}, el('div', {class: 'reply-body'},

@@ -1,5 +1,5 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125u';
+import {icon} from '../shared/icons.mjs?v=20261125v';
 import {currentEvaluation} from '../workbench/api.mjs?v=20261124b';
 
 const labels = ['milestoneReview', 'milestoneQueue', 'milestoneRun', 'milestoneVerdict'];
@@ -13,14 +13,20 @@ function taskProgress(chat) {
   const repair = statusOf('repair');
   const verify = statusOf('verify');
   const verdict = chat.verdict;
-  states[0] = bound ? 'completed' : chat.request ? 'in_progress' : 'pending';
+  const terminal = Boolean(chat.runEnd || (verdict?.available && verdict?.finalized));
+  states[0] = bound || chat.run || terminal ? 'completed'
+    : chat.request ? 'in_progress' : 'pending';
   if (chat.run) states[1] = end ? 'completed' : 'in_progress';
-  else if (bound) states[1] = 'in_progress';
+  else if (bound) states[1] = terminal ? 'completed' : 'in_progress';
   if (repair === 'in_progress' || verify === 'in_progress') states[2] = 'in_progress';
   else if (repair === 'completed' && verify === 'completed') states[2] = 'completed';
   else if (end && (repair === 'failed' || verify === 'failed')) states[2] = 'failed';
-  if (verdict?.available && verdict?.finalized) states[3] = 'completed';
-  else if (chat.runEnd) states[3] = end === 'completed' ? 'in_progress' : 'failed';
+  if (verdict?.available && verdict?.finalized) {
+    states[3] = verdict.verdict === 'verified_against_stated_criteria'
+      ? 'completed' : 'failed';
+  } else if (chat.runEnd) {
+    states[3] = end === 'completed' ? 'in_progress' : 'failed';
+  }
   let detail = '';
   if (chat.g2 && !bound) detail = 'awaitingBinding';
   if (verdict?.available && verdict?.finalized) detail = verdict.verdict;
@@ -110,6 +116,7 @@ export function createProgress(t) {
       if (step.dataset.state === state) continue;
       step.dataset.state = state;
       step.setAttribute('aria-current', state === 'in_progress' ? 'step' : 'false');
+      step.firstElementChild.replaceChildren(icon(state === 'failed' ? 'x' : 'check', 9));
       step.lastChild.textContent = ' (' + t(state) + ')';
     }
   }

@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125u';
+import {label} from './chat-copy.mjs?v=20261125v';
 
 const newId = () => crypto.randomUUID();
 const autoTitle = (chat, value) => {
@@ -237,11 +237,18 @@ export function chatTask({notify = () => {}} = {}) {
     const messageId = newId();
     event(chat, 'user_message', {message_id: messageId, text, attachment_ids: [],
       delivery: 'accepted'}, null, null);
+    // The provider can take tens of seconds; show that the grounded evidence
+    // is being read instead of leaving the user with a silent bubble.
+    const waiting = setTimeout(() => {
+      say(chat, t(locale, '正在读取 verdict、manifest、journal 与候选产物…',
+        'Reading the verdict, manifest, journal and candidate artifacts…'));
+    }, 900);
     try {
       const data = await api(`/api/tasks/${chat.jobId}/assistant`, {
         method: 'POST',
         body: {message: text, locale, model: model || undefined},
       });
+      clearTimeout(waiting);
       chat.assistantMode = data.mode || 'deterministic';
       event(chat, 'assistant_reply', {
         message_id: newId(),
@@ -251,6 +258,7 @@ export function chatTask({notify = () => {}} = {}) {
         fallback_code: data.fallback_code || null,
       }, null, null);
     } catch {
+      clearTimeout(waiting);
       chat.assistantMode = 'deterministic';
       say(chat, t(locale,
         'AI 助手暂时不可用，已使用本地确定性回复；任务状态仍以持久化 journal 为准。',

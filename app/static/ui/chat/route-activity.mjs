@@ -11,10 +11,10 @@
  * taken from the document (`lang`), then the stored chat preference, then `en`.
  */
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125u';
+import {icon} from '../shared/icons.mjs?v=20261125v';
 import {LANGUAGE_CODES} from '../shared/languages.mjs?v=20261120au';
-import {label as translate} from './chat-copy.mjs?v=20261125u';
-import {disclosure} from './chat-steps.mjs?v=20261125u';
+import {label as translate} from './chat-copy.mjs?v=20261125v';
+import {disclosure} from './chat-steps.mjs?v=20261125v';
 
 const STEPS = ['collect', 'freeze', 'analyze', 'audit', 'decision', 'repair', 'verify', 'export'];
 const PHASE_KEYS = {
@@ -89,7 +89,9 @@ function taskCard(task, index) {
   const id = task.id;
   const labelText = runLabel(index + 1);
   const steps = el('div', {class: 'ra-steps'});
-  const status = el('span', {class: 'ra-status'}, t('connecting'));
+  const live = LIVE_PHASES.has(task.phase) && task.execution?.terminal !== true;
+  const terminalLabel = task.execution?.status || task.phase || 'completed';
+  const status = el('span', {class: 'ra-status'}, live ? t('connecting') : stateLabel(terminalLabel));
   const artifacts = el('div', {class: 'ra-artifacts', hidden: true});
   const target = el('span', {class: 'ra-target'},
     fill(t('phaseValue'), {value: stateLabel(task.phase || 'unknown')}));
@@ -100,7 +102,7 @@ function taskCard(task, index) {
     steps,
     artifacts);
   const logRows = el('div', {class: 'ra-log-rows'}, el('p', {class: 'ra-muted'}, t('noRunEvents')));
-  const logStatus = el('span', {class: 'ra-log-status'}, t('connecting'));
+  const logStatus = el('span', {class: 'ra-log-status'}, live ? t('connecting') : stateLabel(terminalLabel));
   const logHeading = el('span', {class: 'ra-log-heading'}, el('strong', {}, labelText), logStatus);
   const logGroup = disclosure({className: 'ra-log-run', heading: logHeading, open: true}, logRows);
   if (state.logA) {
@@ -112,9 +114,10 @@ function taskCard(task, index) {
     state.logA.count.textContent = runCount(state.logA.groups);
   }
   const api = {task, card, logGroup, logRows, logStatus, steps, status, artifacts, target,
-    labelText, phase: task.phase, live: LIVE_PHASES.has(task.phase), lastSeq: 0, timer: null, polling: false, ended: false};
+    labelText, phase: task.phase, live, lastSeq: 0, timer: null, polling: false, ended: !live};
   state.cards.set(id, api);
-  connect(api);
+  if (live) connect(api);
+  else hydrate(api);
   return card;
 }
 
@@ -190,6 +193,21 @@ async function readJournal(api, afterSeq) {
   const data = await response.json();
   return Array.isArray(data.records) ? data.records : [];
 }
+
+async function hydrate(api) {
+  // A finished run still has a persisted journal. Read it once so the card
+  // shows the final events instead of a permanent "connecting" label.
+  try {
+    const records = await readJournal(api, 0);
+    for (const record of records) appendEvent(api, record);
+  } catch { /* The status still comes from the task projection. */ }
+  if (!api.ended) stopPolling(api);
+  if (!api.logRows.querySelector('.ra-event')) {
+    api.status.textContent = stateLabel(api.task.execution?.status || api.task.phase);
+    api.logStatus.textContent = stateLabel(api.task.execution?.status || api.task.phase);
+  }
+}
+
 
 function connect(api) {
   if (api.polling || api.ended) return;
@@ -303,11 +321,17 @@ async function refreshTasks(list, count) {
       const card = state.cards.get(task.id);
       if (!card) continue;
       card.phase = task.phase;
-      card.live = LIVE_PHASES.has(task.phase);
+      card.live = LIVE_PHASES.has(task.phase) && task.execution?.terminal !== true;
       if (card.target) {
         card.target.textContent = fill(t('phaseValue'), {value: stateLabel(task.phase || 'unknown')});
       }
-      if (!card.ended && !card.polling) connect(card);
+      if (!card.live) {
+        stopPolling(card);
+        const final = task.execution?.status || task.phase || 'completed';
+        card.status.textContent = stateLabel(final);
+        card.logStatus.textContent = stateLabel(final);
+      }
+      if (card.live && !card.ended && !card.polling) connect(card);
     }
     const visibleIds = new Set(visible.map(task => task.id));
     for (const [id, card] of state.cards) {
