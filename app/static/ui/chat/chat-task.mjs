@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125w';
+import {label} from './chat-copy.mjs?v=20261125x';
 
 const newId = () => crypto.randomUUID();
 const autoTitle = (chat, value) => {
@@ -305,6 +305,7 @@ export function chatTask({notify = () => {}} = {}) {
     autoTitle(chat, payload.binaryName);
     chat.kind = 'repair';
     chat.started = Date.now();
+    chat.ended = null;
     state(chat, 'running');
     event(chat, 'thinking', {phase: 'started'}, 'collect');
     try {
@@ -518,6 +519,7 @@ export function chatTask({notify = () => {}} = {}) {
   async function startLiveAudit(chat, retry = 0) {
     if (!chat.jobId || chat.liveRunning) return;
     chat.auditMode = 'live';
+    chat.ended = null;
     chat.liveGuest = false;
     chat.guestAvailable = chat.audit?.guest_available !== false;
     chat.liveRunning = true;
@@ -612,7 +614,9 @@ export function chatTask({notify = () => {}} = {}) {
   async function startLivePlan(chat) {
     if (!chat.jobId || !chat.audit?.selected_plan) return;
     state(chat, 'running');
-    chat.started = Date.now();
+    // Keep chat.started at the binary-input moment: the flow duration covers
+    // analysis, audit, repair selection and the terminal verdict/export.
+    chat.ended = null;
     chat.auditMode = 'live';
     event(chat, 'thinking', {phase: 'started'}, 'repair');
     try {
@@ -660,7 +664,7 @@ export function chatTask({notify = () => {}} = {}) {
       scope_zh: option.scope_zh, scope_en: option.scope_en};
     event(chat, 'user_response', {request_id: requestId, decision: action}, 'report');
     state(chat, 'running');
-    chat.started = Date.now();
+    chat.ended = null;
     event(chat, 'thinking', {phase: 'started'}, 'repair');
     say(chat, t(chat.locale,
       `已绑定已签 G2 决策：${option.title_zh || option.title_en}。不重跑审计，不重新投票；`
@@ -797,7 +801,11 @@ export function chatTask({notify = () => {}} = {}) {
 
   function finish(chat, execution) {
     chat.phase = execution;
-    chat.ended = Date.now();
+    if (!chat.started) {
+      const first = chat.events.find(item => item.ts);
+      chat.started = Date.parse(chat.task?.created_at || '') || Date.parse(first?.ts || '') || Date.now();
+    }
+    if (!chat.ended) chat.ended = Date.now();
     if (chat.execution) chat.execution = {...chat.execution, terminal: true,
       status: execution};
     event(chat, 'run_state', {status: execution, message_id: null});
@@ -880,7 +888,20 @@ export function chatTask({notify = () => {}} = {}) {
   }
 
   async function activate(chat) {
-    if (!chat?.jobId || ['completed', 'failed', 'cancelled'].includes(chat.phase)) return;
+    if (!chat?.jobId) return;
+    if (['completed', 'failed', 'cancelled'].includes(chat.phase)) {
+      // Older transcripts may predate the flow timer. Backfill from the
+      // persisted task so a finished conversation never collapses to 0:00.
+      if (!chat.started || !chat.ended) {
+        try {
+          const task = await api(`/api/tasks/${chat.jobId}`);
+          const execution = task.execution || {};
+          chat.started = chat.started || Date.parse(execution.started_at || task.created_at || '') || null;
+          chat.ended = chat.ended || Date.parse(execution.finished_at || task.updated_at || '') || null;
+        } catch { /* keep the stored transcript */ }
+      }
+      return;
+    }
     try {
       const task = await api(`/api/tasks/${chat.jobId}`);
       chat.task = task;
