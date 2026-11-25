@@ -152,9 +152,30 @@ def session() -> JSONResponse:
     return response
 
 
+def _process_alive(pid: Any) -> bool:
+    try:
+        value = int(pid)
+        if value <= 0:
+            return False
+        os.kill(value, 0)
+        return True
+    except (OSError, TypeError, ValueError):
+        return False
+
+
 @router.get("/tasks", dependencies=[Depends(require_session)])
 def list_tasks(limit: int = 50) -> dict[str, Any]:
-    return {"tasks": tasks.list_tasks(limit)}
+    rows = tasks.list_tasks(limit)
+    for task in rows:
+        live = task.get("live_audit")
+        if isinstance(live, dict) and live.get("status") == "running" \
+                and not live_audit.is_active(task["id"]):
+            task["live_audit"] = {**live, "status": "stale"}
+        execution = task.get("execution")
+        if isinstance(execution, dict) and execution.get("status") in {"running", "queued"} \
+                and not _process_alive(execution.get("pid")):
+            task["execution"] = {**execution, "status": "stale", "terminal": True}
+    return {"tasks": rows}
 
 
 @router.post(

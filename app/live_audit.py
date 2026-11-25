@@ -475,6 +475,11 @@ def start(task_id: str, *, rerun: bool = False) -> dict[str, Any]:
     return {"status": "running"}
 
 
+def is_active(task_id: str) -> bool:
+    with _LOCK:
+        return task_id in _RUNNING
+
+
 def wait_for_terminal(task_id: str, timeout: float = 10.0) -> dict[str, Any]:
     deadline = time.time() + timeout
     while time.time() < deadline:
