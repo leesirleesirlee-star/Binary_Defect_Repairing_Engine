@@ -1,24 +1,24 @@
-import {saveLanguage} from '../shared/handoff.mjs?v=20261125n';
-import {LANGUAGE_CODES} from '../shared/languages.mjs?v=20261125n';
-import {getTheme, setTheme} from '../shared/theme.mjs?v=20261125n';
-import {live, shouldPoll} from './api.mjs?v=20261125n';
-import {button, el, notice, taskHref} from '../shared/dom.mjs?v=20261125n';
-import {translate} from './labels.mjs?v=20261125n';
-import {taskView} from './task.mjs?v=20261125n';
-import {g4TaskView} from './g4task.mjs?v=20261125n';
-import {pageSlideActive} from '../shared/page-slide.mjs?v=20261125n';
-import {motionReduced} from '../shared/motion.mjs?v=20261125n';
-import {getSetting} from '../shared/settings-preferences.mjs?v=20261125n';
+import {saveLanguage} from '../shared/handoff.mjs?v=20261125o';
+import {LANGUAGE_CODES} from '../shared/languages.mjs?v=20261125o';
+import {getTheme, setTheme} from '../shared/theme.mjs?v=20261125o';
+import {live, shouldPoll} from './api.mjs?v=20261125o';
+import {button, el, notice, taskHref} from '../shared/dom.mjs?v=20261125o';
+import {translate} from './labels.mjs?v=20261125o';
+import {taskView} from './task.mjs?v=20261125o';
+import {g4TaskView} from './g4task.mjs?v=20261125o';
+import {pageSlideActive} from '../shared/page-slide.mjs?v=20261125o';
+import {motionReduced} from '../shared/motion.mjs?v=20261125o';
+import {getSetting} from '../shared/settings-preferences.mjs?v=20261125o';
 import {bindSidebarSpring} from '../chat/chat-spring.mjs?v=20261120au';
-import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261125n';
-import {createDialog, languageDialog, searchDialog, settingsDialog, shell, tasksView} from './views.mjs?v=20261125n';
+import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261125o';
+import {createDialog, languageDialog, searchDialog, settingsDialog, shell, tasksView} from './views.mjs?v=20261125o';
 
 // The archive opens on its synthetic fixture immediately. The legacy live API
 // remains available explicitly with ?live=1, but the archive must never present
 // an empty "task service unavailable" dead end before showing its content.
 const archiveQuery = new URLSearchParams(location.search);
 const previewMode = archiveQuery.get('preview') === '1';
-const api = previewMode ? (await import('./preview.mjs?v=20261125n')).preview : {...live, lifecycle: false};
+const api = previewMode ? (await import('./preview.mjs?v=20261125o')).preview : {...live, lifecycle: false};
 const app = document.querySelector('#app');
 const preferences = {language: 'zh-Hans', density: 'comfortable'};
 const preferenceValues = {language: LANGUAGE_CODES, density: ['comfortable', 'compact']};
@@ -40,7 +40,6 @@ const state = {
   filter: 'all', query: '', loading: true, busy: false, listError: null, generation: 0,
 };
 let timer;
-let listTimer;
 let taskRequestRunning = false;
 let failures = 0;
 let stopSidebar = null;
@@ -203,22 +202,6 @@ function render({focus = false, mainOnly = false} = {}) {
   if (focus) app.querySelector('main')?.focus({preventScroll: true});
 }
 
-function hasRunningJob() {
-  return state.jobs.some(job => job.phase === 'running' || job.phase === 'queued' ||
-    job.live_audit?.status === 'running' ||
-    ['running', 'queued', 'waiting_for_executor'].includes(job.execution?.status));
-}
-
-function scheduleListPoll() {
-  clearTimeout(listTimer);
-  if (document.hidden || !hasRunningJob()) return;
-  listTimer = setTimeout(async () => {
-    await refreshList();
-    if (!state.id || !state.job) render();
-    scheduleListPoll();
-  }, 2000);
-}
-
 async function refreshList() {
   try {
     state.jobs = await api.list();
@@ -228,7 +211,6 @@ async function refreshList() {
   } finally {
     state.loading = false;
     if (!state.id || !state.job) render();
-    scheduleListPoll();
   }
 }
 

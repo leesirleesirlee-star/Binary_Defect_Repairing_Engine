@@ -1,4 +1,4 @@
-import {extraLabels} from './labels-extra.mjs?v=20261125n';
+import {extraLabels} from './labels-extra.mjs?v=20261125o';
 
 // Pair each display string with its Simplified Chinese translation.
 const labels = {
@@ -33,6 +33,7 @@ const labels = {
   taskLoading: ['Loading task…', '正在加载任务…'],
   taskMissing: ['Task unavailable', '任务不可用'],
   retry: ['Retry', '重试'],
+  refresh: ['Refresh', '刷新'],
   delete: ['Delete', '删除'],
   deleteConfirm: ['Delete this task and its journal/artifacts?', '删除该任务及其事件日志/产物？'],
   deleted: ['Task deleted.', '任务已删除。'],

@@ -1,8 +1,8 @@
-import {badge, button, date, el, isAscii, notice, taskHref} from '../shared/dom.mjs?v=20261125n';
-import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261125n';
-import {LANGUAGES, languageName} from '../shared/languages.mjs?v=20261125n';
-import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261125n';
-import {icon} from '../shared/icons.mjs?v=20261125n';
+import {badge, button, date, el, isAscii, notice, taskHref} from '../shared/dom.mjs?v=20261125o';
+import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261125o';
+import {LANGUAGES, languageName} from '../shared/languages.mjs?v=20261125o';
+import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261125o';
+import {icon} from '../shared/icons.mjs?v=20261125o';
 
 export function shell(ctx) {
   const {t, language, api, jobs, id, create, settings, switchLanguage, menuOpen, toggleMenu, search} = ctx;
@@ -129,7 +129,9 @@ export function tasksView(ctx) {
   };
   update();
   return el('div', {class: 'page'},
-    el('div', {class: 'section-head'}, heading, newRepair),
+    el('div', {class: 'section-head'}, heading,
+      el('div', {class: 'actions'}, button(t('refresh'), reload, {glyph: 'refresh', className: 'subtle'}),
+        newRepair)),
     el('div', {class: 'controls'},
       el('div', {class: 'segments', role: 'group', 'aria-label': t('filterLabel')}, filterButtons),
       el('div', {class: 'search'}, icon('search', 15), input)),
