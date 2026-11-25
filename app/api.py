@@ -330,10 +330,22 @@ def delete_task(task_id: str) -> dict[str, Any]:
 @router.get("/tasks/{task_id}/audit", dependencies=[Depends(require_session)])
 def live_audit_state(task_id: str) -> dict[str, Any]:
     task = _task(task_id)
+    live = task.get("live_audit") or live_audit.empty_state()
+    # Re-evaluate persisted runs against the current edit budget so a policy
+    # fix (for example allowing guard_stub) applies without rerunning the model.
+    runs = live.get("runs") if isinstance(live, dict) else None
+    if isinstance(runs, list):
+        live = {**live, "runs": [
+            {**run,
+             "selectable": live_audit._plan_selectability(task, run.get("plan"))[0],
+             "select_reason": live_audit._plan_selectability(task, run.get("plan"))[1]}
+            if isinstance(run, dict) else run
+            for run in runs
+        ]}
     return {
         "audit_mode": task.get("audit_mode") or "signed",
         "live_guest": bool(task.get("live_guest")),
-        "live_audit": task.get("live_audit") or live_audit.empty_state(),
+        "live_audit": live,
         "selected_plan": task.get("selected_plan"),
         "guest_available": live_audit.GUEST_AVAILABLE,
     }
