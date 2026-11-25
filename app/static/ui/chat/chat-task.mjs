@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125s';
+import {label} from './chat-copy.mjs?v=20261125t';
 
 const newId = () => crypto.randomUUID();
 const autoTitle = (chat, value) => {
@@ -733,13 +733,14 @@ export function chatTask({notify = () => {}} = {}) {
       revision: chat.plan?.revision ?? null,
       execution: chat.runEnd?.execution ?? null,
     }, 'report');
-    sendDownloads(chat, chat.jobId, artifacts, chat.locale, word, verdict);
+    const executionStatus = chat.runEnd?.execution || chat.phase;
+    sendDownloads(chat, chat.jobId, artifacts, chat.locale, word, verdict, executionStatus);
     const execution = chat.runEnd?.execution === 'completed' ? 'completed'
       : chat.runEnd?.execution === 'cancelled' ? 'cancelled' : 'failed';
     finish(chat, execution);
   }
 
-  function sendDownloads(chat, taskId, artifacts, locale, verdictWord, verdictPayload) {
+  function sendDownloads(chat, taskId, artifacts, locale, verdictWord, verdictPayload, executionStatus = null) {
     if (!artifacts.length) return;
     const byName = new Map(artifacts.map(item => [item.display_path, item]));
     const link = name => {
@@ -753,6 +754,7 @@ export function chatTask({notify = () => {}} = {}) {
     const verdictFile = link('verdict.json');
     event(chat, 'g4_downloads', {
       id: 'g4-downloads-' + taskId,
+      execution: executionStatus,
       verdict_word: verdictWord || null,
       verdict_reason: (verdictPayload?.limitations || []).find(line =>
         /fail|not_run|missing|unavailable/i.test(String(line))) || null,

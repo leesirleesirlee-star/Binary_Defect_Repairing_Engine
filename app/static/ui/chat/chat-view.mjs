@@ -1,7 +1,7 @@
 import {animateDetails} from '../shared/details-anim.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125s';
-import {stepCard} from './chat-steps.mjs?v=20261125s';
+import {icon} from '../shared/icons.mjs?v=20261125t';
+import {stepCard} from './chat-steps.mjs?v=20261125t';
 
 export function fileDropZone({label, hint, accept = '', multiple = false, onFiles}) {
   const input = el('input', {type: 'file', hidden: true, accept, multiple,
@@ -348,6 +348,7 @@ function genProgress(p, t) {
 function genOutcome(p, t) {
   const links = [p.candidate, p.manifest, p.verdict_file].filter(Boolean);
   const rejected = ['rejected', 'unverified', 'unsupported', 'error'].includes(p.verdict_word);
+  const failed = !p.verdict_word && ['failed', 'cancelled'].includes(p.execution);
   const children = [];
   if (p.candidate_sha256) {
     children.push(el('p', {class: 'gen-note mono'},
@@ -361,8 +362,9 @@ function genOutcome(p, t) {
     el('a', {class: 'gen-download', href: link.href, download: '',
       title: link.sha256 ? 'sha256: ' + link.sha256 : null},
     icon('download', 16), el('span', {}, link.label)))));
-  return genCard('outcome', 'check', rejected ? t('repairNotAccepted') : t('repairComplete'),
-    p.verdict_word || t('noVerdict'), ...children);
+  return genCard('outcome', 'check',
+    rejected || failed ? t('repairNotAccepted') : t('repairComplete'),
+    p.verdict_word || (failed ? t(p.execution) : t('noVerdict')), ...children);
 }
 
 const ASSISTANT_ACTION_KEYS = {
