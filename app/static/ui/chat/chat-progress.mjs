@@ -1,5 +1,5 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125v';
+import {icon} from '../shared/icons.mjs?v=20261125w';
 import {currentEvaluation} from '../workbench/api.mjs?v=20261124b';
 
 const labels = ['milestoneReview', 'milestoneQueue', 'milestoneRun', 'milestoneVerdict'];

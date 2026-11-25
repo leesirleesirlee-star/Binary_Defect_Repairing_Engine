@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125v';
+import {label} from './chat-copy.mjs?v=20261125w';
 
 const newId = () => crypto.randomUUID();
 const autoTitle = (chat, value) => {

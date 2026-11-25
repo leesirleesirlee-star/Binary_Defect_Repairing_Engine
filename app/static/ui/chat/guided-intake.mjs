@@ -6,7 +6,7 @@
  * server, and Start remains disabled until a later-stage runner exists.
  */
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125v';
+import {icon} from '../shared/icons.mjs?v=20261125w';
 
 const state = {snapshot: null, promise: null, approved: false, denied: false, dialog: null};
 const wired = new WeakSet();
