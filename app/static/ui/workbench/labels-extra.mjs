@@ -3,6 +3,9 @@
 // Extra locales for the archive page (en / zh-Hans live in labels.mjs).
 export const extraLabels = {
   "fr": {
+    "delete": "Supprimer",
+    "deleteConfirm": "Supprimer?",
+    "deleted": "Supprimer",
     "skip": "Aller au contenu",
     "tasks": "Archive",
     "recent": "Tâches récentes",
@@ -175,6 +178,9 @@ export const extraLabels = {
     "conversationPreview": "Aperçu de la conversation (synthétique)",
   },
   "de": {
+    "delete": "Löschen",
+    "deleteConfirm": "Löschen?",
+    "deleted": "Löschen",
     "skip": "Zum Inhalt springen",
     "tasks": "Archiv",
     "recent": "Letzte Aufgaben",
@@ -347,6 +353,9 @@ export const extraLabels = {
     "conversationPreview": "Gesprächsvorschau (synthetisch)",
   },
   "es": {
+    "delete": "Eliminar",
+    "deleteConfirm": "Eliminar?",
+    "deleted": "Eliminar",
     "skip": "Saltar al contenido",
     "tasks": "Archivo",
     "recent": "Tareas recientes",
@@ -519,6 +528,9 @@ export const extraLabels = {
     "conversationPreview": "Vista previa de la conversación (sintética)",
   },
   "pt": {
+    "delete": "Excluir",
+    "deleteConfirm": "Excluir?",
+    "deleted": "Excluir",
     "skip": "Ir para o conteúdo",
     "tasks": "Arquivo",
     "recent": "Tarefas recentes",
@@ -691,6 +703,9 @@ export const extraLabels = {
     "conversationPreview": "Visualização da conversa (sintética)",
   },
   "ja": {
+    "delete": "削除",
+    "deleteConfirm": "削除?",
+    "deleted": "削除",
     "skip": "コンテンツへスキップ",
     "tasks": "アーカイブ",
     "recent": "最近のタスク",
@@ -863,6 +878,9 @@ export const extraLabels = {
     "conversationPreview": "会話プレビュー（合成）",
   },
   "ko": {
+    "delete": "삭제",
+    "deleteConfirm": "삭제?",
+    "deleted": "삭제",
     "skip": "본문으로 건너뛰기",
     "tasks": "아카이브",
     "recent": "최근 작업",

@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125b';
+import {label} from './chat-copy.mjs?v=20261125c';
 
 const newId = () => crypto.randomUUID();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -152,18 +152,31 @@ export function chatTask({notify = () => {}} = {}) {
         method: 'POST',
         body: {binary_name: file.name, binary_base64: binaryBase64},
       });
-      chat.pendingBinary = {name: file.name, base64: binaryBase64, probe: data};
+      const supported = Boolean(data.supported);
+      chat.pendingBinary = supported ? {name: file.name, base64: binaryBase64, probe: data} : null;
       chat.title ||= file.name;
       chat.kind = 'repair';
       event(chat, 'binary_ready', {
         id: 'binary-' + newId(),
         binary_name: data.binary_name || file.name,
         binary_sha256: data.binary_sha256 || '',
-        supported: Boolean(data.supported),
+        supported,
         analysis_status: data.analysis_status || 'ok',
         finding: data.finding || {},
         unsupported_detail: data.unsupported_detail || null,
       }, 'collect');
+      if (!supported) {
+        // The MVP2 repair scope is the frozen stack-overflow-01 pattern. An
+        // unsupported ELF is analyzed read-only and never reaches case intake
+        // or the repair runner.
+        say(chat, t(locale,
+          '当前修复范围仅支持包含 MVP2 栈溢出模式（strcpy 调用点）的 ELF。'
+          + '该文件只完成了只读分析，不会进入用例上传或修复流程。',
+          'Repair is scoped to the MVP2 stack-overflow pattern (a strcpy call site). '
+          + 'This ELF was analyzed read-only and will not enter case intake or repair.'));
+        state(chat, 'unsupported');
+        return;
+      }
       event(chat, 'case_prompt', {
         id: 'cases-' + newId(),
         binary_name: data.binary_name || file.name,
@@ -716,12 +729,73 @@ export function chatTask({notify = () => {}} = {}) {
     return chat;
   }
 
-  function activate() {}
+  const HISTORY_FIELDS = [
+    'phase', 'title', 'titleKey', 'jobId', 'locale', 'kind', 'run', 'started', 'ended',
+    'execution', 'journalSeq', 'plan', 'runEnd', 'auditRuns', 'g2', 'request', 'options',
+    'g4', 'task', 'contract', 'startReady', 'reviewer', 'auditMode', 'liveGuest',
+    'guestAvailable', 'bound', 'verdict', 'assistantMode',
+  ];
+
+  function clip(value, depth = 0) {
+    if (typeof value === 'string') return value.length > 4000
+      ? value.slice(0, 4000) + '…' : value;
+    if (depth > 8 || value === null || typeof value !== 'object') return value;
+    if (value instanceof Map) return [...value.entries()];
+    if (Array.isArray(value)) return value.slice(-500).map(item => clip(item, depth + 1));
+    const out = {};
+    for (const [key, item] of Object.entries(value)) {
+      if (key === 'attachmentFiles' || key === 'timer' || key === 'epoch') continue;
+      out[key] = clip(item, depth + 1);
+    }
+    return out;
+  }
+
+  function serialize() {
+    return [...chats.values()].filter(chat => chat.events.length).map(chat => {
+      const out = {id: chat.id, events: clip(chat.events.slice(-500)),
+        attachmentNames: [...chat.attachmentNames.entries()]};
+      for (const field of HISTORY_FIELDS) {
+        if (chat[field] !== undefined && chat[field] !== null) out[field] = clip(chat[field]);
+      }
+      return out;
+    });
+  }
+
+  function restoreHistory(items) {
+    if (!Array.isArray(items)) return;
+    for (const item of items) {
+      if (!item || typeof item !== 'object' || !Array.isArray(item.events)) continue;
+      const chat = create();
+      const savedId = item.id;
+      Object.assign(chat, item);
+      chat.id = savedId || chat.id;
+      chat.events = item.events;
+      chat.attachmentNames = new Map(item.attachmentNames || []);
+      chat.attachmentFiles = new Map();
+      chat.phase = item.phase || 'idle';
+      chats.set(chat.id, chat);
+    }
+  }
+
+  async function activate(chat) {
+    if (!chat?.jobId || ['completed', 'failed', 'cancelled'].includes(chat.phase)) return;
+    try {
+      const task = await api(`/api/tasks/${chat.jobId}`);
+      chat.task = task;
+      chat.execution = task.execution || chat.execution;
+      if (chat.execution?.run_id) chat.run = chat.execution.run_id;
+      if (!chat.runEnd && !chat.events.some(item => item.type === 'run_end')) {
+        await collectJournal(chat);
+        await follow(chat);
+      }
+    } catch { /* keep the restored transcript; a missing task is shown as-is */ }
+  }
+
 
   function deactivate() {}
 
   return {chats, live: true, taskMode: true, create, send, sendFixture, decide, assistantTurn,
-    probeBinary, submitCases,
+    probeBinary, submitCases, serialize, restoreHistory, activate,
     startLiveAudit, selectLivePlan, startLivePlan, setLiveMode, setLiveGuest,
     start: async () => {}, stop, seed, activate, deactivate};
 }

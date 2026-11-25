@@ -1,4 +1,4 @@
-import {extraLabels} from './labels-extra.mjs?v=20261125c';
+import {extraLabels} from './labels-extra.mjs?v=20261125e';
 
 // Pair each display string with its Simplified Chinese translation.
 const labels = {
@@ -33,6 +33,9 @@ const labels = {
   taskLoading: ['Loading task…', '正在加载任务…'],
   taskMissing: ['Task unavailable', '任务不可用'],
   retry: ['Retry', '重试'],
+  delete: ['Delete', '删除'],
+  deleteConfirm: ['Delete this task and its journal/artifacts?', '删除该任务及其事件日志/产物？'],
+  deleted: ['Task deleted.', '任务已删除。'],
   session: ['Open BinaryRepair from the local launcher.', '请从本地启动器打开 BinaryRepair。'],
   unavailable: ['The task service is unavailable.', '任务服务不可用。'],
   artifactUnavailable: ['This artifact is missing or failed its integrity check.', '产物文件缺失或完整性校验失败。'],

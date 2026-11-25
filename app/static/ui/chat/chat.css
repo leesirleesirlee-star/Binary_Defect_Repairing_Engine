@@ -751,3 +751,13 @@ p.activity-row { display: flex; gap: .4rem; align-items: center; color: var(--mu
 .latest { opacity: 1; transition: opacity 260ms ease, transform 260ms ease; }
 .latest.latest-dim { opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(5px); }
 @media (prefers-reduced-motion: reduce) { .latest { transition: none; } }
+
+/* The execution pane can squeeze the header; keep the truth badge intact and
+   compress only the free-text left side. */
+.chat-header { flex-wrap: nowrap; min-width: 0; }
+.chat-header > * { min-width: 0; }
+.chat-title { flex: 1 1 5rem; min-width: 0; }
+.preview-label { flex: 0 1 auto; max-width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assistant-mode { flex: 0 0 auto; max-width: none; overflow: visible; text-overflow: clip; white-space: nowrap; }
+.chat-header > .control { flex: 0 0 auto; white-space: nowrap; }
+.chat-header .language { flex: 0 0 auto; white-space: nowrap; }

@@ -99,6 +99,10 @@ def _collect_cases(files: list[dict[str, Any]], defect: str) -> dict[str, Any]:
             except json.JSONDecodeError:
                 parsed = None
         if isinstance(parsed, dict):
+            recognized = any(key in parsed for key in (
+                "valid", "regression", "correct", "invalid", "poc", "crash", "error"))
+            if not recognized:
+                raise G4Error(422, "invalid_cases")
             valid.extend(
                 _case_list(parsed.get("valid") or parsed.get("regression") or parsed.get("correct"))
             )
@@ -117,6 +121,8 @@ def _collect_cases(files: list[dict[str, Any]], defect: str) -> dict[str, Any]:
             bucket.extend(line for line in text.splitlines() if line.strip())
     valid = valid[:MAX_CASES]
     poc = poc[:MAX_CASES]
+    if not valid or not poc:
+        raise G4Error(422, "cases_incomplete")
     return {
         "valid": valid,
         "poc": poc,

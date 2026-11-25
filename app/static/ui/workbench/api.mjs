@@ -144,6 +144,7 @@ export const live = {
     return Promise.all(tasks.map(async task => toArchiveJob(task, await verdictFor(task.id))));
   },
   job: async id => toArchiveJob(await request(taskPath(id)), await verdictFor(id)),
+  remove: id => request(taskPath(id), {method: 'DELETE'}),
   attempts: async () => [],
   evaluation: async (id) => {
     const verdict = await request(taskPath(id) + '/verdict');

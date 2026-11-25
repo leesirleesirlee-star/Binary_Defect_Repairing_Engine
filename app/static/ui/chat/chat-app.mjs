@@ -6,15 +6,15 @@ import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261125b';
-import {chatPreview} from './chat-stream.mjs?v=20261125b';
-import {chatTask} from './chat-task.mjs?v=20261125b';
+import {label} from './chat-copy.mjs?v=20261125c';
+import {chatPreview} from './chat-stream.mjs?v=20261125c';
+import {chatTask} from './chat-task.mjs?v=20261125c';
 import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261121z';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261124b';
 import {bindSidebarSpring} from './chat-spring.mjs?v=20261120au';
-import {refreshStepCard} from './chat-steps.mjs?v=20261125b';
-import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125b';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125b';
+import {refreshStepCard} from './chat-steps.mjs?v=20261125c';
+import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125c';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125c';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -43,6 +43,27 @@ let nodes;
 let selectionChanged = false;
 let navStamp;
 
+const HISTORY_KEY = 'binaryrepair.chat.sessions.v1';
+let saveTimer = 0;
+function loadHistory() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) || 'null');
+    return parsed && Array.isArray(parsed.chats) ? parsed : null;
+  } catch { return null; }
+}
+function saveHistory() {
+  if (!engine || !selected) return;
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify({
+      selected: selected.id,
+      chats: engine.serialize(),
+    }));
+  } catch { /* localStorage quota: keep the live session usable */ }
+}
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveHistory, 300);
+}
 const params = new URLSearchParams(location.search);
 
 function announce(chat, event) {
@@ -56,6 +77,7 @@ function announce(chat, event) {
       live.textContent = t(status);
     }
   }
+  scheduleSave();
   if (nodes) requestPaint();
 }
 
@@ -66,16 +88,35 @@ function announce(chat, event) {
 const previewMode = params.get('preview') === '1';
 const engine = previewMode ? chatPreview({notify: announce}) : chatTask({notify: announce});
 const requestedJob = params.get('job');
-Promise.resolve(engine.seed(locale)).then(() => {
-  if (!requestedJob) return;
+const restored = !previewMode ? loadHistory() : null;
+let restoredSession = false;
+if (restored?.chats?.length) {
+  try {
+    engine.restoreHistory(restored.chats);
+    restoredSession = engine.chats.size > 0;
+  } catch { restoredSession = false; }
+}
+if (restoredSession) {
+  selected = [...engine.chats.values()].find(chat => chat.id === restored.selected) ||
+    [...engine.chats.values()].at(-1);
+} else {
+  Promise.resolve(engine.seed(locale)).then(() => {
+    if (!requestedJob) return;
+    const target = [...engine.chats.values()].find(chat => chat.jobId === requestedJob);
+    if (target) select(target);
+  });
+  selected = engine.create();
+}
+if (requestedJob) {
   const target = [...engine.chats.values()].find(chat => chat.jobId === requestedJob);
-  if (target) select(target);
-});
-selected = engine.create();
-if (!requestedJob) {
+  if (target) selected = target;
+}
+if (!requestedJob && !restoredSession) {
   const text = takeDraft();
   if (text) drafts.set(selected.id, {text, attachment: '', file: null, cases: []});
 }
+if (selected?.jobId) void engine.activate?.(selected);
+window.addEventListener('beforeunload', saveHistory);
 const media = matchMedia('(max-width: 720px)');
 fetch('/api/assistant/key', {credentials: 'same-origin', cache: 'no-store'})
   .then(response => response.ok ? response.json() : null)

@@ -303,3 +303,34 @@ def test_probe_rejects_a_non_elf(client: TestClient) -> None:
     })
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "not_an_elf"
+
+
+def test_delete_task_removes_snapshot_journal_and_artifacts(client: TestClient) -> None:
+    body = _upload(client, FIXTURE.read_bytes()).json()
+    task_id = body["task"]["id"]
+    assert client.delete(f"/api/tasks/{task_id}").status_code == 200
+    assert client.get(f"/api/tasks/{task_id}").status_code == 404
+    from app.tasks import _TASK_ROOT
+    root = _TASK_ROOT.parent
+    assert not (root / "events" / f"{task_id}.jsonl").exists()
+    assert not (root / "artifacts" / task_id).exists()
+
+
+def test_case_file_must_be_an_oracle_json(client: TestClient) -> None:
+    payload = {
+        "binary_name": "vuln.elf", "binary_base64": _b64(FIXTURE.read_bytes()),
+        "case_files": [{"name": "manifest.json", "content_base64": _b64(b'{"deps": []}')}],
+    }
+    response = client.post("/api/tasks/upload", json=payload)
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_cases"
+
+
+def test_both_valid_and_poc_cases_are_required(client: TestClient) -> None:
+    payload = {
+        "binary_name": "vuln.elf", "binary_base64": _b64(FIXTURE.read_bytes()),
+        "case_files": [{"name": "valid.json", "content_base64": _b64(b'{"valid": [""]}')}],
+    }
+    response = client.post("/api/tasks/upload", json=payload)
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "cases_incomplete"

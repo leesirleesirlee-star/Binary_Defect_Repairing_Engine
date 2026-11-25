@@ -13,6 +13,7 @@ import inspect
 import json
 import os
 import secrets
+import shutil
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -296,6 +297,34 @@ def get_task(task_id: str) -> dict[str, Any]:
     task = _task(task_id)
     task.pop("idempotency", None)
     return task
+
+
+@router.delete(
+    "/tasks/{task_id}",
+    dependencies=[Depends(require_session), Depends(require_csrf)],
+)
+def delete_task(task_id: str) -> dict[str, Any]:
+    """Delete one task snapshot and every journal/artifact derived from it."""
+    _task(task_id)
+    try:
+        tasks.delete(task_id)
+    except tasks.TaskNotFound as error:
+        raise _error(404, "task_not_found") from error
+    base = _BASE / "var"
+    for path in (
+        base / "events" / f"{task_id}.jsonl",
+        base / "artifacts" / task_id,
+        base / "uploads" / task_id,
+        base / "audit" / task_id,
+    ):
+        if path.is_dir():
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+    return {"deleted": task_id}
 
 
 @router.get("/tasks/{task_id}/audit", dependencies=[Depends(require_session)])

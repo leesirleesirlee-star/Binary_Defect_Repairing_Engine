@@ -110,6 +110,14 @@ def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
     return tasks
 
 
+def delete(task_id: str) -> None:
+    path = _path(task_id)
+    try:
+        path.unlink()
+    except FileNotFoundError as error:
+        raise TaskNotFound(task_id) from error
+
+
 def get(task_id: str) -> dict[str, Any]:
     return _read(task_id)
 
