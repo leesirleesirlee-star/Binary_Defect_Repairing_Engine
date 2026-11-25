@@ -6,15 +6,15 @@ import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261125i';
-import {chatPreview} from './chat-stream.mjs?v=20261125i';
-import {chatTask} from './chat-task.mjs?v=20261125i';
+import {label} from './chat-copy.mjs?v=20261125j';
+import {chatPreview} from './chat-stream.mjs?v=20261125j';
+import {chatTask} from './chat-task.mjs?v=20261125j';
 import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261125f';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261125f';
 import {bindSidebarSpring} from './chat-spring.mjs?v=20261125f';
-import {refreshStepCard} from './chat-steps.mjs?v=20261125i';
-import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125i';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125i';
+import {refreshStepCard} from './chat-steps.mjs?v=20261125j';
+import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125j';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125j';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -97,8 +97,11 @@ if (restored?.chats?.length) {
   } catch { restoredSession = false; }
 }
 if (restoredSession) {
-  selected = [...engine.chats.values()].find(chat => chat.id === restored.selected) ||
+  const found = [...engine.chats.values()].find(chat => chat.id === restored.selected) ||
     [...engine.chats.values()].at(-1);
+  const greetingOnly = found && !found.jobId && found.events.length > 0 &&
+    found.events.every(item => ['assistant_delta', 'assistant_end'].includes(item.type));
+  selected = greetingOnly ? engine.create() : found;
 } else {
   Promise.resolve(engine.seed(locale)).then(() => {
     if (!requestedJob) return;
