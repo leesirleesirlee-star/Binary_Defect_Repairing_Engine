@@ -97,6 +97,22 @@ def test_refuses_wrong_original_bytes(tmp_path: Path) -> None:
     assert not (out / "candidate.elf").exists()
 
 
+def test_guard_stub_plan_applies_like_a_code_cave(tmp_path: Path) -> None:
+    """Live-audit plans use guard_stub; it must produce the same G3 candidate."""
+    plan = json.loads(PLAN.read_text(encoding="utf-8"))
+    for edit in plan["edits"]:
+        if edit["kind"] == "code":
+            edit["kind"] = "guard_stub"
+    path = tmp_path / "guard-stub-plan.json"
+    path.write_text(json.dumps(plan), encoding="utf-8")
+    result = apply_fix_plan(
+        FIXTURE, path, tmp_path / "artifacts", fixture_id="stack-overflow-01",
+        now="2026-11-21T12:00:00Z",
+    )
+    assert result["candidate_written"] is True
+    assert result["candidate_sha256"] == CANDIDATE_SHA
+
+
 def _sha(data: bytes) -> str:
     import hashlib
 
