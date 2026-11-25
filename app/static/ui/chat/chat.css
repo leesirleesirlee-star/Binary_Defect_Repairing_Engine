@@ -658,7 +658,7 @@ p.activity-row { display: flex; gap: .4rem; align-items: center; color: var(--mu
   color: var(--muted); font-size: .7rem; }
 .assistant-chip[data-kind="download"], .assistant-chip[data-kind="evidence"] {
   color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
-@media (max-width: 720px) { .assistant-mode { display: none; } }
+@media (max-width: 720px) { .assistant-mode { display: inline-flex; } }
 
 /* G4.1 live mode: additive audit cards, signed replay remains default. */
 .live-mode-tabs { display: flex; gap: .35rem; flex-wrap: wrap; }
@@ -773,3 +773,15 @@ p.activity-row { display: flex; gap: .4rem; align-items: center; color: var(--mu
 }
 .fixture-demo strong { color: var(--text); font-size: .78rem; }
 .fixture-demo p { flex: 1 1 16rem; margin: 0; }
+
+/* Header contract at any width: the AI truth badge and language selector are
+   never clipped. Only the free-text title and preview label may disappear. */
+.chat-main { container-type: inline-size; }
+.chat-header { overflow: hidden; }
+.chat-header .chat-title { flex: 1 1 0; }
+@container (max-width: 22rem) {
+  .chat-header .chat-title { display: none; }
+}
+@container (max-width: 18rem) {
+  .chat-header .preview-label { display: none; }
+}

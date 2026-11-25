@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261125e';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261125g';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -43,7 +43,7 @@ const copy = {
   keyPassed: ["Connection works.", "连接成功。"],
   keyAliasSuffix: [" (provider-returned model)", "（服务实际返回）"],
   chooseAuditMode: ["Choose a repair path first: AI live audit (calls the model, a few minutes) or signed G2 replay (no model call).", "请先选择修复方式：AI 现场审计（调用模型，约数分钟）或回放已签 G2（不调用模型）。"],
-  livePlanFirst: ["AI live audit is active; choose its fresh plan card above, not the signed replay plans.", "AI 现场审计已启动；请在上方审计卡选择现场方案，不要选择签名回放方案。"],
+  livePlanFirst: ["Choose the fresh plan card from the live AI audit above.", "AI 现场审计已启动；请在上方审计卡选择现场方案。"],
   previewFile: ["Preview file", "预览文件"],
   previewUnavailable: ["Preview unavailable.", "无法预览内容。"],
   binaryPreview: ["hex preview of the uploaded binary (first 256 bytes)", "上传二进制的前 256 字节十六进制预览"],

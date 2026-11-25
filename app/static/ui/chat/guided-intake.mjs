@@ -232,7 +232,7 @@ function openDialog(data) {
         return;
       }
       status.textContent = '已启动 · ' + payload.run_id + ' · 正在读取真实事件…';
-      const module = await import('./event-console.mjs?v=20261120aw');
+      const module = await import('./event-console.mjs?v=20261125f');
       await module.openEventConsole({taskId});
     } catch (error) {
       status.textContent = '启动失败：' + error.message;
@@ -277,7 +277,7 @@ function launchCard(data) {
       el('button', {type: 'button', class: 'button primary', onclick: () => openDialog(data)},
         icon('file', 15), '审阅语料与契约'),
       el('button', {type: 'button', class: 'button subtle', onclick: async () => {
-        const module = await import('./event-console.mjs?v=20261120aw');
+        const module = await import('./event-console.mjs?v=20261125f');
         await module.openEventConsole();
       }}, icon('terminal', 15), 'S3 事件流')));
   return card;
