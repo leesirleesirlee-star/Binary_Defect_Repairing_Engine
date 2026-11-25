@@ -11,6 +11,16 @@
 来源与许可：帧图来自 dsh-claude-style（MIT），由 calmly-eating-bugs 绘制；螃蟹形象是 Anthropic 的
 Clawd（见插件 THIRD_PARTY_NOTICES）。迁移时仅改写了宿主定位与信号接入，动画数据未改动。
 
+效果（本地 GUI，1600×1000）：
+
+| 对话页 · 空闲 | 对话页 · 思考中 | 深色主题 | 欢迎页 |
+| --- | --- | --- | --- |
+| ![对话页空闲](screenshots/clawd-chat-idle.png) | ![对话页思考中](screenshots/clawd-chat-thinking.png) | ![深色主题](screenshots/clawd-chat-dark.png) | ![欢迎页](screenshots/clawd-welcome.png) |
+
+刷新 `http://127.0.0.1:8124/ui/chat/`（或欢迎页/档案库）即可看到；静态资源已带新的 `?v=`，
+若浏览器仍显示旧宠物，按 Cmd+Shift+R 强制刷新一次，无需重启服务。
+
+
 ## 文件
 
 | 文件 | 作用 |
