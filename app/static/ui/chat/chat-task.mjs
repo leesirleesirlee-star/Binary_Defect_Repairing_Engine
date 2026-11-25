@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125p';
+import {label} from './chat-copy.mjs?v=20261125s';
 
 const newId = () => crypto.randomUUID();
 const autoTitle = (chat, value) => {
@@ -875,6 +875,9 @@ export function chatTask({notify = () => {}} = {}) {
         chat.liveGuest = Boolean(audit.live_guest);
         chat.guestAvailable = audit.guest_available !== false;
         emitLiveAudit(chat);
+        if (audit.live_audit?.status === 'completed' || audit.live_audit?.status === 'failed') {
+          settleLiveAudit(chat);
+        }
       }
       if (!chat.runEnd && !chat.events.some(item => item.type === 'run_end')) {
         await collectJournal(chat);

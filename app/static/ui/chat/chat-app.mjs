@@ -1,20 +1,20 @@
 import {el, isAscii} from '../shared/dom.mjs?v=20261120au';
 import {saveLanguage, takeDraft} from '../shared/handoff.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125p';
+import {icon} from '../shared/icons.mjs?v=20261125s';
 import {LANGUAGE_CODES, languageName} from '../shared/languages.mjs?v=20261120au';
 import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261125p';
-import {chatPreview} from './chat-stream.mjs?v=20261125p';
-import {chatTask} from './chat-task.mjs?v=20261125p';
-import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261125p';
+import {label} from './chat-copy.mjs?v=20261125s';
+import {chatPreview} from './chat-stream.mjs?v=20261125s';
+import {chatTask} from './chat-task.mjs?v=20261125s';
+import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261125s';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261125f';
-import {bindSidebarSpring} from './chat-spring.mjs?v=20261125p';
-import {refreshStepCard} from './chat-steps.mjs?v=20261125p';
-import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125p';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125p';
+import {bindSidebarSpring} from './chat-spring.mjs?v=20261125s';
+import {refreshStepCard} from './chat-steps.mjs?v=20261125s';
+import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125s';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125s';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -274,8 +274,16 @@ function openConversationMenu(chat, anchor) {
     clearTimeout(closeTimer);
     document.removeEventListener('pointerdown', outside, true);
     document.removeEventListener('keydown', escape);
+    document.removeEventListener('mousemove', moveOutside, true);
+    anchor.removeEventListener('mouseleave', scheduleClose);
     menu.remove();
   };
+  const scheduleClose = () => { clearTimeout(closeTimer); closeTimer = setTimeout(close, 180); };
+  const moveOutside = event => {
+    if (anchor.contains(event.target) || menu.contains(event.target)) return;
+    scheduleClose();
+  };
+  const cancelClose = () => clearTimeout(closeTimer);
   const outside = event => {
     if (!menu.contains(event.target) && event.target !== anchor) close();
   };
@@ -313,10 +321,10 @@ function openConversationMenu(chat, anchor) {
   menu.style.left = left + 'px';
   menu.style.top = top + 'px';
   requestAnimationFrame(() => menu.classList.add('open'));
-  menu.addEventListener('mouseenter', () => clearTimeout(closeTimer));
-  menu.addEventListener('mouseleave', () => {
-    closeTimer = setTimeout(close, 180);
-  });
+  menu.addEventListener('mouseenter', cancelClose);
+  menu.addEventListener('mouseleave', scheduleClose);
+  anchor.addEventListener('mouseleave', scheduleClose);
+  document.addEventListener('mousemove', moveOutside, true);
   document.addEventListener('pointerdown', outside, true);
   document.addEventListener('keydown', escape);
   menu.querySelector('[role="menuitem"]')?.focus({preventScroll: true});

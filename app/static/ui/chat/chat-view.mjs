@@ -1,7 +1,7 @@
 import {animateDetails} from '../shared/details-anim.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125p';
-import {stepCard} from './chat-steps.mjs?v=20261125p';
+import {icon} from '../shared/icons.mjs?v=20261125s';
+import {stepCard} from './chat-steps.mjs?v=20261125s';
 
 export function fileDropZone({label, hint, accept = '', multiple = false, onFiles}) {
   const input = el('input', {type: 'file', hidden: true, accept, multiple,
