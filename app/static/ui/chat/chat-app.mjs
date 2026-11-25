@@ -1,20 +1,20 @@
 import {el, isAscii} from '../shared/dom.mjs?v=20261120au';
 import {saveLanguage, takeDraft} from '../shared/handoff.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125x';
+import {icon} from '../shared/icons.mjs?v=20261125y';
 import {LANGUAGE_CODES, languageName} from '../shared/languages.mjs?v=20261120au';
 import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261125x';
-import {chatPreview} from './chat-stream.mjs?v=20261125x';
-import {chatTask} from './chat-task.mjs?v=20261125x';
-import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261125x';
+import {label} from './chat-copy.mjs?v=20261125y';
+import {chatPreview} from './chat-stream.mjs?v=20261125y';
+import {chatTask} from './chat-task.mjs?v=20261125y';
+import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261125y';
 import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261125f';
-import {bindSidebarSpring} from './chat-spring.mjs?v=20261125x';
-import {refreshStepCard} from './chat-steps.mjs?v=20261125x';
-import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125x';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125x';
+import {bindSidebarSpring} from './chat-spring.mjs?v=20261125y';
+import {refreshStepCard} from './chat-steps.mjs?v=20261125y';
+import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125y';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125y';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -582,6 +582,16 @@ function paint() {
   if (stickTrace) trace.scrollTop = trace.scrollHeight;
   paintComposer();
 }
+
+window.addEventListener('binaryrepair:assistant-focus', event => {
+  const chat = engine.chats.get(event.detail?.chatId);
+  if (!chat) return;
+  select(chat);
+  jump();
+  nodes.input.focus({preventScroll: true});
+});
+
+window.addEventListener('binaryrepair:new-chat', () => newChat());
 
 media.addEventListener('change', () => {
   if (!media.matches && nodes.navDialog.open) nodes.navDialog.close();

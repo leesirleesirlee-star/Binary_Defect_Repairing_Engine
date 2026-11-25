@@ -823,3 +823,26 @@ p.activity-row { display: flex; gap: .4rem; align-items: center; color: var(--mu
 
 .assistant-suggestions { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .55rem; }
 .assistant-suggestions .control { font-size: .72rem; min-height: 1.8rem; }
+
+/* Grounded assistant replies: readable structure, not raw markdown. */
+.markdown-body { white-space: normal; line-height: 1.62; }
+.markdown-body p { margin: .35rem 0; }
+.markdown-body h4.md-heading {
+  margin: .85rem 0 .35rem; color: var(--accent); font-size: .82rem;
+  font-weight: 700; letter-spacing: .01em;
+}
+.markdown-body h4.md-heading:first-child { margin-top: 0; }
+.markdown-body strong { color: var(--text); font-weight: 700; }
+.markdown-body .md-list { margin: .35rem 0 .5rem; padding-inline-start: 1.1rem; }
+.markdown-body .md-list li { margin: .22rem 0; }
+.markdown-body .md-list li::marker { color: var(--accent); }
+.markdown-body code {
+  border: 1px solid var(--line); border-radius: .3rem; padding: .02rem .28rem;
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  font: .76em ui-monospace, monospace;
+}
+.assistant-actions .control.assistant-chip {
+  border: 1px solid var(--line); border-radius: 999px; padding: .14rem .62rem;
+  min-height: 1.8rem; color: var(--muted); font-size: .7rem;
+}
+.assistant-actions .control.assistant-chip:hover { color: var(--accent); border-color: var(--accent); }

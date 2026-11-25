@@ -1,7 +1,7 @@
 import {animateDetails} from '../shared/details-anim.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261125x';
-import {stepCard} from './chat-steps.mjs?v=20261125x';
+import {icon} from '../shared/icons.mjs?v=20261125y';
+import {stepCard} from './chat-steps.mjs?v=20261125y';
 
 export function fileDropZone({label, hint, accept = '', multiple = false, onFiles}) {
   const input = el('input', {type: 'file', hidden: true, accept, multiple,
@@ -365,8 +365,11 @@ function genOutcome(p, t, chat, engine) {
   const suggestions = ['askWhyRejected', 'askWhatChanged', 'askHowToPass', 'askEvidence'];
   if (chat?.jobId && engine?.assistantTurn) {
     children.push(el('div', {class: 'assistant-suggestions', role: 'group'},
-      suggestions.map(key => control(t(key), () =>
-        engine.assistantTurn(chat, t(key), chat.locale)))));
+      suggestions.map(key => control(t(key), () => {
+        engine.assistantTurn(chat, t(key), chat.locale);
+        window.dispatchEvent(new CustomEvent('binaryrepair:assistant-focus',
+          {detail: {chatId: chat.id}}));
+      }))));
   }
   return genCard('outcome', 'check',
     rejected || failed ? t('repairNotAccepted') : t('repairComplete'),
@@ -377,6 +380,56 @@ const ASSISTANT_ACTION_KEYS = {
   attach: 'attachBinary', start: 'start', continue: 'continue', rerun: 'rerun',
   change_scope: 'change_scope', download: 'download', evidence: 'evidence', retry: 'retry',
 };
+
+function inlineMarkdown(text) {
+  const parts = String(text ?? '').split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+  return parts.map(part => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return el('strong', {}, part.slice(2, -2));
+    }
+    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+      return el('code', {}, part.slice(1, -1));
+    }
+    return document.createTextNode(part);
+  });
+}
+
+function renderMarkdown(text) {
+  const body = el('div', {class: 'message-body markdown-body'});
+  const lines = String(text ?? '').replace(/\r/g, '').split('\n');
+  let list = null;
+  let paragraph = [];
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    body.append(el('p', {}, ...inlineMarkdown(paragraph.join(' '))));
+    paragraph = [];
+  };
+  const closeList = () => { if (list) { body.append(list); list = null; } };
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) { flushParagraph(); closeList(); continue; }
+    const heading = line.match(/^#{1,4}\s+(.+)$/) ||
+      (/^\*\*[^*]+\*\*$/.test(line) ? [null, line.slice(2, -2)] : null);
+    if (heading) {
+      flushParagraph(); closeList();
+      body.append(el('h4', {class: 'md-heading'}, ...inlineMarkdown(heading[1])));
+      continue;
+    }
+    const bullet = line.match(/^[-*]\s+(.+)$/);
+    const numbered = line.match(/^\d+[.)]\s+(.+)$/);
+    if (bullet || numbered) {
+      flushParagraph();
+      if (!list) list = el('ul', {class: 'md-list'});
+      list.append(el('li', {}, ...inlineMarkdown((bullet || numbered)[1])));
+      continue;
+    }
+    closeList();
+    paragraph.push(line);
+  }
+  flushParagraph(); closeList();
+  if (!body.childNodes.length) body.append(el('p', {}, text || ''));
+  return body;
+}
 
 function assistantActionLabel(action, t) {
   if (action.label) return action.label;
@@ -587,10 +640,18 @@ export function renderItem(item, ctx) {
           el('span', {class: 'assistant-avatar'}, icon('info', 14)),
           el('strong', {}, t('assistant')),
           el('span', {class: 'assistant-mode-pill', 'data-mode': p.mode || 'deterministic'}, mode)),
-        el('p', {class: 'message-body'}, p.reply),
+        renderMarkdown(p.reply),
         (p.actions || []).length ? el('div', {class: 'assistant-actions'},
-          (p.actions || []).map(action => el('span', {class: 'assistant-chip',
-            'data-kind': action.kind}, assistantActionLabel(action, t)))) : null);
+          (p.actions || []).map(action => control(assistantActionLabel(action, t),
+            () => engine.assistantAction?.(chat, action),
+            {className: 'assistant-chip', 'data-kind': action.kind}))) : null,
+        el('div', {class: 'assistant-suggestions', role: 'group'},
+          ['askWhyRejected', 'askWhatChanged', 'askHowToPass', 'askEvidence'].map(key =>
+            control(t(key), () => {
+              engine.assistantTurn?.(chat, t(key), chat.locale);
+              window.dispatchEvent(new CustomEvent('binaryrepair:assistant-focus',
+                {detail: {chatId: chat.id}}));
+            }))));
     }
     case 'g4_analysis': return genAnalysis(p, t);
     case 'g4_g2': return genG2(p, t);

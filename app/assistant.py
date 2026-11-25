@@ -50,8 +50,12 @@ SYSTEM_PROMPT = (
     "changed, what the persisted journal shows, which artifacts exist, and what concrete next "
     "step is possible. Answer the exact question: if it asks what changed, describe the patch in "
     "prose; if it asks why, lead with the failed criteria; if it asks next steps, give concrete "
-    "conditions. Lead with a one-sentence conclusion and use short bullets. Do not paste long hex "
-    "byte blobs or raw code. Quote exact criterion ids (V0-identity ... V5-reapply), verdict words, "
+    "conditions. Use at most four sections: 结论 (one sentence), 关键原因 (at most three bullets), "
+    "按需的补充说明, and 下一步操作建议 (detailed numbered steps). Do not dump the full check table, "
+    "artifact list, manifest fields or code when the question does not ask for them. Make the "
+    "final '下一步操作建议' section the longest and most concrete. Do not paste long hex byte "
+    "blobs or raw code. Quote exact criterion ids "
+    "(V0-identity ... V5-reapply), verdict words, "
     "limitations, journal error codes and artifact filenames when present. Never infer a verdict "
     "that is absent; only quote context.verdict. Never claim a guest observation, successful run, "
     "or source-level fact that is not in the context. If the context is insufficient, state what "
@@ -606,6 +610,20 @@ def _diagnostic_fallback(
         if candidate:
             lines.append(f"候选程序 sha256：{candidate}。")
 
+    # The final section is intentionally the most concrete: users often do not
+    # know what a verifier failure means operationally.
+    next_steps: list[str] = ["**下一步操作建议**"]
+    if "V0-identity" in failures_text:
+        next_steps.append("1. 在 Windows/WSL2 的现场 guest 中，对当前 candidate 重新执行冻结 corpus，生成与 candidate 哈希一致的 observations；本机 macOS 无法替代这一步。")
+    if "V4-boundary" in failures_text:
+        next_steps.append("2. 检查 cave 末尾是否存在“比较输入长度后跳回原 copy 目标”的可识别 rel32 布局；验证器只做有界字节模式匹配，识别不到不会自动判 pass。")
+    if "V1-structure" in failures_text:
+        next_steps.append("2. 用 edit-manifest.json 逐项核对段权限、重定位、入口和 PT_LOAD，保持冻结契约不变。")
+    if not failures_text:
+        next_steps.append("1. 当前必需判据没有失败项；重新运行 verifier 并确认 verdict finalized，再下载 candidate 和 verdict。")
+    next_steps.append("3. 修正后重新运行完整流程，不要只重跑 UI；先确认 repair 产物，再确认 verify 的 V0–V4。")
+    next_steps.append("4. 最后打开 verdict.json 核对 verdict 与 limitations，并下载 candidate.elf、edit-manifest.json 和 verdict.json 留档。")
+    lines.extend(["", *next_steps])
     lines.append("以上内容全部来自已持久化的任务、verdict、manifest 和 journal，不是新的验证结论。")
     actions = [_action(locale, "download")] if (artifacts or extra.get("artifacts")) else []
     actions.append(_action(locale, "evidence"))

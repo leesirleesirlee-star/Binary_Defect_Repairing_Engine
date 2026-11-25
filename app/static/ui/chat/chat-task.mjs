@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125x';
+import {label} from './chat-copy.mjs?v=20261125y';
 
 const newId = () => crypto.randomUUID();
 const autoTitle = (chat, value) => {
@@ -229,6 +229,41 @@ export function chatTask({notify = () => {}} = {}) {
       locale);
   }
 
+
+  function assistantAction(chat, action) {
+    const kind = String(action?.kind || '');
+    if (kind === 'download' || kind === 'evidence') {
+      if (chat.jobId) {
+        window.location.href = '/ui/#task/' + encodeURIComponent(chat.jobId);
+      } else {
+        say(chat, t(chat.locale, '当前还没有可打开的持久化证据。',
+          'No persisted evidence is available yet.'));
+      }
+      return;
+    }
+    if (kind === 'rerun' || kind === 'retry') {
+      if (!chat.jobId) return;
+      say(chat, t(chat.locale, '正在重新启动 AI 现场审计；完成后请重新选择方案。',
+        'Restarting the live AI audit; choose a plan again when it finishes.'));
+      window.dispatchEvent(new CustomEvent('binaryrepair:assistant-focus',
+        {detail: {chatId: chat.id}}));
+      void startLiveAudit(chat, 0, true);
+      return;
+    }
+    if (kind === 'change_scope') {
+      say(chat, t(chat.locale,
+        '冻结契约不能在原任务上修改；已为你新建一个修复对话，请在新对话上传新的二进制和用例。',
+        'A frozen contract cannot be changed in place; a new repair conversation is ready for a new binary and cases.'));
+      window.dispatchEvent(new CustomEvent('binaryrepair:new-chat'));
+      return;
+    }
+    if (kind === 'attach') {
+      document.querySelector('input[type="file"]')?.click();
+      return;
+    }
+    window.dispatchEvent(new CustomEvent('binaryrepair:assistant-focus',
+      {detail: {chatId: chat.id}}));
+  }
 
   async function assistantTurn(chat, text, locale, model = null) {
     if (!chat.jobId) return;
@@ -516,17 +551,18 @@ export function chatTask({notify = () => {}} = {}) {
     }
   }
 
-  async function startLiveAudit(chat, retry = 0) {
+  async function startLiveAudit(chat, retry = 0, rerun = false) {
     if (!chat.jobId || chat.liveRunning) return;
     chat.auditMode = 'live';
     chat.ended = null;
+    if (rerun) { chat.audit = null; chat.verdict = null; chat.runEnd = null; }
     chat.liveGuest = false;
     chat.guestAvailable = chat.audit?.guest_available !== false;
     chat.liveRunning = true;
     chat.liveFailureNotified = false;
     emitLiveAudit(chat);
     try {
-      await api(`/api/tasks/${chat.jobId}/audit/live`, {method: 'POST', body: {}});
+      await api(`/api/tasks/${chat.jobId}/audit/live`, {method: 'POST', body: {rerun}});
     } catch (error) {
       const code = error.detail?.code || error.message || 'audit_failed';
       emitLiveAudit(chat, {error: code});
@@ -937,7 +973,7 @@ export function chatTask({notify = () => {}} = {}) {
 
   function deactivate() {}
 
-  return {chats, live: true, taskMode: true, create, send, sendFixture, decide, assistantTurn,
+  return {chats, live: true, taskMode: true, create, send, sendFixture, decide, assistantTurn, assistantAction,
     probeBinary, submitCases, serialize, restoreHistory, activate,
     startLiveAudit, selectLivePlan, startLivePlan, setLiveMode, setLiveGuest,
     start: async () => {}, stop, seed, activate, deactivate};
