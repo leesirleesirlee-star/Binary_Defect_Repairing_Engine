@@ -172,7 +172,7 @@ def list_tasks(limit: int = 50) -> dict[str, Any]:
                 and not live_audit.is_active(task["id"]):
             task["live_audit"] = {**live, "status": "stale"}
         execution = task.get("execution")
-        if isinstance(execution, dict) and execution.get("status") in {"running", "queued"} \
+        if isinstance(execution, dict) and execution.get("status") == "running" \
                 and not _process_alive(execution.get("pid")):
             task["execution"] = {**execution, "status": "stale", "terminal": True}
     return {"tasks": rows}
