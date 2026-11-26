@@ -1,11 +1,11 @@
 // G1–G4 archive detail: one repair run with its verdict and downloadable evidence.
-import {el} from '../shared/dom.mjs?v=20261125c';
-import {icon} from '../shared/icons.mjs?v=20261125c';
+import {el} from '../shared/dom.mjs?v=20261126b';
+import {icon} from '../shared/icons.mjs?v=20261126b';
 
 const text = (locale, en, zh) => locale === 'zh-Hans' ? zh : en;
 
 export function g4TaskView(ctx) {
-  const {t, language, job, data = {}} = ctx;
+  const {t, language, job, data = {}, api} = ctx;
   const g4 = job.g4 || {};
   const finding = g4.finding || {};
   const counts = g4.cases?.counts || {};
@@ -26,8 +26,26 @@ export function g4TaskView(ctx) {
         el('span', {class: 'badge'}, t(job.phase)),
         outcome ? el('span', {class: 'badge'}, outcome) : null),
       el('h1', {}, job.defect || taskId)),
-    el('a', {class: 'button subtle', href: conversation}, icon('chat', 16),
-      text(language, 'New repair', '新建修复')));
+    el('div', {class: 'inline'},
+      api?.writable ? el('button', {class: 'button subtle danger', type: 'button',
+        onclick: async () => {
+          if (!window.confirm(t('deleteConfirm'))) return;
+          try {
+            await api.remove(job.id);
+            try {
+              const key = 'binaryrepair.chat.sessions.v1';
+              const saved = JSON.parse(localStorage.getItem(key) || 'null');
+              if (saved?.chats) {
+                saved.chats = saved.chats.filter(chat => chat.jobId !== job.id);
+                localStorage.setItem(key, JSON.stringify(saved));
+              }
+            } catch { /* browser history is best-effort */ }
+            location.assign('/ui/');
+          }
+          catch (error) { window.alert(error?.code || error?.message || t('readError')); }
+        }}, icon('x', 16), t('delete')) : null,
+      el('a', {class: 'button subtle', href: conversation}, icon('chat', 16),
+        text(language, 'New repair', '新建修复'))));
 
   const verdictSection = el('section', {class: 'card'}, el('h2', {}, t('verdict')),
     outcome ? el('div', {class: 'verdict'}, el('span', {class: 'verdict-label'}, outcome),

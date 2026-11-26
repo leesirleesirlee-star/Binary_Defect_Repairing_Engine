@@ -1,8 +1,8 @@
-import {badge, button, date, el, isAscii, notice, taskHref} from '../shared/dom.mjs?v=20261125c';
-import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261125c';
-import {LANGUAGES, languageName} from '../shared/languages.mjs?v=20261125c';
-import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261125c';
-import {icon} from '../shared/icons.mjs?v=20261125c';
+import {badge, button, date, el, isAscii, notice, taskHref} from '../shared/dom.mjs?v=20261126b';
+import {enableDialogCloseMotion} from '../shared/dialog-motion.mjs?v=20261126b';
+import {LANGUAGES, languageName} from '../shared/languages.mjs?v=20261126b';
+import {openSettingsDialog} from '../shared/settings-dialog.mjs?v=20261126b';
+import {icon} from '../shared/icons.mjs?v=20261126b';
 
 export function shell(ctx) {
   const {t, language, api, jobs, id, create, settings, switchLanguage, menuOpen, toggleMenu, search} = ctx;
@@ -45,12 +45,29 @@ export function shell(ctx) {
   return el('div', {class: 'shell' + (menuOpen ? ' nav-open' : '')}, rail, el('div', {class: 'shell-body'}, top, main));
 }
 
-const inProgress = new Set(['queued', 'screening', 'repair', 'verification', 'running', 'waiting_for_executor']);
 const finished = new Set(['done', 'completed', 'failed', 'cancelled', 'verified', 'unsupported']);
 const phase = job => job.execution?.status === 'waiting_for_executor' ? job.execution.status : job.phase;
-const listFilter = (jobs, filter, text) => jobs.filter(job =>
-  (filter === 'all' || (filter === 'active' ? inProgress : finished).has(job.phase)) &&
-  (job.id + ' ' + (job.defect ?? '')).toLowerCase().includes(text.toLowerCase().trim()));
+const isRunning = job => job.phase === 'running' || job.phase === 'queued' ||
+  job.live_audit?.status === 'running' ||
+  ['running', 'queued', 'waiting_for_executor'].includes(job.execution?.status);
+// Rows that were running while the user was watching stay visible after they
+// finish, until the archive page is closed and reopened.
+const activeSticky = new Map();
+const matches = (job, text) =>
+  (job.id + ' ' + (job.defect ?? '')).toLowerCase().includes(text.toLowerCase().trim());
+const listFilter = (jobs, filter, text) => {
+  if (filter === 'active') {
+    const byId = new Map(jobs.map(job => [job.id, job]));
+    for (const job of jobs) if (isRunning(job)) activeSticky.set(job.id, job);
+    for (const [id, old] of activeSticky) {
+      byId.set(id, byId.get(id) || old);
+      if (byId.get(id)) activeSticky.set(id, byId.get(id));
+    }
+    return [...byId.values()].filter(job => isRunning(job) || activeSticky.has(job.id))
+      .filter(job => matches(job, text));
+  }
+  return jobs.filter(job => (filter === 'all' || finished.has(job.phase)) && matches(job, text));
+};
 
 export function tasksView(ctx) {
   const {t, language, jobs, api, listError, loading, create, filter, query, setFilter, setQuery, reload} = ctx;
@@ -84,14 +101,37 @@ export function tasksView(ctx) {
       visible.length ? el('div', {class: 'table-head'}, el('span', {}, t('description')),
         el('span', {}, t('status')), el('span', {}, t('updated')), el('span')) :
         el('div', {class: 'empty'}, el('h2', {}, t('noMatches'))),
-      ...visible.map(job => el('a', {class: 'task-row', href: taskHref(job.id)}, el('span', {class: 'task-title'},
-        job.defect || job.id, el('small', {class: 'mono'}, job.id)),
-        el('span', {class: 'inline'}, badge(phase(job), t), job.outcome ? badge(job.outcome, t) : null),
-        date(job.updated_at ?? job.created_at, language), el('span', {class: 'arrow'}, icon('chevron', 16)))));
+      ...visible.map(job => el('div', {class: 'task-row-wrap'},
+        el('a', {class: 'task-row', href: taskHref(job.id)}, el('span', {class: 'task-title'},
+          job.defect || job.id, el('small', {class: 'mono'}, job.id)),
+          el('span', {class: 'inline'}, badge(phase(job), t),
+            job.outcome ? badge(job.outcome, t) : null),
+          date(job.updated_at ?? job.created_at, language),
+          el('span', {class: 'arrow', 'aria-hidden': 'true'}, icon('chevron', 16))),
+        api.writable ? button('', async event => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!window.confirm(t('deleteConfirm'))) return;
+          try {
+            await api.remove(job.id);
+            activeSticky.delete(job.id);
+            try {
+              const key = 'binaryrepair.chat.sessions.v1';
+              const saved = JSON.parse(localStorage.getItem(key) || 'null');
+              if (saved?.chats) {
+                saved.chats = saved.chats.filter(chat => chat.jobId !== job.id);
+                localStorage.setItem(key, JSON.stringify(saved));
+              }
+            } catch { /* browser history is best-effort */ }
+            await reload();
+          } catch (error) { window.alert(error?.code || error?.message || t('readError')); }
+        }, {className: 'delete-task', 'aria-label': t('delete'), glyph: 'x'}) : null)));
   };
   update();
   return el('div', {class: 'page'},
-    el('div', {class: 'section-head'}, heading, newRepair),
+    el('div', {class: 'section-head'}, heading,
+      el('div', {class: 'actions'}, button(t('refresh'), reload, {glyph: 'refresh', className: 'subtle'}),
+        newRepair)),
     el('div', {class: 'controls'},
       el('div', {class: 'segments', role: 'group', 'aria-label': t('filterLabel')}, filterButtons),
       el('div', {class: 'search'}, icon('search', 15), input)),

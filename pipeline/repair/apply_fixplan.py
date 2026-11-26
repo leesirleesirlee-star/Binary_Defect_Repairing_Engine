@@ -132,7 +132,7 @@ def _build_manifest(
     cave_vaddr = plan.cave_vaddr
     if cave_vaddr is None:
         raise ApplyError("plan has no cave")
-    cave_edits = [item for item in resolved if item["kind"] in {"code", "data"}]
+    cave_edits = [item for item in resolved if item["kind"] in {"code", "guard_stub", "data"}]
     if not cave_edits:
         raise ApplyError("plan has no code/data cave edits")
     cave_start = min(item["address"] for item in cave_edits)
@@ -150,7 +150,7 @@ def _build_manifest(
     for item in cave_edits:
         offset = item["address"] - cave_vaddr
         blob[offset:offset + item["size"]] = item["new_bytes"]
-        if item["kind"] == "code":
+        if item["kind"] in {"code", "guard_stub"}:
             code_size += item["size"]
         else:
             message_size += item["size"]
@@ -354,7 +354,9 @@ def _build_candidate_record(
         },
         "edits_applied": [
             {
-                "kind": item["kind"],
+                # CandidateV1 schema v1 predates guard_stub; it is a code
+                # edit and the exact kind is preserved in EditManifestV1.
+                "kind": "code" if item["kind"] == "guard_stub" else item["kind"],
                 "address": _hex(item["address"]),
                 "file_offset": item["file_offset"],
                 "size": item["size"],

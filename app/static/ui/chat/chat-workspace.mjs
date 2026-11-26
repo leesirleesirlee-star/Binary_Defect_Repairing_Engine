@@ -1,8 +1,8 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261120au';
-import {control} from './chat-view.mjs?v=20261125b';
-import {createProgress} from './chat-progress.mjs?v=20261125b';
-import {createStepGroups, disclosure} from './chat-steps.mjs?v=20261125b';
+import {icon} from '../shared/icons.mjs?v=20261126b';
+import {control} from './chat-view.mjs?v=20261128c';
+import {createProgress} from './chat-progress.mjs?v=20261128c';
+import {createStepGroups, disclosure} from './chat-steps.mjs?v=20261128c';
 import {motionReduced} from '../shared/motion.mjs?v=20261120au';
 
 // Revision 2.4: keep the v1.2.2 execution pane architecture (milestones +
@@ -45,8 +45,9 @@ function taskLaneStates(chat) {
   const a = [
     chat.bound ? 'completed' : chat.request ? 'in_progress' : 'pending',
     chat.run ? (chat.runEnd ? 'completed' : 'in_progress') : (chat.bound ? 'in_progress' : 'pending'),
-    chat.verdict?.available && chat.verdict?.finalized ? 'completed'
-      : chat.runEnd ? (chat.runEnd.execution === 'completed' ? 'in_progress' : 'failed') : 'pending',
+    chat.verdict?.available && chat.verdict?.finalized
+      ? (chat.verdict.verdict === 'verified_against_stated_criteria' ? 'completed' : 'failed')
+      : chat.runEnd ? 'failed' : 'pending',
   ];
   return {route_a: a, route_b: ['not_run', 'not_run', 'not_run']};
 }
@@ -76,16 +77,57 @@ export function createExecution(t, showConversation, taskMode = false) {
   const progress = createProgress(t);
   const inspect = control(t('details'), () => toggleInspect(),
     {tone: 'inspect-before-run-button', 'aria-controls': 'execution-content', 'aria-expanded': 'false'});
+  // `inspect-before-run` is the expanded state of the pre-run layout; the
+  // running/finished layout opens expanded by default and `execution-compact`
+  // is its collapsed state. Either way this header button resizes the split.
+  const COMPACT = 'execution-compact';
   function toggleInspect() {
     const workspace = panel.closest('.workspace');
     if (!workspace) return;
+    const ease = 'cubic-bezier(.42, 0, .58, 1)';
+    if (!workspace.classList.contains('before-run')) {
+      const compact = !workspace.classList.contains(COMPACT);
+      const settleCompact = value => {
+        workspace.classList.toggle(COMPACT, value);
+        inspect.setAttribute('aria-expanded', String(!value));
+      };
+      if (motionReduced()) { settleCompact(compact); return; }
+      const gridBefore = getComputedStyle(workspace).gridTemplateColumns;
+      if (compact) {
+        const height = scroll.getBoundingClientRect().height;
+        scroll.style.overflow = 'hidden';
+        const animation = scroll.animate([
+          {height: `${height}px`, opacity: 1},
+          {height: '0px', opacity: 0},
+        ], {duration: 340, easing: ease});
+        animation.onfinish = animation.oncancel = () => {
+          scroll.style.overflow = '';
+          settleCompact(true);
+          const gridAfter = getComputedStyle(workspace).gridTemplateColumns;
+          workspace.animate([{gridTemplateColumns: gridBefore}, {gridTemplateColumns: gridAfter}],
+            {duration: 460, easing: ease});
+        };
+      } else {
+        settleCompact(false);
+        const height = scroll.getBoundingClientRect().height;
+        scroll.style.overflow = 'hidden';
+        const gridAfter = getComputedStyle(workspace).gridTemplateColumns;
+        workspace.animate([{gridTemplateColumns: gridBefore}, {gridTemplateColumns: gridAfter}],
+          {duration: 460, easing: ease});
+        const animation = scroll.animate([
+          {height: '0px', opacity: 0},
+          {height: `${height}px`, opacity: 1},
+        ], {duration: 460, easing: ease});
+        animation.onfinish = animation.oncancel = () => { scroll.style.overflow = ''; };
+      }
+      return;
+    }
     const expanded = !workspace.classList.contains('inspect-before-run');
     const settle = value => {
       workspace.classList.toggle('inspect-before-run', value);
       inspect.setAttribute('aria-expanded', String(value));
     };
     if (motionReduced()) { settle(expanded); return; }
-    const ease = 'cubic-bezier(.42, 0, .58, 1)';
     const gridBefore = getComputedStyle(workspace).gridTemplateColumns;
     if (expanded) {
       settle(true);

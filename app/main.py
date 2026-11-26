@@ -69,6 +69,20 @@ app.include_router(api_router)
 app.mount("/ui", StaticFiles(directory=UI_ROOT, html=True), name="ui")
 
 
+@app.middleware("http")
+async def no_cache_ui_html(request, call_next):
+    """The console is a local app; never let a stale HTML shell hide fixes."""
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/ui"):
+        response.headers["Cache-Control"] = (
+            "no-store, max-age=0"
+            if response.headers.get("content-type", "").startswith("text/html")
+            else "no-cache, max-age=0, must-revalidate"
+        )
+    return response
+
+
 @app.get("/healthz")
 def healthz() -> dict[str, bool]:
     return {"ok": True}

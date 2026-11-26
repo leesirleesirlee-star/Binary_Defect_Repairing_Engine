@@ -1,4 +1,4 @@
-import {extraLabels} from './labels-extra.mjs?v=20261125c';
+import {extraLabels} from './labels-extra.mjs?v=20261126b';
 
 // Pair each display string with its Simplified Chinese translation.
 const labels = {
@@ -33,6 +33,10 @@ const labels = {
   taskLoading: ['Loading task…', '正在加载任务…'],
   taskMissing: ['Task unavailable', '任务不可用'],
   retry: ['Retry', '重试'],
+  refresh: ['Refresh', '刷新'],
+  delete: ['Delete', '删除'],
+  deleteConfirm: ['Delete this task and its journal/artifacts?', '删除该任务及其事件日志/产物？'],
+  deleted: ['Task deleted.', '任务已删除。'],
   session: ['Open BinaryRepair from the local launcher.', '请从本地启动器打开 BinaryRepair。'],
   unavailable: ['The task service is unavailable.', '任务服务不可用。'],
   artifactUnavailable: ['This artifact is missing or failed its integrity check.', '产物文件缺失或完整性校验失败。'],
@@ -116,6 +120,8 @@ const labels = {
   route_b: ['Route B', '路线 B'],
   waiting_for_executor: ['Waiting for executor', '等待执行器'],
   draft: ['Draft', '草稿'],
+  plans_ready: ['Plans ready', '待选择方案'],
+  plan_selected: ['Plan selected', '已选方案'],
   awaiting_review: ['Awaiting review', '待审阅'],
   queued: ['Queued', '已排队'],
   screening: ['Screening', '筛查中'],

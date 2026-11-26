@@ -4,15 +4,24 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261125b';
+import {label} from './chat-copy.mjs?v=20261128c';
 
 const newId = () => crypto.randomUUID();
+const autoTitle = (chat, value) => {
+  const title = String(value || '').trim();
+  if (title && !chat.titleIsCustom) {
+    chat.title = title.slice(0, 120);
+    chat.titleKey = null;
+  }
+};
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const t = (locale, zh, en) => locale === 'zh-Hans' ? zh : en;
 
 export function chatTask({notify = () => {}} = {}) {
   const chats = new Map();
   let sessionPromise = null;
+  // Active tool calls per chat; sizes the pet's busy level (SPEC section 6).
+  const toolCounts = new Map();
 
   function create() {
     const chat = {
@@ -36,6 +45,71 @@ export function chatTask({notify = () => {}} = {}) {
     } catch { /* no DOM in unit contexts */ }
   }
 
+  // Feed the optional Clawd pet contract. The pet is decorative, so every call
+  // is optional-chained and guarded: a pet failure can never break the chat.
+  function petSignal(patch) {
+    if (!patch) return;
+    try { globalThis.BinaryRepairPet?.signal?.(patch); } catch { /* pet is decorative */ }
+  }
+
+  function toolCount(chat) {
+    return Math.max(0, Number(toolCounts.get(chat.id)) || 0);
+  }
+
+  // Map this engine's events onto one pet snapshot patch (see SPEC section 6).
+  // Returns null when the event should not move the pet.
+  function petPatch(chat, type, payload) {
+    const p = payload || {};
+    if (type === 'run_state') {
+      const status = p.status;
+      if (status === 'running' || status === 'cancelling') {
+        return {activity: 'thinking', awaiting: false, busy: 0};
+      }
+      if (status === 'queued' || status === 'waiting_for_executor') {
+        return {activity: 'thinking', awaiting: false};
+      }
+      if (status === 'awaiting_user') return {awaiting: true, activity: 'idle'};
+      if (status === 'completed') {
+        toolCounts.delete(chat.id);
+        return {activity: 'idle', awaiting: false, moment: 'attention'};
+      }
+      if (status === 'failed' || status === 'cancelled' || status === 'unsupported') {
+        // `unsupported` is the read-only analysis outcome written by finish();
+        // it is terminal like a failure, so the pet settles the same way.
+        toolCounts.delete(chat.id);
+        return {activity: 'idle', awaiting: false, moment: 'error'};
+      }
+      return null;
+    }
+    if (type === 'assistant_delta') {
+      return {activity: 'working', busy: Math.max(1, toolCount(chat) + 1)};
+    }
+    if (type === 'assistant_reply') return {activity: 'working', busy: 1};
+    if (type === 'assistant_end') return {activity: 'thinking'};
+    if (type === 'thinking') {
+      return p.phase === 'started' ? {activity: 'thinking'} : null;
+    }
+    if (type === 'error') return {moment: 'error'};
+    if (type === 'awaiting_user') return {awaiting: true};
+    if (type === 'tool_call' || type === 'tool_result') {
+      const next = Math.max(0, toolCount(chat) + (type === 'tool_call' ? 1 : -1));
+      toolCounts.set(chat.id, next);
+      return {activity: 'working', busy: Math.max(1, next)};
+    }
+    if (type === 'g4_live_audit') {
+      const live = p.live_audit?.status;
+      if (live === 'running') return {activity: 'working', busy: 1};
+      if (live === 'completed') return {moment: 'attention'};
+      if (live === 'failed') return {moment: 'error'};
+      return null;
+    }
+    if (type === 'g4_progress') return {activity: 'working', busy: 1};
+    if (type === 'user_message' || type === 'user_response') {
+      return {activity: 'thinking', awaiting: false};
+    }
+    return null;
+  }
+
   function event(chat, type, payload, step = null, run = chat.run) {
     const entry = {
       version: 1, type, conversation_id: chat.id, seq: String(chat.events.length + 1),
@@ -43,6 +117,30 @@ export function chatTask({notify = () => {}} = {}) {
     };
     chat.events.push(entry);
     notify(chat, entry);
+    try {
+      let pet = null;
+      if (type === 'run_state') {
+        const status = payload?.status;
+        pet = status === 'running' || status === 'cancelling' ? 'running'
+          : status === 'completed' ? 'happy'
+            : status === 'failed' || status === 'cancelled' ? 'error'
+              : status === 'queued' || status === 'waiting_for_executor' ? 'waiting' : null;
+      } else if (type === 'error') pet = 'error';
+      else if (type === 'assistant_reply') pet = 'happy';
+      else if (type === 'assistant_delta') pet = 'thinking';
+      else if (type === 'thinking' && payload?.phase === 'started') pet = 'thinking';
+      else if (type === 'g4_live_audit') {
+        const live = payload?.live_audit?.status;
+        pet = live === 'running' ? 'thinking' : live === 'completed' ? 'happy'
+          : live === 'failed' ? 'error' : null;
+      }
+      if (pet) {
+        window.dispatchEvent(new CustomEvent('binaryrepair:pet-state',
+          {detail: {state: pet}}));
+      }
+    } catch { /* pet is decorative */ }
+    // Additive wiring: the Clawd pet also accepts explicit snapshot patches.
+    try { petSignal(petPatch(chat, type, payload)); } catch { /* pet is decorative */ }
     return entry;
   }
 
@@ -135,6 +233,7 @@ export function chatTask({notify = () => {}} = {}) {
   async function probeBinary(chat, file, locale) {
     if (['running', 'awaiting_user', 'cancel_requested'].includes(chat.phase)) return;
     chat.locale = locale;
+    autoTitle(chat, file.name);
     const messageId = newId();
     const attachmentId = newId();
     chat.attachmentNames.set(attachmentId, file.name);
@@ -152,28 +251,43 @@ export function chatTask({notify = () => {}} = {}) {
         method: 'POST',
         body: {binary_name: file.name, binary_base64: binaryBase64},
       });
-      chat.pendingBinary = {name: file.name, base64: binaryBase64, probe: data};
-      chat.title ||= file.name;
+      const supported = Boolean(data.supported);
+      chat.pendingBinary = supported ? {name: file.name, base64: binaryBase64, probe: data} : null;
+      autoTitle(chat, data.binary_name || file.name);
       chat.kind = 'repair';
       event(chat, 'binary_ready', {
         id: 'binary-' + newId(),
         binary_name: data.binary_name || file.name,
         binary_sha256: data.binary_sha256 || '',
-        supported: Boolean(data.supported),
+        supported,
         analysis_status: data.analysis_status || 'ok',
         finding: data.finding || {},
         unsupported_detail: data.unsupported_detail || null,
       }, 'collect');
+      if (!supported) {
+        // The MVP2 repair scope is the frozen stack-overflow-01 pattern. An
+        // unsupported ELF is analyzed read-only and never reaches case intake
+        // or the repair runner.
+        say(chat, t(locale,
+          '当前修复范围仅支持包含 MVP2 栈溢出模式（strcpy 调用点）的 ELF。'
+          + '该文件只完成了只读分析，不会进入用例上传或修复流程。',
+          'Repair is scoped to the MVP2 stack-overflow pattern (a strcpy call site). '
+          + 'This ELF was analyzed read-only and will not enter case intake or repair.'));
+        state(chat, 'unsupported');
+        return;
+      }
       event(chat, 'case_prompt', {
         id: 'cases-' + newId(),
         binary_name: data.binary_name || file.name,
       }, 'collect');
       state(chat, 'awaiting_cases');
     } catch (error) {
+      const problems = error.detail?.problems;
+      const detail = Array.isArray(problems) && problems.length
+        ? '\n' + problems.map(item => '• ' + item).join('\n') : '';
       say(chat, t(locale,
-        `二进制识别失败：${error.detail?.code || error.message}。请确认它是可读取的 ELF 文件。`,
-        `Binary recognition failed: ${error.detail?.code || error.message}. Confirm it is a '
-        + 'readable ELF file.`));
+        `文件不符合修复要求：${error.detail?.code || error.message}${detail}`,
+        `The file does not meet the repair requirements: ${error.detail?.code || error.message}${detail}`));
       state(chat, 'failed');
     }
   }
@@ -207,6 +321,41 @@ export function chatTask({notify = () => {}} = {}) {
   }
 
 
+  function assistantAction(chat, action) {
+    const kind = String(action?.kind || '');
+    if (kind === 'download' || kind === 'evidence') {
+      if (chat.jobId) {
+        window.location.href = '/ui/#task/' + encodeURIComponent(chat.jobId);
+      } else {
+        say(chat, t(chat.locale, '当前还没有可打开的持久化证据。',
+          'No persisted evidence is available yet.'));
+      }
+      return;
+    }
+    if (kind === 'rerun' || kind === 'retry') {
+      if (!chat.jobId) return;
+      say(chat, t(chat.locale, '正在重新启动 AI 现场审计；完成后请重新选择方案。',
+        'Restarting the live AI audit; choose a plan again when it finishes.'));
+      window.dispatchEvent(new CustomEvent('binaryrepair:assistant-focus',
+        {detail: {chatId: chat.id}}));
+      void startLiveAudit(chat, 0, true);
+      return;
+    }
+    if (kind === 'change_scope') {
+      say(chat, t(chat.locale,
+        '冻结契约不能在原任务上修改；已为你新建一个修复对话，请在新对话上传新的二进制和用例。',
+        'A frozen contract cannot be changed in place; a new repair conversation is ready for a new binary and cases.'));
+      window.dispatchEvent(new CustomEvent('binaryrepair:new-chat'));
+      return;
+    }
+    if (kind === 'attach') {
+      document.querySelector('input[type="file"]')?.click();
+      return;
+    }
+    window.dispatchEvent(new CustomEvent('binaryrepair:assistant-focus',
+      {detail: {chatId: chat.id}}));
+  }
+
   async function assistantTurn(chat, text, locale, model = null) {
     if (!chat.jobId) return;
     chat.locale = locale;
@@ -214,11 +363,18 @@ export function chatTask({notify = () => {}} = {}) {
     const messageId = newId();
     event(chat, 'user_message', {message_id: messageId, text, attachment_ids: [],
       delivery: 'accepted'}, null, null);
+    // The provider can take tens of seconds; show that the grounded evidence
+    // is being read instead of leaving the user with a silent bubble.
+    const waiting = setTimeout(() => {
+      say(chat, t(locale, '正在读取 verdict、manifest、journal 与候选产物…',
+        'Reading the verdict, manifest, journal and candidate artifacts…'));
+    }, 900);
     try {
       const data = await api(`/api/tasks/${chat.jobId}/assistant`, {
         method: 'POST',
         body: {message: text, locale, model: model || undefined},
       });
+      clearTimeout(waiting);
       chat.assistantMode = data.mode || 'deterministic';
       event(chat, 'assistant_reply', {
         message_id: newId(),
@@ -228,6 +384,7 @@ export function chatTask({notify = () => {}} = {}) {
         fallback_code: data.fallback_code || null,
       }, null, null);
     } catch {
+      clearTimeout(waiting);
       chat.assistantMode = 'deterministic';
       say(chat, t(locale,
         'AI 助手暂时不可用，已使用本地确定性回复；任务状态仍以持久化 journal 为准。',
@@ -271,9 +428,10 @@ export function chatTask({notify = () => {}} = {}) {
     event(chat, 'user_message', {
       message_id: messageId, text: clean, attachment_ids: attachmentIds, delivery: 'accepted',
     }, null, null);
-    chat.title ||= payload.binaryName;
+    autoTitle(chat, payload.binaryName);
     chat.kind = 'repair';
     chat.started = Date.now();
+    chat.ended = null;
     state(chat, 'running');
     event(chat, 'thinking', {phase: 'started'}, 'collect');
     try {
@@ -301,11 +459,10 @@ export function chatTask({notify = () => {}} = {}) {
           say(chat, t(locale,
             '分析器已完成反汇编，但没有识别到 MVP2 支持的栈溢出模式（strcpy 调用点）。'
             + '这个 ELF 不在冻结 fixture 的签名修复范围内，因此不会写入修复补丁。'
-            + '可以点下方「试用示例」用冻结 fixture 跑完整演示；你的二进制仍可作为只读分析证据保留。',
+            + '该文件只保留为只读分析证据；不会进入修复流程。',
             'The analyzer disassembled the ELF but did not find the MVP2-supported stack '
-            + 'overflow pattern (the strcpy call site). This binary is outside the frozen '
-            + 'fixture scope, so no repair patch is written. Use "Try the demo" below to run '
-            + 'the full signed-fixture demo; your binary remains as read-only analysis evidence.'));
+            + 'overflow pattern (the strcpy call site). The file remains read-only analysis '
+            + 'evidence and does not enter repair.'));
         } else {
           say(chat, t(locale,
             `这个 ELF 的 SHA-256 不是冻结 fixture（${data.task.g4?.binary_sha256?.slice(0, 12) ?? '?'}）。`
@@ -314,10 +471,6 @@ export function chatTask({notify = () => {}} = {}) {
             + 'MVP2 only patches the signed fixture; the analysis is read-only and no repair '
             + 'output is fabricated.'));
         }
-        event(chat, 'g4_actions', {
-          id: 'g4-actions-' + data.task.id,
-          actions: [{id: 'fixture', kind: 'fixture', label: t(locale, '试用示例', 'Try the demo')}],
-        }, 'export');
         finish(chat, 'unsupported');
         return;
       }
@@ -352,9 +505,9 @@ export function chatTask({notify = () => {}} = {}) {
       try {
         const audit = await api(`/api/tasks/${chat.jobId}/audit`);
         chat.audit = audit;
-        // Signed replay stays the default/acceptance path; the mode card and
-        // its replay note make clear that no model is called. Choosing live
-        // audit hides these signed plans and runs the real agent audit.
+        // Signed replay stays the default/acceptance path: the mode card and
+        // its replay note make clear that no model is called. Choosing the
+        // live audit is an explicit, optional action from that card.
         chat.auditMode = audit.audit_mode || 'signed';
         chat.liveGuest = Boolean(audit.live_guest);
         chat.guestAvailable = audit.guest_available !== false;
@@ -380,11 +533,26 @@ export function chatTask({notify = () => {}} = {}) {
     } catch (error) {
       event(chat, 'thinking', {phase: 'finished', duration_ms: 0, summary_code: 'analysis'},
         'collect');
-      const reason = error.status === 422
-        ? t(locale, '分析器无法处理这个 ELF（请确认它是可供分析器读取的 x86-64 ELF）。',
-          'The analyzer could not process this ELF (confirm it is a readable x86-64 ELF).')
-        : t(locale, `上传或分析失败：${error.message}。`,
+      const code = error.detail?.code || error.message;
+      let reason;
+      const problems = Array.isArray(error.detail?.problems) ? error.detail.problems : [];
+      if (code === 'invalid_cases' || code === 'cases_incomplete'
+          || code === 'cases_not_utf8' || code === 'invalid_case_file_type') {
+        reason = t(locale,
+          '用例文件不符合要求：需要 UTF-8 JSON，且每个文件必须包含非空 valid 和/或 '
+          + 'invalid/poc 列表；整体必须同时提供正确用例和错误用例。',
+          'Case files do not meet the requirements: UTF-8 JSON with non-empty valid '
+          + 'and/or invalid/poc lists; both valid and invalid cases are required overall.');
+        if (problems.length) reason += '\n' + problems.map(item => '• ' + item).join('\n');
+      } else if (error.status === 422) {
+        reason = t(locale,
+          '只支持冻结 stack-overflow-01 fixture 中可识别的栈溢出 ELF；本次只读分析未进入修复。',
+          'Only the known stack-overflow pattern in the frozen stack-overflow-01 fixture is '
+          + 'repairable; this upload was analyzed read-only and did not enter repair.');
+      } else {
+        reason = t(locale, `上传或分析失败：${error.message}。`,
           `Upload or analysis failed: ${error.message}.`);
+      }
       say(chat, reason);
       finish(chat, 'failed');
     }
@@ -449,22 +617,56 @@ export function chatTask({notify = () => {}} = {}) {
     }
   }
 
-  async function startLiveAudit(chat) {
+  function settleLiveAudit(chat) {
+    if (chat.liveFailureNotified) return;
+    const live = chat.audit?.live_audit || {};
+    const runs = Array.isArray(live.runs) ? live.runs : [];
+    if (live.status === 'completed' && runs.length && runs.every(run => run.selectable === false)) {
+      chat.liveFailureNotified = true;
+      const reasons = [...new Set(runs.map(run => run.select_reason).filter(Boolean))];
+      const detail = reasons.length ? reasons.join(' · ') : 'no_selectable_plan';
+      say(chat, t(chat.locale,
+        `AI 现场审计结束：${runs.length} 个方案全部无法选择。原因：${detail}；`
+        + '可继续使用回放已签 G2。',
+        `Live AI audit finished: all ${runs.length} plans are unselectable. `
+        + `Reason: ${detail}; the signed G2 replay remains available.`));
+      scheduleSave();
+      return;
+    }
+    if (live.status === 'failed' && !chat.runEnd) {
+      chat.liveFailureNotified = true;
+      say(chat, t(chat.locale,
+        `AI 现场审计失败：${live.error || 'audit_failed'}；可继续使用回放已签 G2。`,
+        `Live AI audit failed: ${live.error || 'audit_failed'}; the signed G2 replay remains available.`));
+      scheduleSave();
+    }
+  }
+
+  async function startLiveAudit(chat, retry = 0, rerun = false) {
     if (!chat.jobId || chat.liveRunning) return;
     chat.auditMode = 'live';
+    chat.ended = null;
+    if (rerun) { chat.audit = null; chat.verdict = null; chat.runEnd = null; }
     chat.liveGuest = false;
     chat.guestAvailable = chat.audit?.guest_available !== false;
     chat.liveRunning = true;
+    chat.liveFailureNotified = false;
     emitLiveAudit(chat);
     try {
-      await api(`/api/tasks/${chat.jobId}/audit/live`, {method: 'POST', body: {}});
+      await api(`/api/tasks/${chat.jobId}/audit/live`, {method: 'POST', body: {rerun}});
     } catch (error) {
       const code = error.detail?.code || error.message || 'audit_failed';
       emitLiveAudit(chat, {error: code});
+      chat.liveRunning = false;
+      if (retry < 1) {
+        say(chat, t(chat.locale, 'AI 现场审计启动失败，正在自动重试一次…',
+          'Live AI audit did not start; retrying once automatically…'));
+        await sleep(1200);
+        return startLiveAudit(chat, retry + 1);
+      }
       say(chat, t(chat.locale,
         `AI 现场审计未启动（${code}）；可继续使用回放已签 G2。`,
         `Live AI audit did not start (${code}); the signed G2 replay remains available.`));
-      chat.liveRunning = false;
       return;
     }
     const deadline = Date.now() + 600000;
@@ -481,6 +683,39 @@ export function chatTask({notify = () => {}} = {}) {
       } catch { break; }
     }
     chat.liveRunning = false;
+    const live = chat.audit?.live_audit || {};
+    const runs = Array.isArray(live.runs) ? live.runs : [];
+    if ((live.status === 'failed' || (live.status === 'completed' && runs.length !== 3))
+        && retry < 1) {
+      say(chat, t(chat.locale, 'AI 现场审计未完成，正在自动重试一次…',
+        'The live AI audit did not finish; retrying once automatically…'));
+      emitLiveAudit(chat, {error: 'retrying'});
+      await sleep(1200);
+      chat.liveFailureNotified = false;
+      return startLiveAudit(chat, retry + 1);
+    }
+    settleLiveAudit(chat);
+  }
+
+  async function resumeLiveAudit(chat) {
+    const deadline = Date.now() + 600000;
+    while (Date.now() < deadline) {
+      await sleep(800);
+      try {
+        const data = await api(`/api/tasks/${chat.jobId}/audit`);
+        const before = JSON.stringify(chat.audit?.live_audit || null);
+        chat.audit = data;
+        chat.auditMode = data.audit_mode || chat.auditMode || 'live';
+        chat.liveGuest = Boolean(data.live_guest);
+        chat.guestAvailable = data.guest_available !== false;
+        if (JSON.stringify(data.live_audit || null) !== before) emitLiveAudit(chat);
+        if (data.audit_mode === 'signed') break;
+        const status = data.live_audit?.status;
+        if (status === 'completed' || status === 'failed') break;
+      } catch { break; }
+    }
+    chat.liveRunning = false;
+    settleLiveAudit(chat);
   }
 
   async function selectLivePlan(chat, runIndex) {
@@ -506,7 +741,9 @@ export function chatTask({notify = () => {}} = {}) {
   async function startLivePlan(chat) {
     if (!chat.jobId || !chat.audit?.selected_plan) return;
     state(chat, 'running');
-    chat.started = Date.now();
+    // Keep chat.started at the binary-input moment: the flow duration covers
+    // analysis, audit, repair selection and the terminal verdict/export.
+    chat.ended = null;
     chat.auditMode = 'live';
     event(chat, 'thinking', {phase: 'started'}, 'repair');
     try {
@@ -554,7 +791,7 @@ export function chatTask({notify = () => {}} = {}) {
       scope_zh: option.scope_zh, scope_en: option.scope_en};
     event(chat, 'user_response', {request_id: requestId, decision: action}, 'report');
     state(chat, 'running');
-    chat.started = Date.now();
+    chat.ended = null;
     event(chat, 'thinking', {phase: 'started'}, 'repair');
     say(chat, t(chat.locale,
       `已绑定已签 G2 决策：${option.title_zh || option.title_en}。不重跑审计，不重新投票；`
@@ -652,13 +889,14 @@ export function chatTask({notify = () => {}} = {}) {
       revision: chat.plan?.revision ?? null,
       execution: chat.runEnd?.execution ?? null,
     }, 'report');
-    sendDownloads(chat, chat.jobId, artifacts, chat.locale, word, verdict);
+    const executionStatus = chat.runEnd?.execution || chat.phase;
+    sendDownloads(chat, chat.jobId, artifacts, chat.locale, word, verdict, executionStatus);
     const execution = chat.runEnd?.execution === 'completed' ? 'completed'
       : chat.runEnd?.execution === 'cancelled' ? 'cancelled' : 'failed';
     finish(chat, execution);
   }
 
-  function sendDownloads(chat, taskId, artifacts, locale, verdictWord, verdictPayload) {
+  function sendDownloads(chat, taskId, artifacts, locale, verdictWord, verdictPayload, executionStatus = null) {
     if (!artifacts.length) return;
     const byName = new Map(artifacts.map(item => [item.display_path, item]));
     const link = name => {
@@ -672,6 +910,7 @@ export function chatTask({notify = () => {}} = {}) {
     const verdictFile = link('verdict.json');
     event(chat, 'g4_downloads', {
       id: 'g4-downloads-' + taskId,
+      execution: executionStatus,
       verdict_word: verdictWord || null,
       verdict_reason: (verdictPayload?.limitations || []).find(line =>
         /fail|not_run|missing|unavailable/i.test(String(line))) || null,
@@ -689,7 +928,11 @@ export function chatTask({notify = () => {}} = {}) {
 
   function finish(chat, execution) {
     chat.phase = execution;
-    chat.ended = Date.now();
+    if (!chat.started) {
+      const first = chat.events.find(item => item.ts);
+      chat.started = Date.parse(chat.task?.created_at || '') || Date.parse(first?.ts || '') || Date.now();
+    }
+    if (!chat.ended) chat.ended = Date.now();
     if (chat.execution) chat.execution = {...chat.execution, terminal: true,
       status: execution};
     event(chat, 'run_state', {status: execution, message_id: null});
@@ -716,12 +959,113 @@ export function chatTask({notify = () => {}} = {}) {
     return chat;
   }
 
-  function activate() {}
+  const HISTORY_FIELDS = [
+    'phase', 'title', 'titleKey', 'jobId', 'locale', 'kind', 'run', 'started', 'ended',
+    'execution', 'journalSeq', 'plan', 'runEnd', 'auditRuns', 'g2', 'request', 'options',
+    'g4', 'task', 'contract', 'startReady', 'reviewer', 'auditMode', 'liveGuest',
+    'guestAvailable', 'bound', 'verdict', 'assistantMode', 'pendingBinary',
+    'pinned', 'archived', 'titleIsCustom',
+  ];
+
+  function clip(value, depth = 0) {
+    if (typeof value === 'string') return value.length > 4000
+      ? value.slice(0, 4000) + '…' : value;
+    if (depth > 8 || value === null || typeof value !== 'object') return value;
+    if (value instanceof Map) return [...value.entries()];
+    if (Array.isArray(value)) return value.slice(-500).map(item => clip(item, depth + 1));
+    const out = {};
+    for (const [key, item] of Object.entries(value)) {
+      if (key === 'attachmentFiles' || key === 'timer' || key === 'epoch') continue;
+      out[key] = clip(item, depth + 1);
+    }
+    return out;
+  }
+
+  function serialize() {
+    return [...chats.values()].map(chat => {
+      const out = {id: chat.id, events: clip(chat.events.slice(-500)),
+        attachmentNames: [...chat.attachmentNames.entries()],
+        attachmentFiles: chat.jobId ? [] : [...chat.attachmentFiles.entries()]};
+      for (const field of HISTORY_FIELDS) {
+        if (chat[field] !== undefined && chat[field] !== null) out[field] = clip(chat[field]);
+      }
+      return out;
+    });
+  }
+
+  function restoreHistory(items) {
+    if (!Array.isArray(items)) return;
+    const seen = new Set();
+    for (const item of items) {
+      if (!item || typeof item !== 'object' || !Array.isArray(item.events)) continue;
+      if (item.id && seen.has(item.id)) continue;
+      const chat = create();
+      const generatedId = chat.id;
+      const savedId = item.id;
+      Object.assign(chat, item);
+      chat.id = savedId || generatedId;
+      chat.events = item.events;
+      chat.attachmentNames = new Map(item.attachmentNames || []);
+      chat.attachmentFiles = new Map(item.attachmentFiles || []);
+      chat.phase = item.phase || 'idle';
+      if (generatedId !== chat.id) chats.delete(generatedId);
+      chats.set(chat.id, chat);
+      if (item.id) seen.add(item.id);
+    }
+  }
+
+  async function activate(chat) {
+    if (!chat?.jobId) return;
+    if (['completed', 'failed', 'cancelled'].includes(chat.phase)) {
+      // Older transcripts may predate the flow timer. Backfill from the
+      // persisted task so a finished conversation never collapses to 0:00.
+      if (!chat.started || !chat.ended) {
+        try {
+          const task = await api(`/api/tasks/${chat.jobId}`);
+          const execution = task.execution || {};
+          chat.started = chat.started || Date.parse(execution.started_at || task.created_at || '') || null;
+          chat.ended = chat.ended || Date.parse(execution.finished_at || task.updated_at || '') || null;
+        } catch { /* keep the stored transcript */ }
+      }
+      return;
+    }
+    try {
+      const task = await api(`/api/tasks/${chat.jobId}`);
+      chat.task = task;
+      chat.execution = task.execution || chat.execution;
+      if (chat.execution?.run_id) chat.run = chat.execution.run_id;
+      let audit = null;
+      try { audit = await api(`/api/tasks/${chat.jobId}/audit`); } catch { /* no live state */ }
+      if (audit && audit.audit_mode === 'live' && audit.live_audit?.status === 'running') {
+        chat.audit = audit;
+        chat.auditMode = 'live';
+        chat.liveRunning = true;
+        emitLiveAudit(chat);
+        void resumeLiveAudit(chat);
+        return;
+      }
+      if (audit) {
+        chat.audit = audit;
+        chat.auditMode = 'live';
+        chat.liveGuest = Boolean(audit.live_guest);
+        chat.guestAvailable = audit.guest_available !== false;
+        emitLiveAudit(chat);
+        if (audit.live_audit?.status === 'completed' || audit.live_audit?.status === 'failed') {
+          settleLiveAudit(chat);
+        }
+      }
+      if (!chat.runEnd && !chat.events.some(item => item.type === 'run_end')) {
+        await collectJournal(chat);
+        if (chat.runEnd || task.execution?.run_id) await follow(chat);
+      }
+    } catch { /* keep the restored transcript; a missing task is shown as-is */ }
+  }
+
 
   function deactivate() {}
 
-  return {chats, live: true, taskMode: true, create, send, sendFixture, decide, assistantTurn,
-    probeBinary, submitCases,
+  return {chats, live: true, taskMode: true, create, send, sendFixture, decide, assistantTurn, assistantAction,
+    probeBinary, submitCases, serialize, restoreHistory, activate,
     startLiveAudit, selectLivePlan, startLivePlan, setLiveMode, setLiveGuest,
     start: async () => {}, stop, seed, activate, deactivate};
 }

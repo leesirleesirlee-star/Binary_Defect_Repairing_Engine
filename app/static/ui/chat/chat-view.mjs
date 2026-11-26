@@ -1,7 +1,7 @@
 import {animateDetails} from '../shared/details-anim.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261120au';
-import {stepCard} from './chat-steps.mjs?v=20261125b';
+import {icon} from '../shared/icons.mjs?v=20261126b';
+import {stepCard} from './chat-steps.mjs?v=20261128c';
 
 export function fileDropZone({label, hint, accept = '', multiple = false, onFiles}) {
   const input = el('input', {type: 'file', hidden: true, accept, multiple,
@@ -361,9 +361,10 @@ function genProgress(p, t) {
         el('span', {class: 'gen-step-state'}, t(step.status) + ' · ' + step.status)))));
 }
 
-function genOutcome(p, t) {
+function genOutcome(p, t, chat, engine) {
   const links = [p.candidate, p.manifest, p.verdict_file].filter(Boolean);
   const rejected = ['rejected', 'unverified', 'unsupported', 'error'].includes(p.verdict_word);
+  const failed = !p.verdict_word && ['failed', 'cancelled'].includes(p.execution);
   const children = [];
   if (p.candidate_sha256) {
     children.push(el('p', {class: 'gen-note mono'},
@@ -377,14 +378,84 @@ function genOutcome(p, t) {
     el('a', {class: 'gen-download', href: link.href, download: '',
       title: link.sha256 ? 'sha256: ' + link.sha256 : null},
     icon('download', 16), el('span', {}, link.label)))));
-  return genCard('outcome', 'check', rejected ? t('repairNotAccepted') : t('repairComplete'),
-    p.verdict_word || t('noVerdict'), ...children);
+  const suggestions = ['askWhyRejected', 'askWhatChanged', 'askHowToPass', 'askEvidence'];
+  if (chat?.jobId && engine?.assistantTurn) {
+    children.push(el('div', {class: 'assistant-suggestions', role: 'group'},
+      suggestions.map(key => control(t(key), () => {
+        engine.assistantTurn(chat, t(key), chat.locale);
+        window.dispatchEvent(new CustomEvent('binaryrepair:assistant-focus',
+          {detail: {chatId: chat.id}}));
+      }))));
+  }
+  return genCard('outcome', 'check',
+    rejected || failed ? t('repairNotAccepted') : t('repairComplete'),
+    p.verdict_word || (failed ? t(p.execution) : t('noVerdict')), ...children);
 }
 
 const ASSISTANT_ACTION_KEYS = {
   attach: 'attachBinary', start: 'start', continue: 'continue', rerun: 'rerun',
   change_scope: 'change_scope', download: 'download', evidence: 'evidence', retry: 'retry',
 };
+
+function inlineMarkdown(text) {
+  const parts = String(text ?? '').split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+  return parts.map(part => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return el('strong', {}, part.slice(2, -2));
+    }
+    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+      return el('code', {}, part.slice(1, -1));
+    }
+    return document.createTextNode(part);
+  });
+}
+
+function renderMarkdown(text) {
+  const body = el('div', {class: 'message-body markdown-body'});
+  const lines = String(text ?? '').replace(/\r/g, '').split('\n');
+  let list = null;
+  let paragraph = [];
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    body.append(el('p', {}, ...inlineMarkdown(paragraph.join(' '))));
+    paragraph = [];
+  };
+  const closeList = () => { if (list) { body.append(list); list = null; } };
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) { flushParagraph(); closeList(); continue; }
+    const heading = line.match(/^#{1,4}\s+(.+)$/) ||
+      (/^\*\*[^*]+\*\*$/.test(line) ? [null, line.slice(2, -2)] : null);
+    if (heading) {
+      flushParagraph(); closeList();
+      body.append(el('h4', {class: 'md-heading'}, ...inlineMarkdown(heading[1])));
+      continue;
+    }
+    const bullet = line.match(/^[-*]\s+(.+)$/);
+    const numbered = line.match(/^\d+[.)]\s+(.+)$/);
+    if (bullet || numbered) {
+      flushParagraph();
+      if (!list) list = el('ul', {class: 'md-list'});
+      list.append(el('li', {}, ...inlineMarkdown((bullet || numbered)[1])));
+      continue;
+    }
+    closeList();
+    paragraph.push(line);
+  }
+  flushParagraph(); closeList();
+  if (!body.childNodes.length) body.append(el('p', {}, text || ''));
+  return body;
+}
+
+function uniqueActions(actions) {
+  const seen = new Set();
+  return (actions || []).filter(action => {
+    const key = String(action.kind || '') + ':' + String(action.label_code || action.label || '');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 function assistantActionLabel(action, t) {
   if (action.label) return action.label;
@@ -456,8 +527,14 @@ function genLiveAudit(p, ctx, t) {
   const selected = p.selected_plan;
   const runs = audit.runs || [];
   const status = audit.status || 'idle';
-  const statusLabel = t(status === 'idle' ? 'liveAuditIdle' : status === 'running'
-    ? 'liveAuditRunning' : status === 'completed' ? 'liveAuditCompleted' : 'liveAuditFailed');
+  const allBlocked = status === 'completed' && runs.length > 0 &&
+    runs.every(run => run.selectable === false);
+  const statusLabel = mode !== 'live'
+    ? t('liveAuditSigned')
+    : allBlocked || status === 'failed'
+      ? t('failed')
+      : t(status === 'idle' ? 'liveAuditIdle' : status === 'running'
+        ? 'liveAuditRunning' : 'liveAuditCompleted');
   const tabs = el('div', {class: 'live-mode-tabs'},
     control(t('liveAuditSigned'), () => engine.setLiveMode?.(chat, 'signed'),
       {tone: mode === 'signed' ? 'primary' : ''}),
@@ -468,15 +545,24 @@ function genLiveAudit(p, ctx, t) {
     children.push(el('p', {class: 'gen-note'}, t('liveAuditSignedNote')));
     return genCard('live', 'terminal', t('liveAuditTitle'), t('liveAuditSigned'), ...children);
   }
-  children.push(el('p', {class: 'gen-note'},
-    `${t('liveAuditRuns')}: ${runs.length} / 3` + (audit.error ? ` · ${audit.error}` : '')));
+  if (status === 'idle') {
+    children.push(control(t('liveAuditStart'), () => engine.startLiveAudit?.(chat),
+      {tone: 'primary', glyph: 'arrow'}));
+  }
+  if (status !== 'idle') {
+    children.push(el('p', {class: 'gen-note'},
+      `${t('liveAuditRuns')}: ${runs.length} / 3` + (audit.error ? ` · ${audit.error}` : '')));
+  }
   if (status === 'running' && !runs.length) {
     children.push(el('p', {class: 'muted live-audit-hint'}, t('liveAuditStarted')));
+  }
+  if (allBlocked) {
+    children.push(el('p', {class: 'gen-note verdict-reason'}, t('allPlansUnavailable')));
   }
   if (status === 'completed' && runs.length) {
     const cards = runs.map(run => {
       const picked = selected && Number(selected.run_index) === Number(run.run_index);
-      const children = [
+      const row = [
         el('div', {class: 'live-plan-head'},
           el('strong', {}, 'run ' + run.run_index),
           statusBadge(run.schema_valid ? t('liveAuditSchemaOk') : t('liveAuditSchemaBad'))),
@@ -484,17 +570,17 @@ function genLiveAudit(p, ctx, t) {
           'canonical ' + shortSha(run.canonical_sha256 || run.plan_sha256)),
       ];
       if ((run.critical_errors || []).length) {
-        children.push(el('p', {class: 'gen-note'}, run.critical_errors.join(' · ')));
+        row.push(el('p', {class: 'gen-note'}, run.critical_errors.join(' · ')));
       }
       if (run.selectable === false) {
-        children.push(el('p', {class: 'gen-note plan-unavailable'}, t('livePlanUnavailable')
+        row.push(el('p', {class: 'gen-note plan-unavailable'}, t('livePlanUnavailable')
           .replace('{reason}', planReasonLabel(run.select_reason, t))));
       } else {
-        children.push(control(picked ? t('liveAuditSelected') : t('liveAuditSelect'),
+        row.push(control(picked ? t('liveAuditSelected') : t('liveAuditSelect'),
           () => engine.selectLivePlan?.(chat, run.run_index),
           {tone: picked ? '' : 'primary'}));
       }
-      return el('div', {class: 'live-plan' + (picked ? ' selected' : '')}, ...children);
+      return el('div', {class: 'live-plan' + (picked ? ' selected' : '')}, ...row);
     });
     children.push(el('div', {class: 'live-plans'}, cards));
   }
@@ -591,15 +677,26 @@ export function renderItem(item, ctx) {
           el('span', {class: 'assistant-avatar'}, icon('info', 14)),
           el('strong', {}, t('assistant')),
           el('span', {class: 'assistant-mode-pill', 'data-mode': p.mode || 'deterministic'}, mode)),
-        el('p', {class: 'message-body'}, p.reply),
-        (p.actions || []).length ? el('div', {class: 'assistant-actions'},
-          (p.actions || []).map(action => el('span', {class: 'assistant-chip',
-            'data-kind': action.kind}, assistantActionLabel(action, t)))) : null);
+        renderMarkdown(p.reply),
+        uniqueActions(p.actions).length ? el('div', {class: 'assistant-actions'},
+          uniqueActions(p.actions).map(action => control(assistantActionLabel(action, t),
+            () => engine.assistantAction?.(chat, action),
+            {class: 'control assistant-chip', 'data-kind': action.kind,
+             title: assistantActionLabel(action, t)}))) : null,
+        uniqueActions(p.actions).length ? el('p', {class: 'assistant-action-note'},
+          t('assistantActionNote')) : null,
+        el('div', {class: 'assistant-suggestions', role: 'group'},
+          ['askWhyRejected', 'askWhatChanged', 'askHowToPass', 'askEvidence'].map(key =>
+            control(t(key), () => {
+              engine.assistantTurn?.(chat, t(key), chat.locale);
+              window.dispatchEvent(new CustomEvent('binaryrepair:assistant-focus',
+                {detail: {chatId: chat.id}}));
+            }))));
     }
     case 'g4_analysis': return genAnalysis(p, t);
     case 'g4_g2': return genG2(p, t);
     case 'g4_progress': return genProgress(p, t);
-    case 'g4_downloads': return genOutcome(p, t);
+    case 'g4_downloads': return genOutcome(p, t, chat, engine);
     case 'g4_actions': {
       const actions = p.actions ?? [];
       return el('article', {class: 'message assistant'}, el('div', {class: 'reply-body'},

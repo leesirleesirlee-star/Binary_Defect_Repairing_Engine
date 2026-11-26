@@ -1,5 +1,5 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261120au';
+import {icon} from '../shared/icons.mjs?v=20261126b';
 
 import {motionReduced} from '../shared/motion.mjs?v=20261120au';
 
