@@ -3,8 +3,11 @@
 **Status:** **G0-G4 signed**; tag `v0.1.0` on the G4 record
 ([`docs/plan/evidence/G4-RECORD.md`](docs/plan/evidence/G4-RECORD.md)). The
 console runs the frozen fixture end to end and renders the persisted verdict.
-The additive **G4.1 live AI chain** (live three-run audit + live WSL2 guest) is in
-progress: [#68](https://github.com/leesirleesirlee-star/Binary_Defect_Repairing_Engine/issues/68).
+The additive **G4.1 live AI chain** (live three-run audit + live WSL2 guest) is
+merged in implementation; the per-piece evidence is recorded and the continuous
+live console run is still `not_run` (needs a host with a provider key **and**
+WSL2): [`docs/plan/evidence/G4.1-DEMO.md`](docs/plan/evidence/G4.1-DEMO.md),
+[#68](https://github.com/leesirleesirlee-star/Binary_Defect_Repairing_Engine/issues/68).
 **Target repository:** <https://github.com/leesirleesirlee-star/Binary_Defect_Repairing_Engine>
 **Archive repository:** <https://github.com/leesirleesirlee-star/Binary_Repair> (v1.2.2, accepted work, read-only reference)
 **Reference report:** 2026-11-19, "AI-Assisted Binary Vulnerability Repair: Project Workflow and Technical Assessment".
@@ -222,6 +225,20 @@ Evidence: [`docs/plan/evidence/G4-RECORD.md`](docs/plan/evidence/G4-RECORD.md),
 - [x] the three-run audit, the decision and the patch/verdict are narrated in the chat; corpus/contract/score cards stay hidden, while the right-side 修复运行监视 + 事件日志 panels show the phases and the chronological journal in real time.
 - [x] the verdict renders only the six-word vocabulary; `not_run` verbatim; downloads resolve.
 - [x] no `pipeline.*` import in `app/`; honesty tests green; headless walkthrough captured; `v0.1.0` tagged.
+
+### G4.1 — live AI chain (additive, demo recorded)
+
+Merged: the live-run contract (#69/#74), the audit summary/canonical hash (#77/#78),
+the WSL2 guest driver (#72), the runner live mode (#75), verifier coverage (#79),
+the live-audit console (#76) and the UX/audit fixes (#81/#83). Evidence and the
+demo script are in
+[`docs/plan/evidence/G4.1-DEMO.md`](docs/plan/evidence/G4.1-DEMO.md).
+
+**Demo evidence:** M2's macOS full-flow run — live audit 3/3, plan selection,
+deterministic repair, verify/export with the live guest **off**. The **live-guest
+leg is `not_run`** because macOS cannot host the driver; a Windows + WSL2 capture
+would upgrade the demo but is optional, not a gate item. M5's live-plan unit test
+(#66) remains optional coverage.
 
 ---
 
