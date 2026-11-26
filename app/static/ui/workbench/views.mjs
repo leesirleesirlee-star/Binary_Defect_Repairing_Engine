@@ -128,10 +128,16 @@ export function tasksView(ctx) {
         }, {className: 'delete-task', 'aria-label': t('delete'), glyph: 'x'}) : null)));
   };
   update();
+  const refreshButton = button(t('refresh'), event => {
+    const target = event.currentTarget;
+    target.disabled = true;
+    target.setAttribute('aria-busy', 'true');
+    target.classList.add('is-spinning');
+    void reload();
+  }, {glyph: 'refresh', className: 'subtle'});
   return el('div', {class: 'page'},
     el('div', {class: 'section-head'}, heading,
-      el('div', {class: 'actions'}, button(t('refresh'), reload, {glyph: 'refresh', className: 'subtle'}),
-        newRepair)),
+      el('div', {class: 'actions'}, refreshButton, newRepair)),
     el('div', {class: 'controls'},
       el('div', {class: 'segments', role: 'group', 'aria-label': t('filterLabel')}, filterButtons),
       el('div', {class: 'search'}, icon('search', 15), input)),

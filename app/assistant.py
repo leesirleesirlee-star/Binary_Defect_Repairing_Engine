@@ -16,6 +16,7 @@ scripted deterministic reply and says so through ``mode``.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
@@ -61,11 +62,25 @@ SYSTEM_PROMPT = (
     "or source-level fact that is not in the context. If the context is insufficient, state what "
     "evidence is missing instead of guessing. Distinguish a repair-stage failure from a verifier "
     "rejection; do not blame WSL2 or the guest unless context.guest or the verdict limitations "
-    "say so. Be detailed and structured, with short headings and bullet points. Your reply is "
+    "say so. Answer the user's exact question even when it is not one of the usual diagnostic "
+    "questions; if the question is outside the supplied context, say so plainly and then give the "
+    "closest grounded repair facts instead of ignoring it. Be detailed and structured, with short "
+    "headings and bullet points. Your reply is "
     "chat text: it is never evidence, never an audit input, and never changes task state. Return "
     "JSON only: {\"reply\": string, \"actions\": [{\"id\": string, \"label_code\": string, "
     "\"kind\": string}]}. Allowed action kinds: attach, start, continue, rerun, change_scope, "
     "download, evidence, retry."
+)
+
+# A single low-temperature retry is allowed when the provider's first envelope
+# is malformed or quotes a verdict word that is not in the persisted context.
+# The retry never sees the rejected text again, so provider text cannot leak.
+CORRECTION_PROMPT = (
+    "Your previous reply was not accepted by the console. Return JSON only with a non-empty "
+    "reply string and at most six allowed actions. Answer the user's exact question from the "
+    "context. Quote only context.verdict as the verdict word; never mention or claim any other "
+    "verdict word (including verified_against_stated_criteria) unless it is the persisted "
+    "context.verdict. Do not echo this correction."
 )
 
 _TEXTS: dict[str, dict[str, str]] = {
@@ -486,6 +501,84 @@ def build_messages(
     ]
 
 
+_EVIDENCE_TOKEN = re.compile(
+    r"(?<![\w-])("
+    r"V[0-5]-(?:identity|structure|valid-behaviour|invalid-response|boundary|reapply)"
+    r"|verified_against_stated_criteria|rejected|unverified|unsupported|not_run"
+    r"|candidate\.elf|verdict\.json|edit-manifest\.json|candidate-v1\.json"
+    r"|self_check|checks_passed"
+    r")(?![\w-])"
+)
+
+
+def _inline_evidence(text: str) -> str:
+    """Wrap evidence identifiers in code spans without touching existing ones."""
+    parts = text.split("`")
+    for index in range(0, len(parts), 2):
+        parts[index] = _EVIDENCE_TOKEN.sub(lambda match: f"`{match.group(0)}`", parts[index])
+    return "`".join(parts)
+
+
+_SECTION_LABELS = {"结论", "关键原因", "补充说明", "按需的补充说明", "下一步操作建议", "建议", "下一步"}
+
+
+def _normalize_reply_markdown(text: str) -> str:
+    """Normalize model and scripted replies to the same chip/heading framework."""
+    lines: list[str] = []
+    for raw in text.replace("\r", "").split("\n"):
+        line = raw.rstrip()
+        stripped = line.strip().strip("*").strip()
+        if stripped.endswith(("：", ":")):
+            stripped = stripped[:-1].strip()
+        if stripped in _SECTION_LABELS and not line.lstrip().startswith("#"):
+            lines.append("### " + stripped)
+        else:
+            lines.append(line)
+    return _inline_evidence("\n".join(lines))
+
+
+def _format_diagnostic(lines: Sequence[str]) -> str:
+    """Give the deterministic answer the same markdown framework as the model."""
+    conclusion: str | None = None
+    evidence: list[str] = []
+    next_steps: list[str] = []
+    target = evidence
+    for raw in lines:
+        line = str(raw)
+        if line == "**下一步操作建议**":
+            target = next_steps
+            continue
+        if conclusion is None and line.startswith("结论："):
+            conclusion = line[3:].strip()
+            continue
+        if line == "":
+            continue
+        target.append(_inline_evidence(line))
+    blocks: list[str] = []
+    if conclusion is not None:
+        blocks.extend(["### 结论", _inline_evidence(conclusion)])
+    if evidence:
+        rendered = "\n".join(
+            line if line.startswith(("-", "1.", "2.", "3.", "4.")) else "- " + line
+            for line in evidence
+        )
+        blocks.extend(["### 关键原因", rendered])
+    if next_steps:
+        numbered: list[str] = []
+        number = 0
+        for line in next_steps:
+            match = re.match(r"^\d+\.\s*(.*)$", line)
+            if match:
+                number += 1
+                numbered.append(f"{number}. {match.group(1)}")
+            else:
+                if numbered and numbered[-1] != "":
+                    numbered.append("")
+                numbered.append(line)
+        blocks.extend(["### 下一步操作建议", "\n".join(numbered)])
+    return "\n\n".join(blocks)
+
+
 def _diagnostic_fallback(
     task: Mapping[str, Any],
     records: Sequence[Mapping[str, Any]],
@@ -544,7 +637,7 @@ def _diagnostic_fallback(
             lines.append("拒绝路径的行为是：不返回 handle、不写 stdout，向 fd 2 写出契约要求的 invalid_stderr，然后 exit(1)。")
         lines.append("因此有效输入仍保持原来的 strcpy 语义，超长输入在越界前被拦截。")
     elif ask("为什么", "why", "拒绝", "rejected", "失败原因", "reason"):
-        lines.append(f"结论：验收结论是 **{word or 'unknown'}**。修复运行和候选产物可以已完成，但验证器没有接受该候选。")
+        lines.append(f"结论：验收结论是 `{word or 'unknown'}`。修复运行和候选产物可以已完成，但验证器没有接受该候选。")
         if failures_text:
             lines.append(f"未通过的必需检查：{failures_text}。")
         if "V0-identity" in failures_text:
@@ -554,6 +647,30 @@ def _diagnostic_fallback(
         if limitations:
             lines.append("限制说明：" + "；".join(limitations[:3]))
         lines.append("这不是 WSL2 让 repair 失败：repair 已经生成 candidate；WSL2 只影响现场 observations 的生成与 V0/V4 的验收。")  # noqa: E501
+    elif ask("怎么样", "情况", "结果", "状态", "行不行", "能不能", "是否", "有效",
+             "效果", "正常", "成功", "失败", "后续", "怎么办", "怎么看", "分析",
+             "解释", "说明", "帮我", "看看", "有用", "靠谱", "是什么", "什么意思",
+             "含义", "代表", "区别", "不同", "对比", "选择", "哪个", "怎么选",
+             "推荐", "建议"):
+        # General evaluative questions (the most common free-form question)
+        # still get a direct answer instead of a generic dump.
+        lines.append(f"结论：这次修复目前的验收结论是 `{word or '尚无结论'}`。")
+        lines.append("下面按本次修复的结论、原因和可核验证据回答；如果问题超出已持久化的"
+                     "任务证据，我不能凭空补足，只能说明缺失的是什么。")
+        if word == "verified_against_stated_criteria":
+            lines.append("必需判据全部通过，verdict 已持久化；这个结果只覆盖冻结 contract 与 corpus。")
+        elif failures_text:
+            lines.append(f"未通过的必需检查：{failures_text}。")
+            lines.append("因此现在不能把这次修复称为“已验证有效”；问题出在验收证据/边界检查，"
+                         "不是 UI 展示。")
+        else:
+            lines.append("当前没有可用的最终 verdict，因此不能确认修复有效；需要先完成验证。")
+        if plan.get("root_cause"):
+            lines.append("根因：" + str(plan.get("root_cause"))[:400])
+        if edits:
+            lines.append(f"修复方案包含 {len(edits)} 处编辑，核心是把无界 strcpy 调用重定向到长度守卫桩。")
+        if candidate:
+            lines.append(f"候选程序 fingerprint：`{candidate}`。")
     elif ask("怎样", "怎么", "如何", "通过", "pass", "next", "下一步", "验收"):
         lines.append("结论：要得到 verified_against_stated_criteria，需要同时满足现场 observations 与静态边界检查，而不是只改 UI 或重跑一次。")  # noqa: E501
         if "V0-identity" in failures_text:
@@ -616,7 +733,9 @@ def _diagnostic_fallback(
         if failures_text:
             lines.append("失败发生在验收检查：" + failures_text + "。")
     else:
-        lines.append(f"结论：当前修复的验收结论是 **{word or '尚无结论'}**。")
+        lines.append("结论：当前修复的验收结论是 `" + (word or "尚无结论") + "`。")
+        lines.append("你提出的问题不在预置诊断问题列表中；我不能从持久化证据直接推断任务之外的"
+                     "含义或运行结果。以下是与本次修复最相关、可核验的事实：")
         if failures_text:
             lines.append(f"未通过的必需检查：{failures_text}。")
         if plan.get("root_cause"):
@@ -625,7 +744,9 @@ def _diagnostic_fallback(
             kinds = "、".join(str(item.get("kind")) for item in edits if isinstance(item, Mapping))
             lines.append(f"修复方案包含 {len(edits)} 处编辑（{kinds}），核心是把无界 strcpy 调用重定向到长度守卫桩。")
         if candidate:
-            lines.append(f"候选程序 sha256：{candidate}。")
+            lines.append(f"候选程序 sha256：`{candidate}`。")
+        if limitations:
+            lines.append("verdict 限制：" + "；".join(limitations[:3]))
 
     # The final section is intentionally the most concrete: users often do not
     # know what a verifier failure means operationally.
@@ -644,7 +765,8 @@ def _diagnostic_fallback(
     lines.append("以上内容全部来自已持久化的任务、verdict、manifest 和 journal，不是新的验证结论。")
     actions = [_action(locale, "download")] if (artifacts or extra.get("artifacts")) else []
     actions.append(_action(locale, "evidence"))
-    return {"reply": "\n\n".join(lines)[:MAX_REPLY_CHARS], "actions": actions}
+    reply = _format_diagnostic(lines)
+    return {"reply": reply[:MAX_REPLY_CHARS], "actions": actions}
 
 
 def respond(
@@ -670,11 +792,29 @@ def respond(
     artifacts = _artifacts(task, artifacts)
     context = _context(task, records, artifacts, context_extra)
     if client is not None:
+        messages = build_messages(context, message, locale)
+        envelope = None
+        raised = False
         try:
-            envelope = validate_envelope(client(build_messages(context, message, locale)))
+            envelope = validate_envelope(client(messages))
         except Exception:
+            raised = True
+        if envelope is not None and _contains_unpersisted_verdict(envelope["reply"], context):
             envelope = None
-        if envelope is not None and not _contains_unpersisted_verdict(envelope["reply"], context):
+        if envelope is None and not raised:
+            # A malformed candidate or an unpersisted verdict quote is often a
+            # one-shot formatting slip. Retry once with a stricter correction
+            # instruction; never re-send the rejected provider text.
+            try:
+                retry = validate_envelope(
+                    client([*messages, {"role": "system", "content": CORRECTION_PROMPT}])
+                )
+            except Exception:
+                retry = None
+            if retry is not None and not _contains_unpersisted_verdict(retry["reply"], context):
+                envelope = retry
+        if envelope is not None:
+            envelope["reply"] = _normalize_reply_markdown(envelope["reply"])[:MAX_REPLY_CHARS]
             envelope["mode"] = MODE_LLM
             return envelope
         fallback = _diagnostic_fallback(task, records, message, locale, context_extra, artifacts)

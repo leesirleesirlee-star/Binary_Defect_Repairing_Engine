@@ -95,7 +95,7 @@ const CRAB = {
   frameMs: 80,
   gutter: 1,
   sheets: CRAB_SHEETS,
-  extras: ['idle-look', 'idle-wave', 'idle-laptop'],
+  extras: ['idle-look', 'idle-wave'],
   // Used while the assistant answer is typed out: the crab takes out its
   // laptop instead of the generic keyboard "typing" clip.
   typingClip: 'idle-laptop',
@@ -332,7 +332,6 @@ const statusCopy = {
   zh: {
     thinking: '正在思考…',
     typing: '正在写回答…',
-    'idle-laptop': '正在写回答…',
     music: '正在运行工具…',
     building: '正在并行处理…',
     conducting: '正在并行修复…',
@@ -346,7 +345,6 @@ const statusCopy = {
   en: {
     thinking: 'Thinking…',
     typing: 'Writing…',
-    'idle-laptop': 'Writing…',
     music: 'Running tools…',
     building: 'Working in parallel…',
     conducting: 'Directing both routes…',
@@ -682,10 +680,14 @@ function schedule(now, waitSettle) {
 function renderStatus() {
   if (activityLabel === null) return;
   const key = stage.current === null ? null : stage.current.key;
+  // The crab's writing clip is the same idle-laptop sheet. Only the explicit
+  // answer-typewriter state may label it "writing": an idle extra must never
+  // look like a running answer (and idle extras no longer include the laptop).
+  const statusKey = writerActive && key === mascot.typingClip ? 'typing' : key;
   const copy = statusCopy[language()];
   const text = labelOverride !== null && Date.now() < labelOverride.until
     ? labelOverride.text
-    : (key === null ? '' : (copy[key] || ''));
+    : (statusKey === null ? '' : (copy[statusKey] || ''));
   if (activityLabel.textContent !== text) activityLabel.textContent = text;
 }
 

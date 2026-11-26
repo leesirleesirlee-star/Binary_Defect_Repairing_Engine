@@ -235,7 +235,30 @@ def test_model_may_quote_the_persisted_verdict_and_not_run() -> None:
         {"id": "tsk_1", "verdict": {"verdict": "rejected"}}, [], "结果", client=fake
     )
     assert envelope["mode"] == assistant.MODE_LLM
-    assert envelope["reply"] == "结论是 rejected；V4 是 not_run。"
+    assert envelope["reply"] == "结论是 `rejected`；V4 是 `not_run`。"
+
+
+def test_model_reply_uses_the_same_heading_and_chip_framework() -> None:
+    def fake(messages: Any) -> Any:
+        return json.dumps({
+            "reply": "结论\n\nV0-identity 通过，V4-boundary 是 not_run。\n\n关键原因\n\n"
+                     "verdict.json 是持久化证据。",
+            "actions": [],
+        })
+
+    envelope = assistant.respond(
+        {"id": "tsk_1", "verdict": {"verdict": "verified_against_stated_criteria"}},
+        [],
+        "这个修复怎么样？",
+        client=fake,
+    )
+    assert envelope["mode"] == assistant.MODE_LLM
+    assert "### 结论" in envelope["reply"]
+    assert "### 关键原因" in envelope["reply"]
+    assert "`V0-identity`" in envelope["reply"]
+    assert "`V4-boundary`" in envelope["reply"]
+    assert "`not_run`" in envelope["reply"]
+    assert "`verdict.json`" in envelope["reply"]
 
 
 def test_how_to_pass_does_not_claim_a_failed_criterion_passed() -> None:
@@ -255,10 +278,113 @@ def test_how_to_pass_does_not_claim_a_failed_criterion_passed() -> None:
         {"id": "tsk_1"}, [], "怎样通过验收", locale="zh-Hans", context_extra=extra
     )
     assert envelope["mode"] == assistant.MODE_DETERMINISTIC
-    assert "V1-structure：候选 ELF" in envelope["reply"]
+    assert "`V1-structure`：候选 ELF" in envelope["reply"]
     assert "V1-structure 当前已通过" not in envelope["reply"]
     assert "V1/V2/V3 当前已通过" not in envelope["reply"]
     assert "V2-relocations" in envelope["reply"] and "V3-segments" in envelope["reply"]
+
+
+def test_free_form_question_gets_a_structured_grounded_fallback() -> None:
+    extra = {
+        "verdict_detail": {
+            "verdict": "rejected",
+            "criteria": [
+                {"id": "V0-identity", "required": True, "status": "fail"},
+                {"id": "V4-boundary", "required": True, "status": "not_run"},
+            ],
+            "limitations": ["V0-identity fail: candidate_matches_observations"],
+            "candidate_sha256": "c" * 64,
+        },
+        "repair_plan": {"root_cause": "unbounded strcpy", "edits": [{"kind": "redirect_call"}]},
+        "artifacts": [{"name": "verdict.json"}],
+    }
+    envelope = assistant.respond(
+        {"id": "tsk_1", "verdict": {"verdict": "rejected"}},
+        [],
+        "这个修复怎么样？",
+        locale="zh-Hans",
+        context_extra=extra,
+    )
+    assert envelope["mode"] == assistant.MODE_DETERMINISTIC
+    assert "### 结论" in envelope["reply"]
+    assert "### 关键原因" in envelope["reply"]
+    assert "### 下一步操作建议" in envelope["reply"]
+    assert "`rejected`" in envelope["reply"]
+    assert "`V0-identity`" in envelope["reply"]
+    assert "不能把这次修复称为" in envelope["reply"]
+
+
+def test_unmatched_question_is_acknowledged_and_answered_from_evidence() -> None:
+    extra = {
+        "verdict_detail": {
+            "verdict": "rejected",
+            "criteria": [{"id": "V0-identity", "required": True, "status": "fail"}],
+            "limitations": ["V0-identity fail: candidate_matches_observations"],
+            "candidate_sha256": "c" * 64,
+        },
+        "repair_plan": {"root_cause": "unbounded strcpy", "edits": [{"kind": "redirect_call"}]},
+    }
+    envelope = assistant.respond(
+        {"id": "tsk_1", "verdict": {"verdict": "rejected"}},
+        [],
+        "在吗？",
+        locale="zh-Hans",
+        context_extra=extra,
+    )
+    assert envelope["mode"] == assistant.MODE_DETERMINISTIC
+    assert "不在预置诊断问题列表中" in envelope["reply"]
+    assert "### 结论" in envelope["reply"]
+    assert "### 下一步操作建议" in envelope["reply"]
+    assert "`V0-identity`" in envelope["reply"]
+
+
+def test_malformed_model_output_is_retried_once() -> None:
+    seen: list[Any] = []
+
+    def flaky(messages: Any) -> Any:
+        seen.append(messages)
+        if len(seen) == 1:
+            return "not a JSON envelope"
+        return json.dumps({"reply": "已从持久化任务事实回答。", "actions": []})
+
+    envelope = assistant.respond({}, [], "hello", client=flaky)
+    assert len(seen) == 2
+    assert seen[-1][-1]["role"] == "system"
+    assert envelope["mode"] == assistant.MODE_LLM
+    assert envelope["reply"] == "已从持久化任务事实回答。"
+
+
+def test_unpersisted_verdict_is_retried_once_then_rejected() -> None:
+    seen: list[Any] = []
+
+    def flaky(messages: Any) -> Any:
+        seen.append(messages)
+        if len(seen) == 1:
+            return json.dumps({"reply": f"验证完成：{SUCCESS}", "actions": []})
+        return json.dumps({"reply": "结论是 rejected。", "actions": []})
+
+    envelope = assistant.respond(
+        {"id": "tsk_1", "verdict": {"verdict": "rejected"}},
+        [],
+        "结果",
+        client=flaky,
+    )
+    assert len(seen) == 2
+    assert envelope["mode"] == assistant.MODE_LLM
+    assert SUCCESS not in envelope["reply"]
+    assert "rejected" in envelope["reply"]
+
+
+def test_raising_client_is_not_retried() -> None:
+    seen: list[Any] = []
+
+    def explode(messages: Any) -> Any:
+        seen.append(messages)
+        raise RuntimeError("provider exploded")
+
+    envelope = assistant.respond({}, [], "hello", client=explode)
+    assert len(seen) == 1
+    assert envelope["mode"] == assistant.MODE_DETERMINISTIC
 
 
 def test_key_present_without_client_is_declared_not_wired() -> None:

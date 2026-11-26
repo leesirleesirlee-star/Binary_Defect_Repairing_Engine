@@ -768,3 +768,11 @@ html.slide-enter-forward body, html.slide-enter-backward body {
 @media (hover: none) { .task-row-wrap .delete-task { opacity: .8; } }
 
 .task-row time { white-space: nowrap; }
+
+/* A manual archive refresh fans out one verdict request per task; show the
+   rotation immediately so a slower list never looks like a dead button. */
+.button.is-spinning svg { animation: archive-spin 900ms linear infinite; }
+@keyframes archive-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .button.is-spinning svg { animation: none; }
+}

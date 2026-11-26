@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261128d';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261129d';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -188,6 +188,9 @@ const copy = {
   routeStepBind: ['Bind signed G2 decision', '绑定已签 G2 决策'],
   routeStepRun: ['Repair & verify under the contract', '按契约修复与验证'],
   routeStepEvidence: ['Persist verdict & evidence', '写结论与证据'],
+  routeStepLivePlan: ['Choose live AI plan', '选择现场 AI 方案'],
+  routeALiveTitle: ['Live AI plan · experimental', '现场 AI 方案 · 实验路径'],
+  routeALiveSelected: ['Live plan selected; repair and verification run under it.', '已选择现场方案；修复与验收将在该方案下执行。'],
   runnerChecklist: ['Runner checklist (plan_update)', '运行器步骤（plan_update）'],
   journalLog: ['Chronological journal', '事件日志（按序号）'],
   journalPending: ['Waiting for runner journal events…', '等待运行器 journal 事件…'],
