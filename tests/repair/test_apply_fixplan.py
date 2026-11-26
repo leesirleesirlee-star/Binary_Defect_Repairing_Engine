@@ -77,6 +77,52 @@ def test_selected_plan_produces_three_truthful_artifacts(tmp_path: Path) -> None
     assert _sha(FIXTURE.read_bytes()) == FIXTURE_SHA
 
 
+def test_apply_accepts_live_style_plan_within_allowed_edits(tmp_path: Path) -> None:
+    """A live-style plan differing from G2 is applied by the plan-driven CLI."""
+    plan = json.loads(PLAN.read_text(encoding="utf-8"))
+    plan["plan_id"] = "plan-live-style-1"
+    plan["edits"][1]["new_bytes"] = "90" * 90
+    plan["edits"][1]["reason"] = "live-style code within allowed_edits"
+    plan["stub"]["estimated_size_bytes"] = 90
+    live_plan = tmp_path / "live-plan.json"
+    live_plan.write_text(json.dumps(plan), encoding="utf-8")
+
+    out = tmp_path / "live-artifacts"
+    result = apply_fix_plan(
+        FIXTURE,
+        live_plan,
+        out,
+        fixture_id="stack-overflow-01",
+        now="2026-11-24T08:30:00Z",
+    )
+    assert result["candidate_written"] is True
+    assert result["candidate_sha256"] != CANDIDATE_SHA
+    assert result["fixture_unchanged"] is True
+    assert result["fixture_sha256"] == FIXTURE_SHA
+    assert result["self_check"] == "checks_passed"
+    assert result["verdict"] is None
+    assert _sha(Path(result["candidate"]).read_bytes()) == result["candidate_sha256"]
+
+    manifest = json.loads(Path(result["manifest"]).read_text(encoding="utf-8"))
+    validate_edit_manifest_v1(manifest)
+    assert manifest["plan_id"] == "plan-live-style-1"
+    assert manifest["dry_run"] is True
+    assert manifest["preview"]["candidate_written"] is False
+    assert manifest["trampoline"]["code_size"] == 90
+    assert manifest["trampoline"]["message_size"] == 42
+    assert check_manifest(FIXTURE, manifest)["status"] == "checks_passed"
+
+    record = json.loads(Path(result["candidate_record"]).read_text(encoding="utf-8"))
+    schema = json.loads((ROOT / "schemas" / "CandidateV1.schema.json").read_text())
+    jsonschema.Draft202012Validator(schema).validate(record)
+    assert record["candidate_written"] is True
+    assert record["plan"]["plan_id"] == "plan-live-style-1"
+    assert record["plan"]["sha256"] == _sha(live_plan.read_bytes())
+    assert record["candidate"]["sha256"] == result["candidate_sha256"]
+    assert record["reversibility"]["matches_original"] is True
+    assert _sha(FIXTURE.read_bytes()) == FIXTURE_SHA
+
+
 def test_refuses_to_overwrite_existing_artifacts(tmp_path: Path) -> None:
     """A second apply into the same directory is rejected."""
     out = tmp_path / "artifacts"
