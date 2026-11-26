@@ -119,10 +119,15 @@
   .inspect-before-run-button { display: none; }
   .source-actions [aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
   @media (min-width: 1081px) {
+    /* The "详情" button resizes the split in every state: the pre-run pane
+       starts compact, a running/finished pane starts with details open. */
+    .inspect-before-run-button { display: inline-flex; }
     .workspace.before-run:not(.inspect-before-run) { grid-template-columns: minmax(0, 1fr) minmax(15rem, 22%); }
     .before-run:not(.inspect-before-run) .execution-pane { align-self: start; }
     .before-run:not(.inspect-before-run) .execution-scroll { display: none; }
-    .before-run .inspect-before-run-button { display: inline-flex; }
+    .workspace.execution-compact { grid-template-columns: minmax(0, 1fr) minmax(15rem, 22%); }
+    .workspace.execution-compact .execution-pane { align-self: start; }
+    .workspace.execution-compact .execution-scroll { display: none; }
   }
   @media (max-width: 1080px) {
     .workspace { grid-template-columns: minmax(0, 1fr); }

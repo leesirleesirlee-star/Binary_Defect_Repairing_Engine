@@ -14,7 +14,7 @@ import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261125f';
 import {bindSidebarSpring} from './chat-spring.mjs?v=20261126b';
 import {refreshStepCard} from './chat-steps.mjs?v=20261126b';
 import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261126b';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261126b';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261128b';
 import {mountPet} from '../shared/pet.mjs?v=20261128a';
 
 const root = document.documentElement;
@@ -536,10 +536,16 @@ function paint() {
   nodes.hero.hidden = selected.events.length > 0;
   const beforeRun = selected.live ? !selected.execution?.run_id : selected.kind !== 'repair';
   nodes.workspace.classList.toggle('before-run', beforeRun);
-  if (nodes.workspace.dataset.chat !== selected.id || !beforeRun) {
-    nodes.workspace.classList.remove('inspect-before-run');
-    nodes.execution.inspect.setAttribute('aria-expanded', 'false');
+  // Entering a different chat or run state resets the split: the pre-run pane
+  // starts compact until "详情" is pressed, a running/finished pane starts with
+  // its details open and the same button collapses it.
+  const paneMode = beforeRun ? 'before' : 'run';
+  if (nodes.workspace.dataset.chat !== selected.id || nodes.workspace.dataset.paneMode !== paneMode) {
     nodes.workspace.dataset.chat = selected.id;
+    nodes.workspace.dataset.paneMode = paneMode;
+    nodes.workspace.classList.remove('inspect-before-run');
+    nodes.workspace.classList.remove('execution-compact');
+    nodes.execution.inspect.setAttribute('aria-expanded', beforeRun ? 'false' : 'true');
   }
   if (!projections.has(selected.id)) projections.set(selected.id, transcript());
   const items = [...projections.get(selected.id).apply(selected.events)];

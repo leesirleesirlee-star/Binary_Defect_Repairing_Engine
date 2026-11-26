@@ -77,16 +77,57 @@ export function createExecution(t, showConversation, taskMode = false) {
   const progress = createProgress(t);
   const inspect = control(t('details'), () => toggleInspect(),
     {tone: 'inspect-before-run-button', 'aria-controls': 'execution-content', 'aria-expanded': 'false'});
+  // `inspect-before-run` is the expanded state of the pre-run layout; the
+  // running/finished layout opens expanded by default and `execution-compact`
+  // is its collapsed state. Either way this header button resizes the split.
+  const COMPACT = 'execution-compact';
   function toggleInspect() {
     const workspace = panel.closest('.workspace');
     if (!workspace) return;
+    const ease = 'cubic-bezier(.42, 0, .58, 1)';
+    if (!workspace.classList.contains('before-run')) {
+      const compact = !workspace.classList.contains(COMPACT);
+      const settleCompact = value => {
+        workspace.classList.toggle(COMPACT, value);
+        inspect.setAttribute('aria-expanded', String(!value));
+      };
+      if (motionReduced()) { settleCompact(compact); return; }
+      const gridBefore = getComputedStyle(workspace).gridTemplateColumns;
+      if (compact) {
+        const height = scroll.getBoundingClientRect().height;
+        scroll.style.overflow = 'hidden';
+        const animation = scroll.animate([
+          {height: `${height}px`, opacity: 1},
+          {height: '0px', opacity: 0},
+        ], {duration: 340, easing: ease});
+        animation.onfinish = animation.oncancel = () => {
+          scroll.style.overflow = '';
+          settleCompact(true);
+          const gridAfter = getComputedStyle(workspace).gridTemplateColumns;
+          workspace.animate([{gridTemplateColumns: gridBefore}, {gridTemplateColumns: gridAfter}],
+            {duration: 460, easing: ease});
+        };
+      } else {
+        settleCompact(false);
+        const height = scroll.getBoundingClientRect().height;
+        scroll.style.overflow = 'hidden';
+        const gridAfter = getComputedStyle(workspace).gridTemplateColumns;
+        workspace.animate([{gridTemplateColumns: gridBefore}, {gridTemplateColumns: gridAfter}],
+          {duration: 460, easing: ease});
+        const animation = scroll.animate([
+          {height: '0px', opacity: 0},
+          {height: `${height}px`, opacity: 1},
+        ], {duration: 460, easing: ease});
+        animation.onfinish = animation.oncancel = () => { scroll.style.overflow = ''; };
+      }
+      return;
+    }
     const expanded = !workspace.classList.contains('inspect-before-run');
     const settle = value => {
       workspace.classList.toggle('inspect-before-run', value);
       inspect.setAttribute('aria-expanded', String(value));
     };
     if (motionReduced()) { settle(expanded); return; }
-    const ease = 'cubic-bezier(.42, 0, .58, 1)';
     const gridBefore = getComputedStyle(workspace).gridTemplateColumns;
     if (expanded) {
       settle(true);
