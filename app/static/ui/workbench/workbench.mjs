@@ -12,7 +12,7 @@ import {getSetting} from '../shared/settings-preferences.mjs?v=20261126b';
 import {bindSidebarSpring} from '../chat/chat-spring.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261126b';
 import {createDialog, languageDialog, searchDialog, settingsDialog, shell, tasksView} from './views.mjs?v=20261126b';
-import {mountPet} from '../shared/pet.mjs?v=20261128d';
+import {mountPet} from '../shared/pet.mjs?v=20261129d';
 
 // The archive opens on its synthetic fixture immediately. The legacy live API
 // remains available explicitly with ?live=1, but the archive must never present
@@ -38,9 +38,12 @@ for (const [key, choices] of Object.entries(preferenceValues)) {
 const t = key => translate(preferences.language, key);
 const state = {
   jobs: [], id: null, job: null, data: {}, edits: {}, provider: null, menuOpen: false, navPinned: false,
-  filter: 'all', query: '', loading: true, busy: false, listError: null, generation: 0,
+  filter: 'all', query: '', loading: true, refreshing: false, busy: false, listError: null, generation: 0,
 };
 let timer;
+let listTimer = 0;
+let refreshAgain = false;
+let refreshAgainForce = false;
 let taskRequestRunning = false;
 let failures = 0;
 let stopSidebar = null;
@@ -203,7 +206,28 @@ function render({focus = false, mainOnly = false} = {}) {
   if (focus) app.querySelector('main')?.focus({preventScroll: true});
 }
 
-async function refreshList() {
+function liveJobs() {
+  return state.jobs.some(job => ['running', 'queued', 'waiting_for_executor', 'cancelling'].includes(job.phase) ||
+    ['running', 'queued', 'waiting_for_executor'].includes(job.execution?.status) ||
+    job.live_audit?.status === 'running');
+}
+
+function scheduleListPoll() {
+  window.clearTimeout(listTimer);
+  if (document.hidden || state.id || state.busy || !liveJobs()) return;
+  listTimer = window.setTimeout(() => { void refreshList({background: true}); }, 5000);
+}
+
+async function refreshList({background = false} = {}) {
+  // A click can arrive while the previous manual refresh is still fanning out
+  // its verdict requests. Queue one follow-up (manual wins over background)
+  // instead of racing two list fetches; the current run will paint it.
+  if (state.refreshing) {
+    refreshAgain = true;
+    refreshAgainForce = refreshAgainForce || !background;
+    return;
+  }
+  state.refreshing = true;
   try {
     // The archive can be the first page opened directly: ask for the session
     // cookie (the chat page does the same) before the live list call, otherwise
@@ -219,8 +243,19 @@ async function refreshList() {
   } catch (error) {
     state.listError = errorKey(error);
   } finally {
+    state.refreshing = false;
     state.loading = false;
-    if (!state.id || !state.job) render();
+    // A manual refresh must never be swallowed by the focused-button guard in
+    // mainOnly rendering: replacing the shell guarantees the list is repainted.
+    // Background polling can update just the main region and keeps focus.
+    if (!state.id || !state.job) render({mainOnly: background});
+    scheduleListPoll();
+    if (refreshAgain) {
+      const force = refreshAgainForce;
+      refreshAgain = false;
+      refreshAgainForce = false;
+      void refreshList({background: !force});
+    }
   }
 }
 
@@ -306,6 +341,7 @@ async function act(operation, options = {}) {
 
 function route() {
   clearTimeout(timer);
+  clearTimeout(listTimer);
   let id = null;
   if (location.hash.startsWith('#task/')) {
     try { id = decodeURIComponent(location.hash.slice(6)); } catch { /* Malformed fragment. */ }
@@ -317,6 +353,7 @@ function route() {
   failures = 0;
   render({focus: true});
   if (id) void readTask(generation);
+  else scheduleListPoll();
 }
 
 window.addEventListener('hashchange', route);
@@ -324,6 +361,8 @@ document.addEventListener('visibilitychange', () => {
   clearTimeout(timer);
   if (!document.hidden && shouldPoll(state.job) && !taskRequestRunning && !state.busy) {
     void readTask(state.generation, true);
+  } else if (!document.hidden && !state.id && liveJobs()) {
+    void refreshList({background: true});
   }
 });
 document.addEventListener('focusout', event => {

@@ -4,7 +4,7 @@
 // uploads the binary and its case files to the console API, lets the user pick
 // one repair contract from the analyzed options, then follows the real runner
 // journal and renders the persisted VerdictV1 and the artifact download links.
-import {label} from './chat-copy.mjs?v=20261128d';
+import {label} from './chat-copy.mjs?v=20261129d';
 
 const newId = () => crypto.randomUUID();
 const autoTitle = (chat, value) => {
@@ -765,6 +765,7 @@ export function chatTask({notify = () => {}} = {}) {
       chat.plan = null;
       chat.runEnd = null;
       chat.auditRuns = null;
+      announceTask(chat.jobId);
       void follow(chat);
     } catch (error) {
       event(chat, 'thinking', {phase: 'finished', duration_ms: 0, summary_code: 'repair'},
@@ -1016,6 +1017,9 @@ export function chatTask({notify = () => {}} = {}) {
 
   async function activate(chat) {
     if (!chat?.jobId) return;
+    // Selecting a restored conversation must scope the Route A monitor to the
+    // same task as the lane, including archived completed/rejected runs.
+    announceTask(chat.jobId);
     if (['completed', 'failed', 'cancelled'].includes(chat.phase)) {
       // Older transcripts may predate the flow timer. Backfill from the
       // persisted task so a finished conversation never collapses to 0:00.

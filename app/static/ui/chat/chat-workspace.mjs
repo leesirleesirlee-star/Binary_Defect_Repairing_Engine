@@ -1,8 +1,8 @@
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261126b';
-import {control} from './chat-view.mjs?v=20261128d';
-import {createProgress} from './chat-progress.mjs?v=20261128d';
-import {createStepGroups, disclosure} from './chat-steps.mjs?v=20261128d';
+import {control} from './chat-view.mjs?v=20261129d';
+import {createProgress} from './chat-progress.mjs?v=20261129d';
+import {createStepGroups, disclosure} from './chat-steps.mjs?v=20261129d';
 import {motionReduced} from '../shared/motion.mjs?v=20261120au';
 
 // Revision 2.4: keep the v1.2.2 execution pane architecture (milestones +
@@ -42,12 +42,26 @@ function g2Stamp(chat) {
 }
 
 function taskLaneStates(chat) {
+  const live = chat.auditMode === 'live';
+  const livePlan = chat.audit?.selected_plan || null;
+  const liveAudit = chat.audit?.live_audit?.status || null;
+  const first = live
+    ? (livePlan ? 'completed'
+      : liveAudit === 'failed' ? 'failed'
+        : liveAudit === 'running' || chat.auditRuns ? 'in_progress' : 'pending')
+    : (chat.bound ? 'completed' : chat.request ? 'in_progress' : 'pending');
+  const second = chat.run
+    ? (chat.runEnd ? 'completed' : 'in_progress')
+    : live
+      ? (chat.phase === 'failed' ? 'failed'
+        : (livePlan && chat.phase === 'running' ? 'in_progress' : 'pending'))
+      : (chat.bound ? 'in_progress' : 'pending');
   const a = [
-    chat.bound ? 'completed' : chat.request ? 'in_progress' : 'pending',
-    chat.run ? (chat.runEnd ? 'completed' : 'in_progress') : (chat.bound ? 'in_progress' : 'pending'),
+    first,
+    second,
     chat.verdict?.available && chat.verdict?.finalized
       ? (chat.verdict.verdict === 'verified_against_stated_criteria' ? 'completed' : 'failed')
-      : chat.runEnd ? 'failed' : 'pending',
+      : chat.runEnd || chat.phase === 'failed' ? 'failed' : 'pending',
   ];
   return {route_a: a, route_b: ['not_run', 'not_run', 'not_run']};
 }
@@ -195,10 +209,12 @@ export function createExecution(t, showConversation, taskMode = false) {
 
   function updateTaskLanes(chat) {
     const states = taskLaneStates(chat);
+    const live = chat.auditMode === 'live';
     const selectedTitle = chat.bound
       ? (chat.locale === 'zh-Hans' ? chat.bound.title_zh : chat.bound.title_en) : '';
     const stamp = JSON.stringify([chat.id, states, selectedTitle, chat.plan?.revision,
-      chat.verdict?.finalized, chat.runEnd?.execution, chat.journal.length]);
+      chat.verdict?.finalized, chat.runEnd?.execution, chat.journal.length,
+      chat.auditMode, chat.audit?.selected_plan?.canonical_sha256, chat.phase]);
     if (stamp === laneStamp) return;
     laneStamp = stamp;
     names.forEach((route, index) => {
@@ -208,14 +224,21 @@ export function createExecution(t, showConversation, taskMode = false) {
       const heading = el('span', {class: 'route-heading'}, el('span', {class: 'route-letter'}, index ? 'B' : 'A'),
         el('span', {class: 'route-name'}, t(route)),
         el('span', {class: 'route-status'}, el('span', {class: 'route-marker', 'aria-hidden': 'true'}), t(status)));
+      const liveRun = chat.audit?.selected_plan?.run_index;
       const title = index === 0
-        ? (selectedTitle || t('routeAMethod'))
+        ? (live ? t('routeALiveTitle') + (liveRun ? ' · run ' + liveRun : '')
+          : (selectedTitle || t('routeAMethod')))
         : t('routeBMethod');
-      const note = index === 0 ? t(chat.bound ? 'routeASelected' : 'routeNoReason')
+      const note = index === 0
+        ? (live ? t('routeALiveSelected')
+          : t(chat.bound ? 'routeASelected' : 'routeNoReason'))
         : t('routeBNotSelected');
+      const stepKeys = index === 0 && live
+        ? ['routeStepLivePlan', 'routeStepRun', 'routeStepEvidence']
+        : branchSteps[route];
       const node = disclosure({className: 'route-lane', heading, open: index === 0},
         el('strong', {class: 'route-contract'}, title),
-        el('ol', {}, branchSteps[route].map((step, position) => {
+        el('ol', {}, stepKeys.map((step, position) => {
           const state = laneStates[position];
           return el('li', {'data-state': state}, el('span', {class: 'step-dot'}, icon(stateGlyph(state), 13)),
             el('span', {}, t(step)), el('span', {class: 'visually-hidden'}, t(state)));

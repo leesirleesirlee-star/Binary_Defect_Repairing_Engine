@@ -69,7 +69,7 @@ conducting 4 > working 3（typing/music/building 按并发数） > thinking 2 > 
 | 两条修复路线同时 in_progress（`.route-lane[data-status="in_progress"]` ≥ 2，或 journal 并发步骤 ≥ 2） | `conducting`（指挥两条路线） |
 | `activity: working`（流式回答/工具运行）`busy` 1 / 2 / ≥3 | `typing` / `music` / `building` |
 | `activity: thinking`（模型思考、排队等待执行、验证阶段） | `thinking`（气泡里想事情） |
-| 空闲 20–40s 随机 | 螃蟹：`idle-look` / `idle-wave` / `idle-laptop`；鲸鱼：`idle-look` / `idle-spout` |
+| 空闲 20–40s 随机 | 螃蟹：`idle-look` / `idle-wave`；鲸鱼：`idle-look` / `idle-spout`（`idle-laptop` 只在回答打字时使用，空闲不会拿出笔记本） |
 | 空闲 60s | `sleeping`（Zzz） |
 | 睡着后指针/键盘活动 | `waking` → 回到当前层级 |
 | 点击左半/右半、450ms 内连点 4 次、按住拖动 >4px | `poke-left` / `poke-right` / `tickle` / `drag` |
@@ -108,7 +108,8 @@ window.BinaryRepairPet = {
 - 深色主题的 Clawd 播放 `idle-laptop`（拿出笔记本打字）+ 状态文字「正在写回答…」；
 - 浅色主题的 Deepy 播放 `typing` 动画；回答结束后释放，宠物回到当前层级
   （若有「完成」moment 则先播放完）。
-打字机只在实时事件上触发；恢复历史会话不重播。
+打字机只在实时事件上触发；恢复历史会话不重播。空闲时螃蟹不会触发 `idle-laptop`，
+状态行也不会显示「正在写回答…」；该帧和文字只属于 `setWriting(true)` 的真实打字状态。
 
 ## 验证
 
