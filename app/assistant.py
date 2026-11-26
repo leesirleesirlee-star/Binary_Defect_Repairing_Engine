@@ -415,17 +415,18 @@ def _fallback(task: Mapping[str, Any], records: Sequence[Mapping[str, Any]], *,
 def _contains_unpersisted_verdict(reply: str, context: Mapping[str, Any]) -> bool:
     """Reject a claimed verdict not present in context.
 
-    ``not_run`` is also a criterion status and appears legitimately in a
-    detailed explanation of V4; it is not a claim that the run was unverified.
+    Only the persisted verdict word may be quoted verbatim.  ``not_run`` is
+    also a criterion status, so it stays legal while explaining a persisted
+    verdict; every other verdict word remains forbidden, even when the context
+    already carries a different one.
     """
     allowed = context.get("verdict")
-    if allowed:
-        # The context already contains the only persisted verdict; the model is
-        # allowed to quote criterion statuses such as not_run / error while
-        # explaining the rejection.
-        return False
-    forbidden = [word for word in VERDICT_WORDS if word != "not_run"]
-    return any(word in reply for word in forbidden)
+    for word in VERDICT_WORDS:
+        if word == allowed or (word == "not_run" and allowed):
+            continue
+        if word in reply:
+            return True
+    return False
 
 
 def validate_envelope(value: Any) -> dict[str, Any] | None:
@@ -563,7 +564,18 @@ def _diagnostic_fallback(
             lines.append("- V1-structure：候选 ELF 的段、重定位和权限必须保持在冻结契约内。")
         if not failures_text:
             lines.append("- 当前必需检查没有失败项；重新生成 verdict 并确认 finalized 即可。")
-        lines.append("V1/V2/V3 当前已通过；修复动作本身不需要再改，重点是把验证输入和静态边界证据补齐。")
+        passed = [
+            str(item.get("id")) for item in criteria
+            if isinstance(item, Mapping) and item.get("status") == "pass"
+            and item.get("required") is not False
+        ]
+        if passed:
+            lines.append(
+                "、".join(passed)
+                + " 当前已通过；修复动作本身不需要再改，重点是把验证输入和静态边界证据补齐。"
+            )
+        else:
+            lines.append("重点是把失败的验证输入和静态边界证据补齐，不要只重跑 UI。")
     elif ask("证据", "日志", "下载", "evidence", "journal", "artifact", "trace"):
         lines.append("结论：这次修复的证据由四类持久化文件组成，不靠聊天文字推断。")
         lines.append("- verdict.json：最终 verdict、V0–V5 状态、limitations、candidate sha256。")

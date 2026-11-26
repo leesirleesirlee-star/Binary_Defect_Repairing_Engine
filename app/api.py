@@ -152,14 +152,54 @@ def session() -> JSONResponse:
     return response
 
 
+_IS_WINDOWS = os.name == "nt"
+
+
+def _process_alive_windows(pid: int) -> bool:
+    """Probe a Windows process without signalling it.
+
+    ``os.kill(pid, 0)`` is not a probe on Windows: CPython maps every signal
+    except CTRL_C_EVENT/CTRL_BREAK_EVENT to TerminateProcess, so the previous
+    implementation killed the very repair runner it was inspecting.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    process_query_limited_information = 0x1000
+    still_active = 259
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    open_process = kernel32.OpenProcess
+    open_process.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    open_process.restype = wintypes.HANDLE
+    get_exit_code = kernel32.GetExitCodeProcess
+    get_exit_code.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+    get_exit_code.restype = wintypes.BOOL
+    close_handle = kernel32.CloseHandle
+    close_handle.argtypes = (wintypes.HANDLE,)
+    close_handle.restype = wintypes.BOOL
+    handle = open_process(process_query_limited_information, False, pid)
+    if not handle:
+        return False
+    try:
+        code = wintypes.DWORD()
+        if not get_exit_code(handle, ctypes.byref(code)):
+            return False
+        return code.value == still_active
+    finally:
+        close_handle(handle)
+
+
 def _process_alive(pid: Any) -> bool:
+    """Return whether ``pid`` is a live process, without signalling it."""
     try:
         value = int(pid)
         if value <= 0:
             return False
+        if _IS_WINDOWS:
+            return _process_alive_windows(value)
         os.kill(value, 0)
         return True
-    except (OSError, TypeError, ValueError):
+    except (OSError, OverflowError, TypeError, ValueError):
         return False
 
 
