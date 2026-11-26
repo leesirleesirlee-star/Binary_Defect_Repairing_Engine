@@ -6,15 +6,15 @@ import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261128c';
-import {chatPreview} from './chat-stream.mjs?v=20261128c';
-import {chatTask} from './chat-task.mjs?v=20261128c';
-import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261128c';
-import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261128c';
-import {bindSidebarSpring} from './chat-spring.mjs?v=20261128c';
-import {refreshStepCard} from './chat-steps.mjs?v=20261128c';
-import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261128c';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261128c';
+import {label} from './chat-copy.mjs?v=20261128d';
+import {chatPreview} from './chat-stream.mjs?v=20261128d';
+import {chatTask} from './chat-task.mjs?v=20261128d';
+import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261128d';
+import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261128d';
+import {bindSidebarSpring} from './chat-spring.mjs?v=20261128d';
+import {refreshStepCard} from './chat-steps.mjs?v=20261128d';
+import {control, displayTitle, fileDropZone, renderItem, renderMarkdown, transcript} from './chat-view.mjs?v=20261128d';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261128d';
 import {mountPet} from '../shared/pet.mjs?v=20261128a';
 
 const root = document.documentElement;
@@ -38,6 +38,78 @@ let stopFlyout = () => {};
 const t = (key, count) => label(locale, key, count);
 const projections = new Map();
 const drafts = new Map();
+// Assistant answers are revealed with a terminal-style typewriter instead of
+// being dropped in whole. `typeQueue` holds message ids that were announced
+// live (history restores never animate), `typeJobs` the running reveals.
+const typeQueue = new Set();
+const typeJobs = new Map();
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+let typeWriting = 0;
+
+function beginPetWriting() {
+  typeWriting += 1;
+  if (typeWriting === 1) window.BinaryRepairPet?.setWriting?.(true);
+}
+
+function endPetWriting() {
+  typeWriting = Math.max(0, typeWriting - 1);
+  if (typeWriting === 0) window.BinaryRepairPet?.setWriting?.(false);
+}
+
+function queueAssistantReveal(chat, event) {
+  const messageId = event?.payload?.message_id;
+  const reply = String(event?.payload?.reply || '');
+  if (chat !== selected || !messageId || !reply) return;
+  typeQueue.add(chat.id + ':' + messageId);
+}
+
+/** Type one live assistant answer top-to-bottom, holding the pet's typing clip. */
+function startAssistantReveal(chat, item, row) {
+  const key = chat.id + ':' + item.key;
+  if (!typeQueue.has(key) || typeJobs.has(key)) return;
+  typeQueue.delete(key);
+  const body = row.querySelector('.markdown-body');
+  const text = String(item.payload?.reply || '');
+  if (!body || !text) return;
+  if (reducedMotion.matches) return;
+  const job = {key, body, text, row, timer: 0, shown: 0, done: false};
+  const finish = renderFinal => {
+    if (job.done) return;
+    job.done = true;
+    if (job.timer) window.clearTimeout(job.timer);
+    if (renderFinal && body.isConnected) body.replaceChildren(...renderMarkdown(text).childNodes);
+    row.classList.remove('is-typing');
+    typeJobs.delete(key);
+    endPetWriting();
+  };
+  job.finish = finish;
+  const step = () => {
+    if (job.done) return;
+    if (!body.isConnected) { finish(false); return; }
+    const total = text.length;
+    const chunks = Math.max(18, Math.min(120, Math.round(total / 7)));
+    const base = Math.max(1, Math.ceil(total / chunks));
+    let take = Math.min(total - job.shown, base);
+    if (take < total - job.shown) {
+      const newline = text.indexOf('\n', job.shown);
+      if (newline !== -1 && newline - job.shown < take + 8) take = newline - job.shown + 1;
+    }
+    job.shown += take;
+    body.replaceChildren(...renderMarkdown(text.slice(0, job.shown)).childNodes);
+    if (chat === selected && nodes && nodes.scroll) {
+      const scroller = nodes.scroll;
+      const near = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 140;
+      if (near) scroller.scrollTop = scroller.scrollHeight;
+    }
+    if (job.shown >= total) { finish(true); return; }
+    job.timer = window.setTimeout(step, text[job.shown - 1] === '\n' ? 90 : 26);
+  };
+  typeJobs.set(key, job);
+  row.classList.add('is-typing');
+  body.replaceChildren();
+  beginPetWriting();
+  step();
+}
 let selected;
 let frame = 0;
 let nodes;
@@ -88,6 +160,7 @@ function announce(chat, event) {
       live.textContent = t(status);
     }
   }
+  if (event?.type === 'assistant_reply') queueAssistantReveal(chat, event);
   scheduleSave();
   if (nodes) requestPaint();
 }
@@ -581,6 +654,7 @@ function paint() {
       } else {
         nodes.log.append(row);
       }
+      if (item.type === 'assistant_reply') startAssistantReveal(selected, item, row);
     }
     nodes.rows.set(item.key, {row, item, flags});
   }

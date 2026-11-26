@@ -91,14 +91,24 @@ window.BinaryRepairPet = {
   mount(),                       // 幂等；按当前主题选螃蟹/鲸鱼
   signal({activity, busy, awaiting, sweeping, routes, runs, moment}),
   setState('idle'|'waiting'|'thinking'|'running'|'happy'|'error'|'sleeping'), // 兼容旧调用
+  setWriting(active),            // 回答打字机期间让宠物保持“打字”动画
   speak(text),                   // 兼容旧调用（跑道文字短暂提示）
   __debug: {snapshot, setSignal, setState, moment, react, freeze, sleepNow, wake, forceExtra, theme, root},
 };
 ```
 
-`snapshot()` 新增 `mascot`（`'crab'` / `'deepy'`）与当前角色的 `sheets`。旧版
-`binaryrepair:pet-state` 事件仍然有效。`__debug` 仅供测试/联调（`freeze(true)` 可阻止
-GUI 信号覆盖注入状态，`theme('light'|'dark')` 可驱动主题切换）。
+`snapshot()` 包含 `mascot`（`'crab'` / `'deepy'`）、当前角色的 `sheets` 和
+`writer`（是否处于回答打字状态）。旧版 `binaryrepair:pet-state` 事件仍然有效。
+`__debug` 仅供测试/联调（`freeze(true)` 可阻止 GUI 信号覆盖注入状态，
+`theme('light'|'dark')` 可驱动主题切换）。
+
+**回答打字机**：新到的助手回答不再一次性出现，而是按段落/换行从上到下逐段放出
+（约 2–4 秒，`prefers-reduced-motion` 时直接显示全文），同时 UI 调用
+`setWriting(true)`：
+- 深色主题的 Clawd 播放 `idle-laptop`（拿出笔记本打字）+ 状态文字「正在写回答…」；
+- 浅色主题的 Deepy 播放 `typing` 动画；回答结束后释放，宠物回到当前层级
+  （若有「完成」moment 则先播放完）。
+打字机只在实时事件上触发；恢复历史会话不重播。
 
 ## 验证
 

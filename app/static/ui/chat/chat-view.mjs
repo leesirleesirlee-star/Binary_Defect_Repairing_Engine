@@ -1,7 +1,7 @@
 import {animateDetails} from '../shared/details-anim.mjs?v=20261120au';
 import {el} from '../shared/dom.mjs?v=20261120au';
 import {icon} from '../shared/icons.mjs?v=20261126b';
-import {stepCard} from './chat-steps.mjs?v=20261128c';
+import {stepCard} from './chat-steps.mjs?v=20261128d';
 
 export function fileDropZone({label, hint, accept = '', multiple = false, onFiles}) {
   const input = el('input', {type: 'file', hidden: true, accept, multiple,
@@ -410,7 +410,7 @@ function inlineMarkdown(text) {
   });
 }
 
-function renderMarkdown(text) {
+export function renderMarkdown(text) {
   const body = el('div', {class: 'message-body markdown-body'});
   const lines = String(text ?? '').replace(/\r/g, '').split('\n');
   let list = null;
