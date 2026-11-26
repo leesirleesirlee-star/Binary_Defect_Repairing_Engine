@@ -5,7 +5,7 @@ import {LANGUAGES, LANGUAGE_CODES, detectLanguage, isLanguage, languageName} fro
 import '../shared/theme.mjs?v=20261120au';
 import {playExit} from '../shared/warp.mjs?v=20261121y';
 import {welcomeCopy} from './welcome-copy.mjs?v=20261126b';
-import {mountPet} from '../shared/pet.mjs?v=20261127a';
+import {mountPet} from '../shared/pet.mjs?v=20261128a';
 
 const form = document.querySelector('.composer-card');
 const draft = document.querySelector('#draft');

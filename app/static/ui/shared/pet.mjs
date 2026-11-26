@@ -1,24 +1,30 @@
 /**
- * The composer crab — the interactive pixel companion of the BinaryRepair GUI.
+ * The composer pets — the interactive pixel companions of the BinaryRepair GUI.
  *
- * This is a faithful port of the mascot "Clawd" from the DSH plugin
- * `dsh-claude-style` v0.19.6 (the orange pixel crab the user asked for), not a
- * look-alike: the sprite sheets in ../assets/mascot/crab/ were copied
- * byte-for-byte out of the installed plugin build, and the frame table, player,
- * priority state machine, idle extras, sleep/wake and pointer reactions below
- * mirror the plugin's mascot chunk one-to-one (only the DSH session signals are
- * replaced by this GUI's signals — see `signal()`).
+ * Two mascots are ported faithfully from the DSH plugin `dsh-claude-style`
+ * v0.19.6, not imitated:
+ *   - dark theme  → "Clawd", the orange pixel crab (Claude brand);
+ *   - light theme → "Deepy", the blue pixel whale (DeepSeek brand).
  *
- * The crab stands on the composer's top edge. On the conversation page it
- * stands inside `pet-runway`, a strip between the transcript and the composer
- * whose top border is the separator line; on the welcome page it stands on the
- * hero input card; on the archive page it sits in a fixed bottom-right layer.
- * It never moves with the pointer: dragging only plays the `drag` clip, exactly
- * like the plugin.
+ * The sprite sheets in ../assets/mascot/{crab,deepy}/ were copied byte-for-byte
+ * out of the installed plugin build (crab: PNG body+ink sheets; Deepy: the
+ * plugin's vector SVG frame sheets), and the frame tables, players, priority
+ * state machine, idle extras, sleep/wake and pointer reactions below mirror the
+ * plugin's mascot chunk one-to-one. Only the DSH session signals are replaced by
+ * this GUI's signals (see `signal()`), and the anchoring is adapted to this
+ * GUI's composer and page shells (see pet.css).
  *
- * Provemance: frames from dsh-claude-style (MIT), drawn by calmly-eating-bugs;
- * the crab is Anthropic's Clawd character. The plugin's third-party notices
- * apply to the sheet art.
+ * The active mascot follows the resolved theme: dark → crab, light → deepy.
+ * Both stand on the composer's top edge. On the conversation page the pet
+ * stands inside `pet-runway`, a strip between transcript and composer whose top
+ * border is the separator line; on the welcome page it stands on the hero input
+ * card; on the archive page it sits in a fixed bottom-right layer. It never
+ * moves with the pointer: dragging only plays the `drag` clip, exactly like the
+ * plugin.
+ *
+ * Provenance: frames from dsh-claude-style (MIT), drawn by calmly-eating-bugs;
+ * the crab is Anthropic's Clawd character and the whale Deepy draws on
+ * DeepSeek's blue whale mark. The plugin's third-party notices apply.
  *
  * Public API (kept for the rest of the GUI):
  *   window.BinaryRepairPet = {mount, setState, signal, speak, hearts, __debug}
@@ -32,9 +38,7 @@ import {motionReduced} from './motion.mjs?v=20261120au';
 // Frames per clip, the crop box [x, y, w, h] in cells, and the still frame
 // shown under reduced motion. Sheets hold 8 frames per row, each cropped to
 // the box plus one transparent cell of gutter on every side.
-const FRAME_MS = 80;
-const GUTTER = 1;
-const SHEETS = {
+const CRAB_SHEETS = {
   idle: {frames: 24, box: [24, 20, 24, 16], still: 0},
   'idle-look': {frames: 31, box: [24, 20, 24, 16], still: 0},
   'idle-wave': {frames: 12, box: [24, 15, 24, 21], still: 0},
@@ -55,8 +59,83 @@ const SHEETS = {
   tickle: {frames: 16, box: [23, 18, 26, 18], still: 0},
   drag: {frames: 8, box: [23, 12, 26, 22], still: 0},
 };
-const EXTRAS = ['idle-look', 'idle-wave', 'idle-laptop'];
-const ASSET_ROOT = new URL('../assets/mascot/crab/', import.meta.url);
+
+// ── Deepy's clips (verbatim from dsh-claude-style v0.19.6) ──────────────────
+// The whale ships as vector SVG sheet images (same 8-per-row layout, cell =
+// box + one gutter cell on every side) and runs at 50ms a frame; it has no
+// separate ink layer because its colours are painted into the SVG.
+const DEEPY_SHEETS = {
+  idle: {frames: 48, box: [12, 26, 36, 24], still: 0},
+  'idle-look': {frames: 68, box: [11, 11, 37, 39], still: 0},
+  'idle-spout': {frames: 64, box: [8, 17, 39, 33], still: 0},
+  thinking: {frames: 48, box: [0, 6, 47, 44], still: 20},
+  typing: {frames: 48, box: [0, 17, 52, 33], still: 16},
+  music: {frames: 32, box: [2, 10, 48, 40], still: 0},
+  conducting: {frames: 48, box: [1, 0, 51, 50], still: 6},
+  building: {frames: 48, box: [2, 0, 50, 50], still: 0},
+  error: {frames: 48, box: [4, 17, 45, 33], still: 24},
+  happy: {frames: 52, box: [0, 5, 52, 45], still: 44},
+  notification: {frames: 32, box: [3, 7, 47, 43], still: 12},
+  compacting: {frames: 56, box: [2, 14, 46, 36], still: 20},
+  sleeping: {frames: 64, box: [2, 2, 44, 48], still: 10},
+  waking: {frames: 30, box: [8, 4, 44, 46], still: 29},
+  'poke-left': {frames: 40, box: [1, 16, 50, 34], still: 0},
+  'poke-right': {frames: 40, box: [8, 16, 44, 34], still: 0},
+  tickle: {frames: 48, box: [9, 17, 43, 33], still: 0},
+  drag: {frames: 24, box: [10, 4, 41, 46], still: 0},
+};
+
+/**
+ * One mascot's exact plugin parameters. `assetUrls` and `paint` are the only
+ * per-mascot sheet differences: the crab has a body PNG plus an ink mask PNG,
+ * the whale one vector SVG sheet per clip and no ink layer.
+ */
+const CRAB = {
+  name: 'crab',
+  frameMs: 80,
+  gutter: 1,
+  sheets: CRAB_SHEETS,
+  extras: ['idle-look', 'idle-wave', 'idle-laptop'],
+  preloadAll: true,
+  status: new Map(),
+  assetUrls(key) {
+    const root = new URL('../assets/mascot/crab/', import.meta.url);
+    return [new URL(`${key}-body.png`, root).href, new URL(`${key}-ink.png`, root).href];
+  },
+  paint(style, key) {
+    const root = new URL('../assets/mascot/crab/', import.meta.url);
+    style.setProperty('--dsh-claude-crab-sheet', `url("${new URL(`${key}-body.png`, root).href}")`);
+    style.setProperty('--dsh-claude-crab-ink', `url("${new URL(`${key}-ink.png`, root).href}")`);
+  },
+};
+
+const DEEPY = {
+  name: 'deepy',
+  frameMs: 50,
+  gutter: 1,
+  sheets: DEEPY_SHEETS,
+  extras: ['idle-look', 'idle-spout'],
+  preloadAll: false,
+  status: new Map(),
+  assetUrls(key) {
+    return [new URL(`../assets/mascot/deepy/${key}.svg`, import.meta.url).href];
+  },
+  paint(style, key) {
+    const url = new URL(`../assets/mascot/deepy/${key}.svg`, import.meta.url).href;
+    style.setProperty('--dsh-claude-deepy-sheet', `url("${url}")`);
+  },
+};
+
+const MASCOTS = {crab: CRAB, deepy: DEEPY};
+let mascot = CRAB;
+
+/** The mascot the resolved theme asks for: dark → crab, light → Deepy. */
+function resolvedMascot() {
+  const theme = document.documentElement.dataset.theme;
+  const dark = theme === 'dark' ||
+    (theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  return dark ? CRAB : DEEPY;
+}
 
 // ── Stage clock rules (verbatim from the plugin) ────────────────────────────
 const MIN_SHOW_MS = 1000;
@@ -289,56 +368,59 @@ let labelOverride = null;
 let syncTimer = 0;
 let signalsFrozen = false;
 const stopHooks = [];
-const sheetStatus = new Map(); // key -> 'loading' | 'ready' | 'failed'
 let sheetsAlive = true;
 
-/** Paint a clip's two sheets on the root: the body art and the ink mask. */
+/** Paint a clip's sheet(s) on the root: the mascot decides how many. */
 function paint(style, key) {
-  style.setProperty('--dsh-claude-crab-sheet', `url("${new URL(`${key}-body.png`, ASSET_ROOT).href}")`);
-  style.setProperty('--dsh-claude-crab-ink', `url("${new URL(`${key}-ink.png`, ASSET_ROOT).href}")`);
+  mascot.paint(style, key);
 }
 
-/** Start the first load of one clip's sheets; the caller re-steps when they land. */
+/** Start the first load of one clip's sheet(s); the caller re-steps when they land. */
 function loadSheet(key) {
-  const known = sheetStatus.get(key);
+  const known = mascot.status.get(key);
   if (known !== undefined) return known === 'ready';
-  sheetStatus.set(key, 'loading');
-  const body = new Image();
-  const ink = new Image();
-  body.src = new URL(`${key}-body.png`, ASSET_ROOT).href;
-  ink.src = new URL(`${key}-ink.png`, ASSET_ROOT).href;
-  Promise.all([body.decode(), ink.decode()]).then(() => {
+  mascot.status.set(key, 'loading');
+  // `decode()` rejects for some SVG sources in older WebKit, so let the load
+  // event settle the sheet too; the CSS background is usable once either fires.
+  const loads = mascot.assetUrls(key).map(url => new Promise(resolve => {
+    const image = new Image();
+    let settled = false;
+    const finish = ok => { if (settled) return; settled = true; resolve(ok); };
+    image.onload = () => finish(true);
+    image.onerror = () => finish(false);
+    image.src = url;
+    if (typeof image.decode === 'function') image.decode().then(() => finish(true), () => {});
+  }));
+  Promise.all(loads).then(results => {
     if (!sheetsAlive) return;
-    sheetStatus.set(key, 'ready');
-    if (strip !== null) step();
-  }, () => {
-    if (!sheetsAlive) return;
-    sheetStatus.set(key, 'failed');
+    const ok = results.every(Boolean);
+    mascot.status.set(key, ok ? 'ready' : 'failed');
+    if (ok && strip !== null) step();
   });
   return false;
 }
 
 function sheetReady(key) {
-  return sheetStatus.get(key) === 'ready' || loadSheet(key);
+  return mascot.status.get(key) === 'ready' || loadSheet(key);
 }
 
 function sheetFailed(key) {
-  return sheetStatus.get(key) === 'failed';
+  return mascot.status.get(key) === 'failed';
 }
 
 function playMs(key) {
-  return SHEETS[key].frames * FRAME_MS;
+  return mascot.sheets[key].frames * mascot.frameMs;
 }
 
 /** One frame cell of a sheet: the crop box plus the transparent gutter. */
 function cellSize(sheet) {
-  return [sheet.box[2] + GUTTER * 2, sheet.box[3] + GUTTER * 2];
+  return [sheet.box[2] + mascot.gutter * 2, sheet.box[3] + mascot.gutter * 2];
 }
 
 /** The strip translation that puts one frame of a sheet in the window. */
 function frameOffset(sheet, frame) {
   const [cellWidth, cellHeight] = cellSize(sheet);
-  return `translate(${-((frame % 8) * cellWidth + GUTTER) * 2}px, ${-(Math.floor(frame / 8) * cellHeight + GUTTER) * 2}px)`;
+  return `translate(${-((frame % 8) * cellWidth + mascot.gutter) * 2}px, ${-(Math.floor(frame / 8) * cellHeight + mascot.gutter) * 2}px)`;
 }
 
 /** Whether the reduced-motion choice pins stills instead of playing clips. */
@@ -346,15 +428,16 @@ function still() {
   return motionReduced() && stage.reaction === null;
 }
 
-/** Build the crab's nodes once per mount. */
+/** Build the active mascot's nodes once per mount. */
 function build() {
-  const built = el('span', 'dsh-claude-crab');
+  const name = mascot.name;
+  const built = el('span', `dsh-claude-${name}`);
   built.setAttribute('aria-hidden', 'true');
-  sprite = el('span', 'dsh-claude-crab-sprite');
-  strip = el('span', 'dsh-claude-crab-strip');
+  sprite = el('span', `dsh-claude-${name}-sprite`);
+  strip = el('span', `dsh-claude-${name}-strip`);
   sprite.appendChild(strip);
   built.appendChild(sprite);
-  const hit = el('span', 'dsh-claude-crab-hit');
+  const hit = el('span', `dsh-claude-${name}-hit`);
   hit.addEventListener('pointerdown', onPressStart);
   hit.addEventListener('pointermove', onPressMove);
   hit.addEventListener('pointerup', onPressEnd);
@@ -448,11 +531,17 @@ function sync() {
     release();
     return;
   }
+  // Drop any stale root of the other mascot left by a theme switch.
+  for (const other of Object.values(MASCOTS)) {
+    if (other === mascot) continue;
+    const stale = stand.element.querySelector(`:scope > .dsh-claude-${other.name}`);
+    if (stale !== null) stale.remove();
+  }
   if (root === null) root = build();
   if (root.parentNode !== stand.element) stand.element.appendChild(root);
   activityLabel = stand.place === 'runway' ? stand.element.querySelector(':scope > .pet-activity') : null;
-  if (!stand.element.hasAttribute('data-dsh-claude-crab-anchor')) {
-    stand.element.setAttribute('data-dsh-claude-crab-anchor', stand.place);
+  if (!stand.element.hasAttribute('data-pet-anchor')) {
+    stand.element.setAttribute('data-pet-anchor', stand.place);
   }
   if (readRouteLanes()) {
     refreshLevel();
@@ -467,7 +556,7 @@ function play(key, mode) {
     stage.animation.cancel();
     stage.animation = null;
   }
-  const sheet = SHEETS[key];
+  const sheet = mascot.sheets[key];
   if (still()) {
     strip.style.transform = frameOffset(sheet, sheet.still);
     return;
@@ -479,7 +568,7 @@ function play(key, mode) {
   }
   keyframes.push({offset: 1, transform: frameOffset(sheet, mode === 'loop' ? 0 : sheet.frames - 1)});
   const playing = strip.animate(keyframes, {
-    duration: sheet.frames * FRAME_MS,
+    duration: sheet.frames * mascot.frameMs,
     iterations: mode === 'loop' ? Infinity : 1,
     fill: 'forwards',
   });
@@ -497,18 +586,19 @@ function play(key, mode) {
 
 /** Put one clip on screen: paint its sheets, write the crop vars, play it. */
 function show(next, now) {
-  const sheet = SHEETS[next.key];
+  const name = mascot.name;
+  const sheet = mascot.sheets[next.key];
   const [cellWidth, cellHeight] = cellSize(sheet);
   stage.current = {key: next.key, mode: next.mode, priority: next.priority, start: now};
   if (stage.reaction !== null && stage.reaction.key === next.key) stage.reaction.fresh = false;
   const style = root.style;
   paint(style, next.key);
-  style.setProperty('--dsh-claude-crab-x', String(sheet.box[0]));
-  style.setProperty('--dsh-claude-crab-y', String(sheet.box[1]));
-  style.setProperty('--dsh-claude-crab-w', String(sheet.box[2]));
+  style.setProperty(`--dsh-claude-${name}-x`, String(sheet.box[0]));
+  style.setProperty(`--dsh-claude-${name}-y`, String(sheet.box[1]));
+  style.setProperty(`--dsh-claude-${name}-w`, String(sheet.box[2]));
   style.setProperty('--dsh-claude-mascot-h', String(sheet.box[3]));
-  style.setProperty('--dsh-claude-crab-cell-w', String(cellWidth));
-  style.setProperty('--dsh-claude-crab-strip-h', String(cellHeight * Math.ceil(sheet.frames / 8)));
+  style.setProperty(`--dsh-claude-${name}-cell-w`, String(cellWidth));
+  style.setProperty(`--dsh-claude-${name}-strip-h`, String(cellHeight * Math.ceil(sheet.frames / 8)));
   root.setAttribute('data-animation', next.key);
   play(next.key, next.mode);
   if (!root.hasAttribute('data-ready')) root.setAttribute('data-ready', '');
@@ -525,7 +615,7 @@ function step() {
     finishStage(stage, stage.current.key, now, Math.random);
   }
   const next = decideStage(stage, now, stage.level ?? IDLE, {
-    extras: EXTRAS,
+    extras: mascot.extras,
     extrasAllowed: !motionReduced() && !document.hidden,
     random: Math.random,
   });
@@ -542,7 +632,7 @@ function step() {
     if (still() && stage.animation !== null) {
       stage.animation.cancel();
       stage.animation = null;
-      strip.style.transform = frameOffset(SHEETS[stage.current.key], SHEETS[stage.current.key].still);
+      strip.style.transform = frameOffset(mascot.sheets[stage.current.key], mascot.sheets[stage.current.key].still);
     } else if (!still() && stage.animation === null) {
       play(stage.current.key, stage.current.mode);
       if (stage.animation !== null && stage.current.mode === 'loop') {
@@ -643,11 +733,52 @@ function release() {
   if (stage.timer !== null) clearTimeout(stage.timer);
   if (stage.animation !== null) stage.animation.cancel();
   if (root !== null && root.parentNode !== null) root.parentNode.removeChild(root);
+  root = null;
   strip = null;
   sprite = null;
+  activityLabel = null;
   stage = freshStage(Date.now());
   stage.level = levelOf({...signals, routes: effectiveRoutes()});
   labelOverride = null;
+}
+
+/**
+ * Follow a live theme change: the resolved theme picks the mascot. Release the
+ * old pet and let the next sync build the other one on the same anchor.
+ */
+let themeObserver = null;
+const darkScheme = window.matchMedia('(prefers-color-scheme: dark)');
+
+function swapMascot(next) {
+  if (mascot === next) return;
+  mascot = next;
+  release();
+  if (mounted) sync();
+}
+
+function sameResolvedMascot() {
+  return resolvedMascot() === mascot;
+}
+
+function onThemeAttribute() {
+  if (mounted && !sameResolvedMascot()) swapMascot(resolvedMascot());
+}
+
+function onSystemScheme() {
+  if (mounted && !document.documentElement.dataset.theme && !sameResolvedMascot()) {
+    swapMascot(resolvedMascot());
+  }
+}
+
+function watchTheme() {
+  if (themeObserver !== null) return;
+  themeObserver = new MutationObserver(onThemeAttribute);
+  themeObserver.observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
+  darkScheme.addEventListener('change', onSystemScheme);
+  stopHooks.push(() => {
+    if (themeObserver !== null) { themeObserver.disconnect(); themeObserver = null; }
+    darkScheme.removeEventListener('change', onSystemScheme);
+  });
 }
 
 /** Feed one patch of GUI state; `moment` is a one-shot. External signals stop while frozen (QA only). */
@@ -821,14 +952,17 @@ export function mountPet() {
   if (mounted) return stop;
   mounted = true;
   page = pageKind();
+  mascot = resolvedMascot();
   stage = freshStage(Date.now());
   stage.level = levelOf({...signals, routes: effectiveRoutes()});
   sheetsAlive = true;
-  for (const key of Object.keys(SHEETS)) loadSheet(key);
+  if (mascot.preloadAll) for (const key of Object.keys(mascot.sheets)) loadSheet(key);
+  else loadSheet('idle');
   if (root === null) root = build();
   sync();
   watchRouteLanes();
   probeArchiveJobs();
+  watchTheme();
 
   const activityEvents = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart'];
   const off = [];
@@ -865,6 +999,7 @@ export function mountPet() {
     __debug: {
       snapshot: () => ({
         page,
+        mascot: mascot.name,
         level: stage.level,
         current: stage.current === null ? null : {key: stage.current.key, mode: stage.current.mode},
         asleep: stage.asleep,
@@ -874,13 +1009,13 @@ export function mountPet() {
         signals: {...signals},
         routes: effectiveRoutes(),
         domRoutes,
-        sheets: Object.fromEntries(sheetStatus),
+        sheets: Object.fromEntries(mascot.status),
       }),
       setSignal: applySignals,
       setState,
       moment: onMoment,
       react: key => {
-        if (!SHEETS[key]) return;
+        if (!mascot.sheets[key]) return;
         react(key, key.startsWith('poke') || key === 'tickle' ? 'once' : 'loop');
       },
       freeze: value => { signalsFrozen = Boolean(value); },
@@ -890,10 +1025,21 @@ export function mountPet() {
       },
       wake: onActivity,
       forceExtra: name => {
-        if (!EXTRAS.includes(name)) return;
+        if (!mascot.extras.includes(name)) return;
         stage.extra = name;
         step();
       },
+      /** QA helper: drive the resolved theme attribute like theme.mjs does. */
+      theme: value => {
+        if (value === 'light' || value === 'dark') document.documentElement.dataset.theme = value;
+        return mascot.name;
+      },
+      /** QA helper: panel geometry for the active mascot root. */
+      root: () => (root === null ? null : {
+        className: root.className,
+        animation: root.getAttribute('data-animation'),
+        rect: root.getBoundingClientRect().toJSON(),
+      }),
     },
   };
   return stop;

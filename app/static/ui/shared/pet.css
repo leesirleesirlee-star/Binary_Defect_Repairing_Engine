@@ -1,25 +1,34 @@
-/* ── The composer crab ──────────────────────────────────────────────────────
-   Port of the DSH plugin dsh-claude-style v0.19.6 mascot "Clawd" (the pixel
-   crab) into the BinaryRepair UI. Frame mechanics, sizes and percentages are
-   kept verbatim from the plugin's crab.css / mascot-frame.css so the shipped
-   sprite sheets draw exactly as they do in DSH; only the surface anchoring is
-   adapted to this GUI's composer and page shells.
+/* ── The composer pets ──────────────────────────────────────────────────────
+   Port of the DSH plugin dsh-claude-style v0.19.6 mascots into the BinaryRepair
+   UI. Frame mechanics, sizes and percentages are kept verbatim from the
+   plugin's frame styles so the shipped art draws exactly as it does in DSH;
+   only the surface anchoring is adapted to this GUI's composer and page shells.
 
-   Crab grid: 52×36 cells at 2px a cell (104×72px), feet on the bottom row, the
-   right claw four cells (8px) in from the right edge. The strip carries the
-   shell, its shaded side and the eyes; its ::after carries the ink mask (the
-   laptop, letters, notes, the hat, the exclamation marks), filled with the
-   theme's quiet ink so it stays a quiet grey on either canvas. Only the crab
-   itself takes the pointer.
+   Two mascots, chosen by the resolved theme:
+     - dark  → "Clawd", the orange pixel crab (Claude brand);
+               52×36 cells at 2px a cell (104×72px). Its strip carries the
+               shell; its ::after carries the ink mask (laptop, letters, notes,
+               hat, exclamation marks), filled with the theme's quiet ink.
+     - light → "Deepy", the blue pixel whale (DeepSeek brand);
+               vector SVG sheets, drawn at 2px a cell inside a 104×104 box, no
+               ink layer because its colours are painted into the SVG.
+   Only the pet itself takes the pointer.
 
-   Provenance: frames from dsh-claude-style (MIT), drawn by calmly-eating-bugs;
-   the crab is Anthropic's Clawd character (see the plugin's THIRD_PARTY
-   notices). Sheets live in assets/mascot/crab/ and were copied byte-for-byte
-   from the installed 0.19.6 plugin build. */
+   Provenance: art from dsh-claude-style (MIT), drawn by calmly-eating-bugs;
+   the crab is Anthropic's Clawd character and the whale Deepy draws on
+   DeepSeek's blue whale mark (see the plugin's THIRD_PARTY notices). The crab
+   sheets live in assets/mascot/crab/ (PNG, copied byte-for-byte from the
+   installed 0.19.6 build); the whale sheets in assets/mascot/deepy/ (the
+   plugin's 0.19.6 vector sheets, decompressed byte-for-byte). */
 
 @layer base, thread, shell;
 
 /* ── frame mechanics (shared by every clip) ─────────────────────────────── */
+
+/* The anchor the pet is placed in is its containing block. */
+[data-pet-anchor] { position: relative; }
+
+/* ── Clawd, the crab (dark theme) ───────────────────────────────────────── */
 
 .dsh-claude-crab {
   --pet-ink: var(--muted, #91888a);
@@ -36,9 +45,6 @@
 
 /* Hidden until the first sheet has drawn a frame. */
 .dsh-claude-crab:not([data-ready]) { visibility: hidden; }
-
-/* The anchor the crab is placed in is its containing block. */
-[data-dsh-claude-crab-anchor] { position: relative; }
 
 .dsh-claude-crab-sprite {
   position: absolute;
@@ -81,10 +87,59 @@
   touch-action: none;
 }
 
+/* ── Deepy, the whale (light theme) ─────────────────────────────────────── */
+
+/* Verbatim from the plugin's Deepy frame CSS (104×104 root, sprite window at
+   x*2/y*2, strip scaled to cellWidth*16px so 1 cell = 2px). The 4px overhang
+   below the anchor is the plugin's own: the art sits 4px above the box bottom,
+   so the whale's belly lands exactly on the edge it stands on. */
+.dsh-claude-deepy {
+  position: absolute;
+  right: 8px;
+  bottom: calc(100% - 4px);
+  z-index: 1;
+  width: 104px;
+  height: 104px;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dsh-claude-deepy:not([data-ready]) { visibility: hidden; }
+
+.dsh-claude-deepy-sprite {
+  position: absolute;
+  left: calc(var(--dsh-claude-deepy-x, 0) * 2px);
+  top: calc(var(--dsh-claude-deepy-y, 0) * 2px);
+  width: calc(var(--dsh-claude-deepy-w, 0) * 2px);
+  height: calc(var(--dsh-claude-mascot-h, 0) * 2px);
+  overflow: hidden;
+}
+
+.dsh-claude-deepy-strip {
+  display: block;
+  width: calc(var(--dsh-claude-deepy-cell-w, 0) * 16px);
+  height: calc(var(--dsh-claude-deepy-strip-h, 0) * 2px);
+  background-image: var(--dsh-claude-deepy-sheet, none);
+  background-repeat: no-repeat;
+  background-size: calc(var(--dsh-claude-deepy-cell-w, 0) * 16px) auto;
+}
+
+/* The whale's body takes the pointer (plugin values). */
+.dsh-claude-deepy-hit {
+  position: absolute;
+  left: 24px;
+  top: 60px;
+  width: 64px;
+  height: 36px;
+  pointer-events: auto;
+  touch-action: none;
+}
+
 /* ── chat page: a pet strip between transcript and composer ────────────────
    The strip is real layout space, so generated text never scrolls under the
-   crab; its top border is the separator line from the reference layout. The
-   crab stands on the composer card's top edge at the card's right end. */
+   pet; its top border is the separator line from the reference layout. The
+   pet stands on the composer card's top edge at the card's right end. */
 
 .pet-runway {
   position: relative;
@@ -92,9 +147,23 @@
   border-top: 1px solid var(--line);
 }
 
+/* The whale is 104px tall (the crab 72px): the light theme strip makes room
+   for it, the dark theme keeps the crab's 84px. */
+:root[data-theme="light"] .pet-runway { height: 112px; }
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .pet-runway { height: 112px; }
+}
+
 .pet-runway > .dsh-claude-crab {
   right: 0;
   bottom: 0;
+}
+
+/* Feet on the runway's bottom edge (= the composer's top edge). */
+.pet-runway > .dsh-claude-deepy {
+  right: 8px;
+  bottom: -4px;
 }
 
 .pet-activity {
@@ -113,13 +182,18 @@
 
 .pet-activity:empty { display: none; }
 
-/* ── welcome page: the crab stands on the hero input card ────────────────── */
+/* ── welcome page: the pet stands on the hero input card ────────────────── */
 
-form.composer-card[data-dsh-claude-crab-anchor] { position: relative; }
+form.composer-card[data-pet-anchor] { position: relative; }
 
 form.composer-card > .dsh-claude-crab {
   right: 0;
   bottom: 100%;
+}
+
+form.composer-card > .dsh-claude-deepy {
+  right: 8px;
+  bottom: calc(100% - 4px);
 }
 
 /* ── archive page: fixed bottom-right, feet on the viewport edge ─────────── */
@@ -130,7 +204,7 @@ form.composer-card > .dsh-claude-crab {
   bottom: 0;
   z-index: 40;
   width: 104px;
-  height: 72px;
+  height: 104px;
   pointer-events: none;
 }
 
@@ -139,23 +213,64 @@ form.composer-card > .dsh-claude-crab {
   bottom: 0;
 }
 
+.pet-fixed-layer > .dsh-claude-deepy {
+  right: 0;
+  bottom: -4px;
+}
+
+/* ── the transient "latest message" pill ────────────────────────────────────
+   It used to sit above the whole composer wrap, which the pet strip made far
+   too high. Put it on the strip's own row, bottom-aligned: it appears right on
+   the composer's top edge instead of hovering over the transcript. */
+
+.composer-wrap:has(> .pet-runway) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.composer-wrap:has(> .pet-runway) > .pet-runway { grid-row: 1; grid-column: 1; }
+
+.composer-wrap:has(> .pet-runway) > form.composer { grid-row: 2; grid-column: 1; }
+
+.composer-wrap:has(> .pet-runway) > .latest {
+  grid-row: 1;
+  grid-column: 1;
+  align-self: end;
+  justify-self: center;
+  position: relative;
+  left: auto;
+  bottom: auto;
+  margin-bottom: 6px;
+  transform: none;
+  z-index: 2;
+}
+
+.composer-wrap:has(> .pet-runway) > .latest:not(:disabled):active { transform: translateY(1px); }
+
+.composer-wrap:has(> .pet-runway) > .latest.latest-dim { transform: translateY(5px); }
+
 /* ── narrow screens ───────────────────────────────────────────────────────── */
 
 /* The chat grid sizes its single column from the composer's min-content on a
-   narrow viewport, which lets the composer (and the crab standing on it) run
+   narrow viewport, which lets the composer (and the pet standing on it) run
    past the screen edge. Once the pet strip is mounted, pin the column to the
-   container so the crab stays fully visible. */
+   container so the pet stays fully visible. */
 @media (max-width: 720px) {
   @supports selector(:has(*)) {
     .chat-main:has(> .composer-wrap > .pet-runway) { grid-template-columns: minmax(0, 1fr); }
   }
   .pet-runway { height: 78px; }
+  :root[data-theme="light"] .pet-runway { height: 108px; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .pet-runway { height: 108px; }
+  }
   .pet-activity { font-size: .68rem; max-width: calc(100% - 116px); }
 }
 
 @media (max-width: 520px) {
   .pet-fixed-layer { right: .6rem; }
   form.composer-card > .dsh-claude-crab { right: -6px; }
+  form.composer-card > .dsh-claude-deepy { right: 0; }
 }
 
 /* ── print/utility ────────────────────────────────────────────────────────── */
