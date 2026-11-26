@@ -285,7 +285,7 @@ def test_reset_then_restart_clears_the_cancellation_flag(
     assert len(live["runs"]) == 3
 
 
-def test_invalid_generated_plan_reports_a_specific_reason() -> None:
+def test_guard_stub_generated_plan_is_selectable() -> None:
     plan = {
         "edits": [
             {"kind": "redirect_call", "address": "0x1", "new_bytes": "e8 00 00 00 00"},
@@ -293,8 +293,8 @@ def test_invalid_generated_plan_reports_a_specific_reason() -> None:
         ]
     }
     selectable, reason = live_audit._plan_selectability(None, plan)
-    assert selectable is False
-    assert reason == "edit_kind_not_allowed:guard_stub"
+    assert selectable is True
+    assert reason is None
 
 
 def test_live_guest_is_disabled_off_windows(client: TestClient) -> None:

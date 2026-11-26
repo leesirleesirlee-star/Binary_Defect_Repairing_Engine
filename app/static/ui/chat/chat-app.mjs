@@ -1,20 +1,21 @@
 import {el, isAscii} from '../shared/dom.mjs?v=20261120au';
 import {saveLanguage, takeDraft} from '../shared/handoff.mjs?v=20261120au';
-import {icon} from '../shared/icons.mjs?v=20261120au';
+import {icon} from '../shared/icons.mjs?v=20261126b';
 import {LANGUAGE_CODES, languageName} from '../shared/languages.mjs?v=20261120au';
 import {slideTo} from '../shared/page-slide.mjs?v=20261120au';
 import {getSetting} from '../shared/settings-preferences.mjs?v=20261120au';
 import {bindSettingsFlyout} from '../shared/settings-flyout.mjs?v=20261124b';
 import {getTheme, setTheme} from '../shared/theme.mjs?v=20261120au';
-import {label} from './chat-copy.mjs?v=20261125b';
-import {chatPreview} from './chat-stream.mjs?v=20261125b';
-import {chatTask} from './chat-task.mjs?v=20261125b';
-import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261121z';
-import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261124b';
-import {bindSidebarSpring} from './chat-spring.mjs?v=20261120au';
-import {refreshStepCard} from './chat-steps.mjs?v=20261125b';
-import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261125b';
-import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261125b';
+import {label} from './chat-copy.mjs?v=20261128c';
+import {chatPreview} from './chat-stream.mjs?v=20261128c';
+import {chatTask} from './chat-task.mjs?v=20261128c';
+import {openLanguage, openModel, openSearch, openSettings} from './chat-dialogs.mjs?v=20261128c';
+import {appMark, paintSidebar, sidebar} from './chat-nav.mjs?v=20261128c';
+import {bindSidebarSpring} from './chat-spring.mjs?v=20261128c';
+import {refreshStepCard} from './chat-steps.mjs?v=20261128c';
+import {control, displayTitle, fileDropZone, renderItem, transcript} from './chat-view.mjs?v=20261128c';
+import {activityTypes, createExecution, elapsed} from './chat-workspace.mjs?v=20261128c';
+import {mountPet} from '../shared/pet.mjs?v=20261128a';
 
 const root = document.documentElement;
 const app = document.querySelector('#app');
@@ -43,6 +44,37 @@ let nodes;
 let selectionChanged = false;
 let navStamp;
 
+const HISTORY_KEY = 'binaryrepair.chat.sessions.v1';
+let saveTimer = 0;
+function loadHistory() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) || 'null');
+    return parsed && Array.isArray(parsed.chats) ? parsed : null;
+  } catch { return null; }
+}
+function saveHistory() {
+  if (!engine || !selected) return;
+  const chats = engine.serialize().filter(chat =>
+    chat.id === selected.id || chat.events.length > 0);
+  const persist = value => localStorage.setItem(HISTORY_KEY, JSON.stringify(value));
+  try {
+    persist({selected: selected.id, chats});
+  } catch {
+    // Quota fallback: keep every conversation, but drop bulky preview bytes
+    // from completed chats and retain a bounded transcript per chat.
+    try {
+      persist({selected: selected.id, chats: chats.map(chat => ({
+        ...chat,
+        attachmentFiles: [],
+        events: (chat.events || []).slice(-200),
+      }))});
+    } catch { /* storage truly unavailable; archive still keeps tasks */ }
+  }
+}
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveHistory, 300);
+}
 const params = new URLSearchParams(location.search);
 
 function announce(chat, event) {
@@ -56,6 +88,7 @@ function announce(chat, event) {
       live.textContent = t(status);
     }
   }
+  scheduleSave();
   if (nodes) requestPaint();
 }
 
@@ -66,16 +99,48 @@ function announce(chat, event) {
 const previewMode = params.get('preview') === '1';
 const engine = previewMode ? chatPreview({notify: announce}) : chatTask({notify: announce});
 const requestedJob = params.get('job');
-Promise.resolve(engine.seed(locale)).then(() => {
-  if (!requestedJob) return;
+const restored = !previewMode ? loadHistory() : null;
+let restoredSession = false;
+if (restored?.chats?.length) {
+  try {
+    engine.restoreHistory(restored.chats);
+    restoredSession = engine.chats.size > 0;
+  } catch { restoredSession = false; }
+}
+const meaningful = chat => Boolean(chat.jobId) || chat.events.some(item =>
+  !['assistant_delta', 'assistant_end', 'thinking'].includes(item.type));
+if (restoredSession) {
+  const inferTitle = chat => {
+    if (chat.titleIsCustom || (chat.title && chat.title !== t('new'))) return;
+    const binary = chat.events.find(item => item.type === 'binary_ready')?.payload?.binary_name ||
+      chat.events.find(item => item.type === 'case_prompt')?.payload?.binary_name ||
+      chat.task?.g4?.binary_name || chat.g4?.binary_name;
+    const text = chat.events.find(item => item.type === 'user_message')?.payload?.text;
+    const value = binary || (text ? String(text).split('\n')[0].slice(0, 60) : '');
+    if (value) chat.title = String(value).slice(0, 120);
+    else if (chat.jobId) chat.title = '修复记录 ' + String(chat.jobId).slice(-8);
+  };
+  for (const [id, chat] of engine.chats) {
+    inferTitle(chat);
+    if (!meaningful(chat)) engine.chats.delete(id);
+  }
+  const found = [...engine.chats.values()].find(chat => chat.id === restored.selected) ||
+    [...engine.chats.values()].at(-1);
+  selected = found || engine.create();
+  saveHistory();
+} else {
+  selected = engine.create();
+}
+if (requestedJob) {
   const target = [...engine.chats.values()].find(chat => chat.jobId === requestedJob);
-  if (target) select(target);
-});
-selected = engine.create();
-if (!requestedJob) {
+  if (target) selected = target;
+}
+if (!requestedJob && !restoredSession) {
   const text = takeDraft();
   if (text) drafts.set(selected.id, {text, attachment: '', file: null, cases: []});
 }
+if (selected?.jobId) void engine.activate?.(selected);
+window.addEventListener('beforeunload', saveHistory);
 const media = matchMedia('(max-width: 720px)');
 fetch('/api/assistant/key', {credentials: 'same-origin', cache: 'no-store'})
   .then(response => response.ok ? response.json() : null)
@@ -200,6 +265,72 @@ function preference(key, value) {
   nodes.language.focus();
 }
 
+function openConversationMenu(chat, anchor) {
+  document.querySelector('.conversation-popover')?.remove();
+  let closed = false;
+  let closeTimer = 0;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    clearTimeout(closeTimer);
+    document.removeEventListener('pointerdown', outside, true);
+    document.removeEventListener('keydown', escape);
+    document.removeEventListener('mousemove', moveOutside, true);
+    anchor.removeEventListener('mouseleave', scheduleClose);
+    menu.remove();
+  };
+  const scheduleClose = () => { clearTimeout(closeTimer); closeTimer = setTimeout(close, 180); };
+  const moveOutside = event => {
+    if (anchor.contains(event.target) || menu.contains(event.target)) return;
+    scheduleClose();
+  };
+  const cancelClose = () => clearTimeout(closeTimer);
+  const outside = event => {
+    if (!menu.contains(event.target) && event.target !== anchor) close();
+  };
+  const escape = event => { if (event.key === 'Escape') close(); };
+  const action = (label, glyph, run) => control(label, () => { run(); close(); },
+    {glyph, role: 'menuitem'});
+  const menu = el('div', {class: 'conversation-popover', role: 'menu',
+    'aria-label': t('conversationMenu')},
+    el('div', {class: 'conversation-menu-title'}, displayTitle(chat, t)),
+    action(t(chat.pinned ? 'unpinChat' : 'pinChat'), 'pin', () => {
+      chat.pinned = !chat.pinned; saveHistory(); paint();
+    }),
+    action(t('renameChat'), 'edit', () => {
+      const value = window.prompt(t('renamePrompt'), displayTitle(chat, t));
+      if (!value || !value.trim()) return;
+      chat.title = value.trim().slice(0, 120);
+      chat.titleKey = null;
+      chat.titleIsCustom = true;
+      saveHistory(); paint();
+    }),
+    action(t(chat.archived ? 'unarchiveChat' : 'archiveChat'), 'tasks', () => {
+      chat.archived = !chat.archived; saveHistory(); paint();
+    }),
+    action(t('deleteChat'), 'x', () => {
+      if (!window.confirm(t('deleteChatConfirm'))) return;
+      engine.chats.delete(chat.id);
+      if (selected === chat) select(engine.create());
+      saveHistory(); paint();
+    }));
+  document.body.append(menu);
+  const rect = anchor.getBoundingClientRect();
+  const left = Math.max(8, Math.min(window.innerWidth - menu.offsetWidth - 8,
+    rect.right - menu.offsetWidth));
+  const top = Math.min(window.innerHeight - menu.offsetHeight - 8, rect.bottom + 5);
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+  requestAnimationFrame(() => menu.classList.add('open'));
+  menu.addEventListener('mouseenter', cancelClose);
+  menu.addEventListener('mouseleave', scheduleClose);
+  anchor.addEventListener('mouseleave', scheduleClose);
+  document.addEventListener('mousemove', moveOutside, true);
+  document.addEventListener('pointerdown', outside, true);
+  document.addEventListener('keydown', escape);
+  menu.querySelector('[role="menuitem"]')?.focus({preventScroll: true});
+}
+
 function mount() {
   root.lang = locale;
   document.title = 'BinaryRepair · ' + t('conversation');
@@ -253,15 +384,16 @@ function mount() {
     {glyph: 'file', tone: 'sample hero-cases'});
   const hero = el('section', {class: 'empty-chat'},
     appMark('hero-mark'), el('h2', {}, t('empty')),
-    el('div', {class: 'hero-actions'}, heroAttach, heroCases,
-      engine.sendFixture
-        ? control(t('useFixture'), () => engine.sendFixture(selected, locale),
-          {glyph: 'arrow', tone: 'sample', title: t('fixtureHelp')})
-        : control(t('sample'), () => send(t('samplePrompt')), {glyph: 'arrow', tone: 'sample'})),
+    el('div', {class: 'hero-actions'}, heroAttach, heroCases),
     fileDropZone({label: t('binaryDrop'), hint: t('binaryDropHint'), accept: '.elf,.bin',
       multiple: false, onFiles: files => {
         if (files[0] && engine.probeBinary) engine.probeBinary(selected, files[0], locale);
-      }}));
+      }}),
+    engine.sendFixture ? el('aside', {class: 'fixture-demo'},
+      el('strong', {}, t('fixtureDemoTitle')),
+      el('p', {}, t('fixtureDemoNote')),
+      control(t('useFixture'), () => engine.sendFixture(selected, locale),
+        {glyph: 'arrow', tone: 'sample', title: t('fixtureHelp')})) : null);
   const log = el('div', {class: 'transcript', role: 'log', 'aria-live': 'off', 'aria-label': t('chats')});
   const scroll = el('div', {class: 'chat-scroll', tabindex: '0', onscroll: () => {
     if (nodes) { if (atEnd()) hideLatest(); else showLatest(); }
@@ -292,7 +424,7 @@ function mount() {
     if (picked) input.focus({preventScroll: true});
   }});
   const casesInput = el('input', {type: 'file', hidden: true, multiple: true,
-    accept: '.json,.txt,.case,.csv', onchange: () => {
+    accept: '.json', onchange: () => {
       const picked = [...casesInput.files];
       setDraft({cases: picked});
       casesInput.value = '';
@@ -393,7 +525,8 @@ function paint() {
   const trace = nodes.execution.scroll;
   const stickTrace = selectionChanged || trace.scrollHeight - trace.scrollTop - trace.clientHeight < 60;
   selectionChanged = false;
-  navStamp = paintSidebar({chats: engine.chats, selected, lists: [nodes.list, nodes.mobileList], navStamp, t, select});
+  navStamp = paintSidebar({chats: engine.chats, selected, lists: [nodes.list, nodes.mobileList], navStamp, t, select,
+    actions: {menu: openConversationMenu}});
   nodes.title.textContent = displayTitle(selected, t);
   const mode = selected.assistantMode || assistantMode;
   nodes.modeBadge.dataset.mode = mode;
@@ -403,10 +536,16 @@ function paint() {
   nodes.hero.hidden = selected.events.length > 0;
   const beforeRun = selected.live ? !selected.execution?.run_id : selected.kind !== 'repair';
   nodes.workspace.classList.toggle('before-run', beforeRun);
-  if (nodes.workspace.dataset.chat !== selected.id || !beforeRun) {
-    nodes.workspace.classList.remove('inspect-before-run');
-    nodes.execution.inspect.setAttribute('aria-expanded', 'false');
+  // Entering a different chat or run state resets the split: the pre-run pane
+  // starts compact until "详情" is pressed, a running/finished pane starts with
+  // its details open and the same button collapses it.
+  const paneMode = beforeRun ? 'before' : 'run';
+  if (nodes.workspace.dataset.chat !== selected.id || nodes.workspace.dataset.paneMode !== paneMode) {
     nodes.workspace.dataset.chat = selected.id;
+    nodes.workspace.dataset.paneMode = paneMode;
+    nodes.workspace.classList.remove('inspect-before-run');
+    nodes.workspace.classList.remove('execution-compact');
+    nodes.execution.inspect.setAttribute('aria-expanded', beforeRun ? 'false' : 'true');
   }
   if (!projections.has(selected.id)) projections.set(selected.id, transcript());
   const items = [...projections.get(selected.id).apply(selected.events)];
@@ -451,6 +590,16 @@ function paint() {
   paintComposer();
 }
 
+window.addEventListener('binaryrepair:assistant-focus', event => {
+  const chat = engine.chats.get(event.detail?.chatId);
+  if (!chat) return;
+  select(chat);
+  jump();
+  nodes.input.focus({preventScroll: true});
+});
+
+window.addEventListener('binaryrepair:new-chat', () => newChat());
+
 media.addEventListener('change', () => {
   if (!media.matches && nodes.navDialog.open) nodes.navDialog.close();
 });
@@ -470,3 +619,4 @@ setInterval(() => {
 }, 250);
 
 mount();
+mountPet();

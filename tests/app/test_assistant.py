@@ -211,6 +211,56 @@ def test_model_cannot_quote_an_unpersisted_verdict() -> None:
     assert SUCCESS not in envelope["reply"]
 
 
+def test_model_cannot_claim_a_different_verdict_when_one_is_persisted() -> None:
+    def fake(messages: Any) -> Any:
+        return json.dumps({"reply": f"验证完成：{SUCCESS}", "actions": []})
+
+    envelope = assistant.respond(
+        {"id": "tsk_1", "verdict": {"verdict": "rejected"}},
+        [],
+        "结果",
+        client=fake,
+        context_extra={"verdict_detail": {"verdict": "rejected", "criteria": []}},
+    )
+    assert envelope["mode"] == assistant.MODE_DETERMINISTIC
+    assert envelope["fallback_code"] == "assistant_fallback"
+    assert SUCCESS not in envelope["reply"]
+
+
+def test_model_may_quote_the_persisted_verdict_and_not_run() -> None:
+    def fake(messages: Any) -> Any:
+        return json.dumps({"reply": "结论是 rejected；V4 是 not_run。", "actions": []})
+
+    envelope = assistant.respond(
+        {"id": "tsk_1", "verdict": {"verdict": "rejected"}}, [], "结果", client=fake
+    )
+    assert envelope["mode"] == assistant.MODE_LLM
+    assert envelope["reply"] == "结论是 rejected；V4 是 not_run。"
+
+
+def test_how_to_pass_does_not_claim_a_failed_criterion_passed() -> None:
+    extra = {
+        "verdict_detail": {
+            "verdict": "rejected",
+            "criteria": [
+                {"id": "V0-identity", "required": True, "status": "pass"},
+                {"id": "V1-structure", "required": True, "status": "fail"},
+                {"id": "V2-relocations", "required": True, "status": "pass"},
+                {"id": "V3-segments", "required": True, "status": "pass"},
+                {"id": "V4-boundary", "required": True, "status": "not_run"},
+            ],
+        }
+    }
+    envelope = assistant.respond(
+        {"id": "tsk_1"}, [], "怎样通过验收", locale="zh-Hans", context_extra=extra
+    )
+    assert envelope["mode"] == assistant.MODE_DETERMINISTIC
+    assert "V1-structure：候选 ELF" in envelope["reply"]
+    assert "V1-structure 当前已通过" not in envelope["reply"]
+    assert "V1/V2/V3 当前已通过" not in envelope["reply"]
+    assert "V2-relocations" in envelope["reply"] and "V3-segments" in envelope["reply"]
+
+
 def test_key_present_without_client_is_declared_not_wired() -> None:
     envelope = assistant.respond({}, [], "你好", key_present=True)
     assert envelope["mode"] == assistant.MODE_LLM_NOT_WIRED
@@ -368,3 +418,40 @@ def test_assistant_endpoint_rejects_an_unknown_model(client: TestClient) -> None
                            json={"message": "hi", "model": "some-model"})
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "invalid_model"
+
+
+def test_rejected_verdict_fallback_is_grounded_in_criteria() -> None:
+    extra = {
+        "verdict_detail": {
+            "verdict": "rejected",
+            "criteria": [
+                {"id": "V0-identity", "required": True, "status": "fail"},
+                {"id": "V4-boundary", "required": True, "status": "not_run"},
+            ],
+            "limitations": ["V0-identity fail: candidate_matches_observations"],
+            "candidate_sha256": "c" * 64,
+        }
+    }
+    envelope = assistant.respond(
+        {"id": "tsk_1"}, [], "为什么 rejected", locale="zh-Hans", context_extra=extra
+    )
+    assert envelope["mode"] == assistant.MODE_DETERMINISTIC
+    assert "V0-identity" in envelope["reply"]
+    assert "V4-boundary" in envelope["reply"]
+    assert "candidate_matches_observations" in envelope["reply"]
+
+
+def test_grounded_model_context_is_compact_and_persisted() -> None:
+    extra = {"verdict_detail": {"verdict": "rejected", "criteria": []}}
+    seen: list[Any] = []
+
+    def fake(messages: Any) -> Any:
+        seen.append(messages)
+        return json.dumps({"reply": "V0-identity 是失败项。", "actions": []})
+
+    envelope = assistant.respond(
+        {"id": "tsk_1"}, [], "为什么 rejected", locale="zh-Hans",
+        client=fake, context_extra=extra,
+    )
+    assert envelope["mode"] == assistant.MODE_LLM
+    assert "verdict_detail" in seen[0][1]["content"]

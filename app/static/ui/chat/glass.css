@@ -119,10 +119,15 @@
   .inspect-before-run-button { display: none; }
   .source-actions [aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
   @media (min-width: 1081px) {
+    /* The "详情" button resizes the split in every state: the pre-run pane
+       starts compact, a running/finished pane starts with details open. */
+    .inspect-before-run-button { display: inline-flex; }
     .workspace.before-run:not(.inspect-before-run) { grid-template-columns: minmax(0, 1fr) minmax(15rem, 22%); }
     .before-run:not(.inspect-before-run) .execution-pane { align-self: start; }
     .before-run:not(.inspect-before-run) .execution-scroll { display: none; }
-    .before-run .inspect-before-run-button { display: inline-flex; }
+    .workspace.execution-compact { grid-template-columns: minmax(0, 1fr) minmax(15rem, 22%); }
+    .workspace.execution-compact .execution-pane { align-self: start; }
+    .workspace.execution-compact .execution-scroll { display: none; }
   }
   @media (max-width: 1080px) {
     .workspace { grid-template-columns: minmax(0, 1fr); }
@@ -153,9 +158,9 @@
     --ld-glass-3: #e2e7f8;
     --ld-glass-4: #191e39;
     --ld-glass-5: #505776;
-    --ld-glass-6: #4d48a4;
-    --ld-glass-7: #5047a9;
-    --ld-glass-8: #e3e4fb;
+    --ld-glass-6: #4d6bfe;
+    --ld-glass-7: #4d6bfe;
+    --ld-glass-8: #e9edff;
     --ld-glass-9: rgba(60,74,125,.25);
     --ld-glass-10: #f0f2fc;
     --ld-glass-11: rgba(248,250,255,.69);
@@ -173,9 +178,9 @@
     --ld-glass-3: #16192a;
     --ld-glass-4: #f3f4ff;
     --ld-glass-5: #b7bedc;
-    --ld-glass-6: #bfc1ff;
-    --ld-glass-7: #bfbdff;
-    --ld-glass-8: #363861;
+    --ld-glass-6: #e39a7a;
+    --ld-glass-7: #d97757;
+    --ld-glass-8: #3a251f;
     --ld-glass-9: rgba(232,234,255,.18);
     --ld-glass-10: #1b1e32;
     --ld-glass-11: rgba(225,229,255,.09);
@@ -194,9 +199,9 @@
     --ld-glass-3: #16192a;
     --ld-glass-4: #f3f4ff;
     --ld-glass-5: #b7bedc;
-    --ld-glass-6: #bfc1ff;
-    --ld-glass-7: #bfbdff;
-    --ld-glass-8: #363861;
+    --ld-glass-6: #e39a7a;
+    --ld-glass-7: #d97757;
+    --ld-glass-8: #3a251f;
     --ld-glass-9: rgba(232,234,255,.18);
     --ld-glass-10: #1b1e32;
     --ld-glass-11: rgba(225,229,255,.09);

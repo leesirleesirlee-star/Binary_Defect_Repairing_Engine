@@ -13,6 +13,7 @@ import inspect
 import json
 import os
 import secrets
+import shutil
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -151,9 +152,70 @@ def session() -> JSONResponse:
     return response
 
 
+_IS_WINDOWS = os.name == "nt"
+
+
+def _process_alive_windows(pid: int) -> bool:
+    """Probe a Windows process without signalling it.
+
+    ``os.kill(pid, 0)`` is not a probe on Windows: CPython maps every signal
+    except CTRL_C_EVENT/CTRL_BREAK_EVENT to TerminateProcess, so the previous
+    implementation killed the very repair runner it was inspecting.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    process_query_limited_information = 0x1000
+    still_active = 259
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    open_process = kernel32.OpenProcess
+    open_process.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    open_process.restype = wintypes.HANDLE
+    get_exit_code = kernel32.GetExitCodeProcess
+    get_exit_code.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+    get_exit_code.restype = wintypes.BOOL
+    close_handle = kernel32.CloseHandle
+    close_handle.argtypes = (wintypes.HANDLE,)
+    close_handle.restype = wintypes.BOOL
+    handle = open_process(process_query_limited_information, False, pid)
+    if not handle:
+        return False
+    try:
+        code = wintypes.DWORD()
+        if not get_exit_code(handle, ctypes.byref(code)):
+            return False
+        return code.value == still_active
+    finally:
+        close_handle(handle)
+
+
+def _process_alive(pid: Any) -> bool:
+    """Return whether ``pid`` is a live process, without signalling it."""
+    try:
+        value = int(pid)
+        if value <= 0:
+            return False
+        if _IS_WINDOWS:
+            return _process_alive_windows(value)
+        os.kill(value, 0)
+        return True
+    except (OSError, OverflowError, TypeError, ValueError):
+        return False
+
+
 @router.get("/tasks", dependencies=[Depends(require_session)])
 def list_tasks(limit: int = 50) -> dict[str, Any]:
-    return {"tasks": tasks.list_tasks(limit)}
+    rows = tasks.list_tasks(limit)
+    for task in rows:
+        live = task.get("live_audit")
+        if isinstance(live, dict) and live.get("status") == "running" \
+                and not live_audit.is_active(task["id"]):
+            task["live_audit"] = {**live, "status": "stale"}
+        execution = task.get("execution")
+        if isinstance(execution, dict) and execution.get("status") == "running" \
+                and not _process_alive(execution.get("pid")):
+            task["execution"] = {**execution, "status": "stale", "terminal": True}
+    return {"tasks": rows}
 
 
 @router.post(
@@ -298,13 +360,53 @@ def get_task(task_id: str) -> dict[str, Any]:
     return task
 
 
+@router.delete(
+    "/tasks/{task_id}",
+    dependencies=[Depends(require_session), Depends(require_csrf)],
+)
+def delete_task(task_id: str) -> dict[str, Any]:
+    """Delete one task snapshot and every journal/artifact derived from it."""
+    _task(task_id)
+    try:
+        tasks.delete(task_id)
+    except tasks.TaskNotFound as error:
+        raise _error(404, "task_not_found") from error
+    base = _BASE / "var"
+    for path in (
+        base / "events" / f"{task_id}.jsonl",
+        base / "artifacts" / task_id,
+        base / "uploads" / task_id,
+        base / "audit" / task_id,
+    ):
+        if path.is_dir():
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+    return {"deleted": task_id}
+
+
 @router.get("/tasks/{task_id}/audit", dependencies=[Depends(require_session)])
 def live_audit_state(task_id: str) -> dict[str, Any]:
     task = _task(task_id)
+    live = task.get("live_audit") or live_audit.empty_state()
+    # Re-evaluate persisted runs against the current edit budget so a policy
+    # fix (for example allowing guard_stub) applies without rerunning the model.
+    runs = live.get("runs") if isinstance(live, dict) else None
+    if isinstance(runs, list):
+        live = {**live, "runs": [
+            {**run,
+             "selectable": live_audit._plan_selectability(task, run.get("plan"))[0],
+             "select_reason": live_audit._plan_selectability(task, run.get("plan"))[1]}
+            if isinstance(run, dict) else run
+            for run in runs
+        ]}
     return {
         "audit_mode": task.get("audit_mode") or "signed",
         "live_guest": bool(task.get("live_guest")),
-        "live_audit": task.get("live_audit") or live_audit.empty_state(),
+        "live_audit": live,
         "selected_plan": task.get("selected_plan"),
         "guest_available": live_audit.GUEST_AVAILABLE,
     }
@@ -729,6 +831,125 @@ def export_task(task_id: str) -> dict[str, Any]:
     }
 
 
+def _safe_task_json(relative: Any) -> dict[str, Any] | None:
+    if not isinstance(relative, str) or not relative:
+        return None
+    path = (_BASE / relative).resolve()
+    root = _BASE.resolve()
+    if root not in path.parents or not path.is_file():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _assistant_grounding(
+    task_id: str, task: dict[str, Any], records: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Persisted, display-only evidence for grounded repair answers.
+
+    This never exposes source, the hidden corpus, keys or provider diagnostics.
+    """
+    extra: dict[str, Any] = {}
+    verdict = _read_task_file(task_id, "verdict.json")
+    if verdict is not None:
+        extra["verdict_detail"] = verdict
+    manifest = _read_task_file(task_id, "edit-manifest.json")
+    if manifest is not None:
+        patch = manifest.get("patch_site")
+        patch = patch if isinstance(patch, dict) else {}
+        cave = manifest.get("cave")
+        cave = cave if isinstance(cave, dict) else {}
+        trampoline = manifest.get("trampoline")
+        trampoline = trampoline if isinstance(trampoline, dict) else {}
+        extra["edit_manifest"] = {
+            "patch_site": patch,
+            "cave": cave,
+            "trampoline": {key: trampoline.get(key) for key in
+                           ("entry_vaddr", "code_size", "message_size", "total_size",
+                            "blob_sha256", "strcpy_plt_vaddr")},
+            "edits": [
+                {key: item.get(key) for key in
+                 ("name", "vaddr", "file_offset", "size", "purpose")}
+                for item in (manifest.get("edits") or []) if isinstance(item, dict)
+            ],
+            "invariants": manifest.get("invariants"),
+        }
+    selected = task.get("selected_plan")
+    selected = selected if isinstance(selected, dict) else {}
+    plan_path = selected.get("path") or task.get("plan")
+    plan = _safe_task_json(plan_path)
+    if plan is not None:
+        extra["repair_plan"] = {
+            "plan_id": plan.get("plan_id"),
+            "strategy": plan.get("strategy"),
+            "fixture_id": plan.get("fixture_id"),
+            "diagnosis": plan.get("diagnosis"),
+            "root_cause": plan.get("root_cause"),
+            "invalid_path": plan.get("invalid_path"),
+            "assumptions": plan.get("assumptions"),
+            "stated_criteria_coverage": plan.get("stated_criteria_coverage"),
+            "edits": [
+                {key: item.get(key) for key in
+                 ("kind", "address", "target", "size", "reason", "new_bytes", "original_bytes")}
+                for item in (plan.get("edits") or []) if isinstance(item, dict)
+            ],
+        }
+    finding = _read_task_file(task_id, "finding.json")
+    if finding is not None:
+        extra["analysis_finding"] = finding
+    contract = task.get("contract")
+    contract = contract if isinstance(contract, dict) else None
+    if contract is not None:
+        extra["contract"] = {key: contract.get(key) for key in
+                             ("binary_sha256", "capacity_bytes", "max_valid_input_bytes",
+                              "capacity_includes_terminator", "invalid_stderr", "fixture_id")}
+    recent: list[dict[str, Any]] = []
+    for record in records[-160:]:
+        if not isinstance(record, dict):
+            continue
+        kind = record.get("type")
+        if kind not in {"error", "run_state", "run_end", "verification", "command",
+                        "file_change", "plan_update", "audit_runs", "corpus_update"}:
+            continue
+        payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
+        if kind == "audit_runs":
+            payload = {"runs": [
+                {key: run.get(key) for key in
+                 ("run_index", "score", "schema_valid", "selectable", "select_reason")}
+                for run in (payload.get("runs") or []) if isinstance(run, dict)
+            ]}
+        elif kind == "plan_update":
+            payload = {"steps": [
+                {key: step.get(key) for key in ("step_id", "status")}
+                for step in (payload.get("steps") or []) if isinstance(step, dict)
+            ]}
+        elif kind == "file_change":
+            payload = {"stage": payload.get("stage"), "files": [
+                {key: item.get(key) for key in ("display_path", "sha256")}
+                for item in (payload.get("files") or []) if isinstance(item, dict)
+            ]}
+        text = json.dumps(payload, ensure_ascii=False)
+        if len(text) > 1800:
+            payload = {"truncated": text[:1800]}
+        recent.append({"seq": record.get("seq"), "type": kind,
+                       "step_id": record.get("step_id"), "payload": payload})
+    extra["journal"] = recent
+    try:
+        directory = _artifact_dir(task_id)
+        extra["artifacts"] = [
+            {"name": path.name, "sha256": sha256(path.read_bytes()).hexdigest()}
+            for path in sorted(directory.iterdir()) if path.is_file()
+        ] if directory.is_dir() else []
+    except OSError:
+        extra["artifacts"] = []
+    extra["guest"] = {"guest_available": live_audit.GUEST_AVAILABLE,
+                      "live_guest": bool(task.get("live_guest"))}
+    return extra
+
+
 @router.post(
     "/tasks/{task_id}/assistant",
     dependencies=[Depends(require_session), Depends(require_csrf)],
@@ -768,8 +989,10 @@ def assistant_turn(task_id: str, body: Annotated[dict[str, Any], Body()]) -> dic
                 client = partial(client, model=requested_model)
         except (TypeError, ValueError):
             pass
+    extra = _assistant_grounding(task_id, task, records)
     response = assistant.respond(
-        task, records, message, locale=locale, client=client, artifacts=artifacts
+        task, records, message, locale=locale, client=client, artifacts=artifacts,
+        context_extra=extra,
     )
     response["requested_model"] = requested_model
     return response

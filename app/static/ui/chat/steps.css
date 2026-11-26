@@ -26,7 +26,11 @@
   }
   .milestone-dot svg { visibility: hidden; }
   li[data-state="completed"] > .milestone-dot { color: var(--accent); background: var(--accent-soft); }
-  li[data-state="completed"] > .milestone-dot svg { visibility: visible; }
+  li[data-state="completed"] > .milestone-dot svg,
+  li[data-state="failed"] > .milestone-dot svg { visibility: visible; }
+  li[data-state="failed"] > .milestone-dot {
+    color: var(--error); background: color-mix(in srgb, var(--error) 14%, var(--surface));
+  }
   .repair-progress li[aria-current="step"] { font-weight: 650; color: var(--accent); }
   .repair-progress li[aria-current="step"] .milestone-dot {
     background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
