@@ -1,4 +1,4 @@
-import {extraCopy} from './chat-copy-extra.mjs?v=20261126b';
+import {extraCopy} from './chat-copy-extra.mjs?v=20261128c';
 
 const copy = {
   skip: ['Skip to conversation', '跳转到对话'], new: ['New chat', '新建对话'],
@@ -54,7 +54,7 @@ const copy = {
   keyPassed: ["Connection works.", "连接成功。"],
   keyAliasSuffix: [" (provider-returned model)", "（服务实际返回）"],
   chooseAuditMode: ["Choose a repair path first: AI live audit (calls the model, a few minutes) or signed G2 replay (no model call).", "请先选择修复方式：AI 现场审计（调用模型，约数分钟）或回放已签 G2（不调用模型）。"],
-  livePlanFirst: ["Choose the fresh plan card from the live AI audit above.", "AI 现场审计已启动；请在上方审计卡选择现场方案。"],
+  livePlanFirst: ["AI live audit is active; choose its fresh plan card above, not the signed replay plans.", "AI 现场审计已启动；请在上方审计卡选择现场方案，不要选择签名回放方案。"],
   previewFile: ["Preview file", "预览文件"],
   previewUnavailable: ["Preview unavailable.", "无法预览内容。"],
   binaryPreview: ["hex preview of the uploaded binary (first 256 bytes)", "上传二进制的前 256 字节十六进制预览"],
@@ -68,13 +68,12 @@ const copy = {
   liveReasonFixture: ["Plan targets a different fixture", "方案对应的 fixture 不一致"],
   liveReasonContract: ["Plan targets a different contract", "方案对应的 contract 不一致"],
   liveReasonPlan: ["Plan is outside the frozen edit budget", "方案超出冻结编辑预算"],
-  allPlansUnavailable: ['All generated plans are unselectable; repair has been marked failed. Review the reasons above and retry the AI audit.', '所有方案均无法选择，修复已判定失败。请查看上方原因后重新运行 AI 审计。'],
+  allPlansUnavailable: ['All generated plans are unselectable. Review the reasons above and either retry the AI audit or continue with the signed G2 replay.', '所有方案均无法选择。请查看上方原因后重试 AI 审计，或继续使用回放已签 G2。'],
   assistantActionNote: ['Rerun restarts the live audit; Evidence opens the archived evidence; Change scope starts a new repair conversation.', '重跑会重新启动 AI 现场审计；证据会打开归档证据；修改范围会新建修复对话。'],
   askWhyRejected: ['Why was it rejected?', '为什么结论是 rejected？'],
   askWhatChanged: ['What exactly did the patch change?', '补丁具体改了什么？'],
   askHowToPass: ['What is needed to pass verification?', '怎样才能通过验收？'],
   askEvidence: ['Where are the evidence and logs?', '证据和日志分别在哪里？'],
-  liveAuditOnlyPath: ["There is one plan-generation path: the live AI audit. The signed replay is no longer offered for repair.", "方案生成的唯一路径是 AI 现场审计；回放已签 G2 不再作为可修复入口。"],
   liveAuditStarted: ["Live audit started. The first model call usually takes 1–2 minutes; the run count updates as each attempt finishes.", "现场审计已启动；首次模型调用通常需要 1–2 分钟，每完成一个 run 就会更新进度。"],
   signedReplayPlanNote: ["Signed G2 replay: no model call; the signed plan is applied directly.", "回放已签 G2：不调用模型，直接应用已签名计划。"],
   binaryDrop: ["Drop the vulnerable binary here", "拖拽二进制漏洞文件到这里"],
@@ -171,7 +170,7 @@ const copy = {
   assistantModeLlm: ['AI assistant · llm', 'AI 助手 · llm'],
   assistantModeDeterministic: ['Deterministic fallback', '确定性回退'],
   assistantModeNotWired: ['AI not wired', 'AI 未接线'],
-  liveAuditTitle: ["Live AI audit", "AI 现场审计"],
+  liveAuditTitle: ['AI live audit / signed replay', 'AI 现场审计 / 回放已签 G2'],
   liveAuditSigned: ['Replay signed G2', '回放已签 G2'],
   liveAuditLive: ['AI live audit', 'AI 现场审计'],
   liveAuditSignedNote: ['Signed G2 replay is the default and remains the acceptance path. Live audit is additive evidence.', '回放已签 G2 是默认与验收路径；现场审计是附加证据。'],
@@ -185,7 +184,7 @@ const copy = {
   liveGuestRequired: ["This live plan needs the WSL2 live-guest check for an accepted verdict; this host cannot run it, so verification will be rejected.", "现场方案需要 WSL2 现场 guest 才能通过验收；当前主机无法运行，直接启动会得到拒绝结论。"],
   liveGuestUnavailable: ["Live guest verification needs WSL2; disabled on this host.", "现场 guest 验证需要 WSL2；当前主机不可用，已禁用。"],
   liveAuditGuest: ['Live guest verification', '现场 guest 验证'],
-  liveAuditFallback: ['Live audit failed; no repair plan was generated. Retry the audit.', 'AI 现场审计失败；没有生成可修复方案。请重试。'],
+  liveAuditFallback: ['Live audit unavailable; the signed G2 replay remains available with an honest badge.', '现场审计不可用；仍可使用回放已签 G2，状态会如实标记。'],
   routeStepBind: ['Bind signed G2 decision', '绑定已签 G2 决策'],
   routeStepRun: ['Repair & verify under the contract', '按契约修复与验证'],
   routeStepEvidence: ['Persist verdict & evidence', '写结论与证据'],
