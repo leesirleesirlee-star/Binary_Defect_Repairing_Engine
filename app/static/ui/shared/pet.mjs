@@ -96,6 +96,9 @@ const CRAB = {
   gutter: 1,
   sheets: CRAB_SHEETS,
   extras: ['idle-look', 'idle-wave', 'idle-laptop'],
+  // Used while the assistant answer is typed out: the crab takes out its
+  // laptop instead of the generic keyboard "typing" clip.
+  typingClip: 'idle-laptop',
   preloadAll: true,
   status: new Map(),
   assetUrls(key) {
@@ -115,6 +118,7 @@ const DEEPY = {
   gutter: 1,
   sheets: DEEPY_SHEETS,
   extras: ['idle-look', 'idle-spout'],
+  typingClip: 'typing',
   preloadAll: false,
   status: new Map(),
   assetUrls(key) {
@@ -128,6 +132,11 @@ const DEEPY = {
 
 const MASCOTS = {crab: CRAB, deepy: DEEPY};
 let mascot = CRAB;
+// The answer typewriter asks the pet to hold its "writing" clip while text is
+// being revealed. It outranks the attention/happy moment left over from the
+// finished run, but still yields to error/waiting/compaction signals.
+const WRITING_PRIORITY = 5.5;
+let writerActive = false;
 
 /** The mascot the resolved theme asks for: dark → crab, light → Deepy. */
 function resolvedMascot() {
@@ -251,6 +260,16 @@ function decideStage(stage, now, level, around) {
   if (stage.reaction !== null) {
     return {key: stage.reaction.key, mode: stage.reaction.mode, priority: REACTION_PRIORITY};
   }
+  if (writerActive) {
+    const held = stage.moment;
+    if (held === null || held.priority < WRITING_PRIORITY) {
+      stage.asleep = false;
+      stage.waking = false;
+      stage.extra = null;
+      stage.quietSince = now;
+      return {key: around.typingClip, mode: 'loop', priority: WRITING_PRIORITY};
+    }
+  }
   const held = stage.moment;
   const pick = held !== null && held.priority >= level.priority ? held : level;
   if (pick.state !== 'idle') {
@@ -313,6 +332,7 @@ const statusCopy = {
   zh: {
     thinking: '正在思考…',
     typing: '正在写回答…',
+    'idle-laptop': '正在写回答…',
     music: '正在运行工具…',
     building: '正在并行处理…',
     conducting: '正在并行修复…',
@@ -326,6 +346,7 @@ const statusCopy = {
   en: {
     thinking: 'Thinking…',
     typing: 'Writing…',
+    'idle-laptop': 'Writing…',
     music: 'Running tools…',
     building: 'Working in parallel…',
     conducting: 'Directing both routes…',
@@ -618,6 +639,7 @@ function step() {
     extras: mascot.extras,
     extrasAllowed: !motionReduced() && !document.hidden,
     random: Math.random,
+    typingClip: mascot.typingClip,
   });
   const switching = stage.current === null || next.key !== stage.current.key ||
     (stage.reaction !== null && stage.reaction.fresh);
@@ -857,6 +879,14 @@ function setState(name) {
   }
 }
 
+/** Hold the mascot in its writing clip while the answer typewriter runs. */
+function setWriting(active) {
+  const next = Boolean(active);
+  if (writerActive === next) return;
+  writerActive = next;
+  if (mounted) step();
+}
+
 /** Kept from the old companion: a short lived status note in the chat strip. */
 function speak(text, duration = 4200) {
   if (typeof text !== 'string' || text === '') return;
@@ -957,7 +987,10 @@ export function mountPet() {
   stage.level = levelOf({...signals, routes: effectiveRoutes()});
   sheetsAlive = true;
   if (mascot.preloadAll) for (const key of Object.keys(mascot.sheets)) loadSheet(key);
-  else loadSheet('idle');
+  else {
+    loadSheet('idle');
+    loadSheet(mascot.typingClip);
+  }
   if (root === null) root = build();
   sync();
   watchRouteLanes();
@@ -994,6 +1027,7 @@ export function mountPet() {
     mount: mountPet,
     setState,
     signal: setSignals,
+    setWriting,
     speak,
     hearts: () => {},
     __debug: {
@@ -1004,6 +1038,7 @@ export function mountPet() {
         current: stage.current === null ? null : {key: stage.current.key, mode: stage.current.mode},
         asleep: stage.asleep,
         waking: stage.waking,
+        writer: writerActive,
         extra: stage.extra,
         quietMs: Date.now() - stage.quietSince,
         signals: {...signals},
@@ -1059,6 +1094,7 @@ function stop() {
   archiveProbe = null;
   for (const off of stopHooks.splice(0)) off();
   release();
+  writerActive = false;
   root = null;
   sprite = null;
   strip = null;

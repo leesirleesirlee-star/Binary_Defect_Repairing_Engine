@@ -836,10 +836,25 @@ p.activity-row { display: flex; gap: .4rem; align-items: center; color: var(--mu
 .markdown-body .md-list { margin: .35rem 0 .5rem; padding-inline-start: 1.1rem; }
 .markdown-body .md-list li { margin: .22rem 0; }
 .markdown-body .md-list li::marker { color: var(--accent); }
+/* Inline code reads as a warm (dark) / brand-tinted (light) token, matching
+   the reference console instead of inheriting the white message text. */
 .markdown-body code {
-  border: 1px solid var(--line); border-radius: .3rem; padding: .02rem .28rem;
-  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  border-radius: .34rem; padding: .02rem .3rem;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   font: .76em ui-monospace, monospace;
+}
+.assistant-reply.is-typing .markdown-body::after {
+  content: '▌'; margin-inline-start: .1rem; color: var(--accent);
+  animation: typing-caret 900ms steps(1) infinite;
+}
+@keyframes typing-caret {
+  0%, 49.99% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .assistant-reply.is-typing .markdown-body::after { animation: none; }
 }
 .assistant-actions .control.assistant-chip {
   border: 1px solid var(--line); border-radius: 999px; padding: .14rem .62rem;
